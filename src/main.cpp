@@ -1,4 +1,4 @@
-#include "particle/particle.hpp"
+#include "particles/particles.hpp"
 
 #include <iostream>
 
