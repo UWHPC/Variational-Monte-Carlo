@@ -4,6 +4,7 @@
 
 #include "config/config.hpp"
 #include "particles/particles.hpp"
+#include "pbc/pbc.hpp"
 
 #if defined(__GNUC__) || defined(__clang__)
     #define RESTRICT __restrict__
