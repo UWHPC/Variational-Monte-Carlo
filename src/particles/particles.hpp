@@ -5,7 +5,7 @@
 
 class Particles {
 private:
-    std::size_t static constexpr numVectorComponents{8}; // Number of components
+    static constexpr std::size_t numVectorComponents{8}; // Number of components
 
     std::size_t numParticles_;                           // Number of particles 
     std::unique_ptr<double[]> memoryBlock_;              // Memory block size
