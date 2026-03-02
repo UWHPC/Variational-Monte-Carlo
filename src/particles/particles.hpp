@@ -1,20 +1,34 @@
 #pragma once
 
+#include "../memory/memory.hpp"
+
 #include <cstdlib>
 #include <memory>
+#include <cstring>
 
 class Particles {
 private:
-    static constexpr std::size_t numVectorComponents{8}; // Number of components
+    static constexpr std::size_t numVectorComponents{8};    // Number of components
 
-    std::size_t numParticles_;                           // Number of particles 
-    std::unique_ptr<double[]> memoryBlock_;              // Memory block size
+    std::size_t numParticles_;                              // Number of particles 
+    std::unique_ptr<double[], AlignedDeleter> memoryBlock_; // Memory block size
 
 public:
     explicit Particles(std::size_t numParticles)
     : numParticles_{numParticles} {
+        // Determine size of the memory block in bytes:
         std::size_t const memoryBlockSize{numVectorComponents*numParticles};
-        memoryBlock_ = std::make_unique<double[]>(memoryBlockSize);
+        std::size_t const blockSizeBytes{memoryBlockSize*sizeof(double)};
+        
+        // 64 byte alignment and allocation:
+        std::size_t const alignment{64};
+        double* ptr = static_cast<double*>(alignedAlloc(alignment, blockSizeBytes));
+
+        // Zero initialization:
+        std::memset(ptr, 0, blockSizeBytes);
+
+        // Pointer owner transfership:
+        memoryBlock_.reset(ptr);
     }
 
     // Number of Particles:

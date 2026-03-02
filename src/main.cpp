@@ -21,7 +21,7 @@ int main() {
 
     // Never use the particles.ptr() in loops
     double* RESTRICT px{electrons.posX()};
-    double const* RESTRICT px{electrons.posX()};
+    double const* RESTRICT px_const{electrons.posX()};
 
     return 0;
 }
