@@ -13,9 +13,9 @@ Simulation::Simulation(Config config) noexcept
 /// @brief Intializes Random Positions for each particle, making sure to not exceed box length
 void Simulation::initializePositions() {
   // X, Y, Z Position Blocks of Memory
-  double* RESTRICT x{particles_.posX()};
-  double* RESTRICT y{particles_.posY()};
-  double* RESTRICT z{particles_.posZ()};
+  double* RESTRICT p_x{particles_.posX()};
+  double* RESTRICT p_y{particles_.posY()};
+  double* RESTRICT p_z{particles_.posZ()};
 
   const std::size_t N{particles_.numParticles()};
   std::mt19937_64 rng_local{rng()};
@@ -23,9 +23,9 @@ void Simulation::initializePositions() {
 
   // Generate Random Starting Positions
   for (std::size_t i{}; i<N; i++) {
-    x[i] += uniform01_(rng_local) * length;
-    y[i] += uniform01_(rng_local) * length;
-    z[i] += uniform01_(rng_local) * length;
+    p_x[i] = uniform01_(rng_local) * length;
+    p_y[i] = uniform01_(rng_local) * length;
+    p_z[i] = uniform01_(rng_local) * length;
   }
 
   double slaterLogDet = slaterPlaneWave_.logAbsDet(particles_, pbc_);
@@ -52,4 +52,29 @@ bool Simulation::metropolisStep() {
     pz[i] += proposal()(rng());
 
     pbc().wrap3(*px, *py, *pz);
+}
+
+/// @brief Warmup the simulation by processing a small warmup sweep on particles
+void Simulation::warmup() {
+  const std::size_t warmupSteps{config_.warmupSteps};
+
+  for (std::size_t i{}; i < warmupSteps; i++) {
+    metropolisStep();
+  }
+
+  return;
+}
+
+
+void Simulation::measure() {
+  const std::size_t measureSteps{config_.warmupSteps};
+
+  for (std::size_t i{}; i < measureSteps; i++) {
+    metropolisStep();
+  }
+
+  slaterPlaneWave_.addDerivatives(particles_, pbc(), 0, 0, 0, 0);
+  jastrowPade_.addDerivatives(particles_, pbc(), 0, 0, 0, 0);
+
+  return;
 }

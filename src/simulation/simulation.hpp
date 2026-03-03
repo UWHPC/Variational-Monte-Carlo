@@ -37,11 +37,10 @@ public:
 
     void run();
 
-    [[nodiscard]] std::mt19937_64 rng() { return rng_; }
-
 private:
     void initializePositions();
     bool metropolisStep();
     void warmup();
     void measure();
+    
 };
