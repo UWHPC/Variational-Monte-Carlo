@@ -29,6 +29,9 @@ private:
 
 public:
     explicit Simulation(Config cfg) noexcept;
+
+    [[nodiscard]] std::mt19937_64 rng() const { return rng_; }
+
     void run();
 
     [[nodiscard]] std::mt19937_64 rng() { return rng_; }
