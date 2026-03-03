@@ -3,7 +3,10 @@
 #include <cmath>
 #include <cstddef>
 
-double JastrowPade::value(const Particles& particles, const periodicBoundaryCondition& pbc) const noexcept {
+double JastrowPade::value(
+    const Particles& particles, 
+    const PeriodicBoundaryCondition& pbc
+    ) const noexcept {
     const std::size_t N{particles.numParticles()};
 
     const double* RESTRICT p_x{particles.posX()};
@@ -25,22 +28,23 @@ double JastrowPade::value(const Particles& particles, const periodicBoundaryCond
                 dx, dy, dz
             );
             const double r_sq{dx*dx + dy*dy + dz*dz};
-            if (r_sq < 1e-24) continue; // defensive: avoid pathological coincident particles
-
             const double r{std::sqrt(r_sq)};
+
+            // Mask to get around if statement
+            const bool degenerate{r < 1e-12};
+            const double mask{degenerate ? 0.0 : 1.0};
 
             // u(r) = a*r / (1 + b*r)
             const double denom{1.0 + b_local*r};
-            jastrowPade += (a_local * r) / denom;
+            jastrowPade += mask * (a_local * r) / denom;
         }
     }
-
     return jastrowPade;
 }
 
 void JastrowPade::addDerivatives(
     const Particles& particles,
-    const periodicBoundaryCondition& pbc,
+    const PeriodicBoundaryCondition& pbc,
     double* RESTRICT gradX,
     double* RESTRICT gradY,
     double* RESTRICT gradZ,
@@ -66,10 +70,12 @@ void JastrowPade::addDerivatives(
                 dx, dy, dz
             );
             const double r_sq{dx*dx + dy*dy + dz*dz};
-            if (r_sq < 1e-24) continue; // 1/r will blow up if r2 < 1e-24.
-
             const double r{std::sqrt(r_sq)};
-            const double inv_r{1.0/r};
+
+            // Mask to get around if statement:
+            const bool degenerate{r < 1e-12};
+            const double inv_r{degenerate ? 1.0 : 1/r};
+            const double mask{degenerate ? 0.0 : 1.0};
 
             // u(r) = a*r / (1 + b*r)
             // u'(r) = a / (1 + b*r)^2
@@ -86,19 +92,19 @@ void JastrowPade::addDerivatives(
             const double fy{uprime * dy * inv_r};
             const double fz{uprime * dz * inv_r};
 
-            gradX[i] += fx;
-            gradY[i] += fy;
-            gradZ[i] += fz;
+            gradX[i] += mask * fx;
+            gradY[i] += mask * fy;
+            gradZ[i] += mask * fz;
 
-            gradX[j] -= fx;
-            gradY[j] -= fy;
-            gradZ[j] -= fz;
+            gradX[j] -= mask * fx;
+            gradY[j] -= mask * fy;
+            gradZ[j] -= mask * fz;
 
             // ∇^2 u(r) = u''(r) + (2/r) u'(r)
             const double lap_pair{usecond + 2.0*uprime*inv_r};
             
-            lap[i] += lap_pair;
-            lap[j] += lap_pair;
+            lap[i] += mask * lap_pair;
+            lap[j] += mask * lap_pair;
         }
     }
 }

@@ -2,13 +2,13 @@
 
 // TODO: add docstrings
 
-class periodicBoundaryCondition {
+class PeriodicBoundaryCondition {
 private:
     double L_{};
     double invL_{}; // avoids repeated division for min image mapping
 
 public:
-    explicit periodicBoundaryCondition(double L) noexcept;
+    explicit PeriodicBoundaryCondition(double L) noexcept;
 
     // Getters for L and invL:
     [[nodiscard]] double L() const noexcept { return L_; }
