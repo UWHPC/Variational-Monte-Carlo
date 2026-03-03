@@ -10,7 +10,7 @@
 class Particles {
 private:
     static constexpr std::size_t numVectorComponents_{8};                         // Number of components
-    static constexpr std::size_t alignmentBytes_{SIMD_BYTES};                     // 64 byte alignment
+    static constexpr std::size_t alignmentBytes_{SIMD_BYTES};                     // SIMD byte alignment
     static constexpr std::size_t doublesPerAlignment_{SIMD_BYTES/sizeof(double)}; // Ensures sub-arrays are byte aligned
 
     std::size_t numParticles_;                              // Number of particles 
@@ -21,13 +21,13 @@ public:
     explicit Particles(std::size_t numParticles)
     : numParticles_{numParticles}
     , alignmentPadding_{(numParticles_ + doublesPerAlignment_ - 1) & ~(doublesPerAlignment_ - 1)} {
-        // Round to nearest multiple of 8 - needed to ensure sub-arrays are 64 byte aligned:
+        // Round to nearest multiple of SIMD width - needed to ensure sub-arrays are byte aligned:
 
         // Determine size of the memory block in bytes:
-        std::size_t const memoryBlockSize{numVectorComponents_*alignmentPadding_};
-        std::size_t const blockSizeBytes{memoryBlockSize*sizeof(double)};
+        std::size_t const memoryBlockSize{numVectorComponents_ * alignmentPadding_};
+        std::size_t const blockSizeBytes{memoryBlockSize * sizeof(double)};
         
-        // 64 byte alignment and allocation:
+        // Proper byte alignment and allocation:
         double* ptr{static_cast<double*>(alignedAlloc(alignmentBytes_, blockSizeBytes))};
         if (!ptr) { throw std::bad_alloc(); }
 
