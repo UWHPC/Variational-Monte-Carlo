@@ -30,7 +30,10 @@ private:
 public:
     explicit Simulation(Config cfg) noexcept;
 
-    [[nodiscard]] std::mt19937_64 rng() const { return rng_; }
+    [[nodiscard]] std::mt19937_64& rng() { return rng_; }
+    [[nodiscard]] std::uniform_real_distribution<double>& proposal() { return proposal_; }
+    [[nodiscard]] std::uniform_int_distribution<std::size_t>& pickParticle() { return pickParticle_; }
+    [[nodiscard]] PeriodicBoundaryCondition pbc() { return pbc_; }
 
     void run();
 
