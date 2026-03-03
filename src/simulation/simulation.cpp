@@ -1,4 +1,7 @@
 #include "simulation.hpp"
 
-Simulation::Simulation()
-{ }
+Simulation::Simulation(Config cfg) { }
+
+bool Simulation::metropolisStep() {
+  
+}
