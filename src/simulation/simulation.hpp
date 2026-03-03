@@ -26,7 +26,7 @@ private:
     double logPsiCurrent_{0.0};
 
 public:
-    explicit Simulation(Config cfg);
+    explicit Simulation(Config cfg) noexcept;
     void run();
 
 private:

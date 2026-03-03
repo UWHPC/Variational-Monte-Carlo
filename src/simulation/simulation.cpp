@@ -11,8 +11,10 @@ Simulation::Simulation(Config config) noexcept
 , pickParticle_{0, config_.numParticles - 1}
 { }
 
-
+void Simulation::initializePositions() {
+  return;
+}
 
 bool Simulation::metropolisStep() {
-
+  return false;
 }
