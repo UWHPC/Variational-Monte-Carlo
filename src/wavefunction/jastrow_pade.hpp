@@ -1,5 +1,4 @@
 #pragma once
-
 #include "particles/particles.hpp"
 #include "pbc/pbc.hpp"
 
