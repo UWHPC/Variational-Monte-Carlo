@@ -2,8 +2,8 @@
 
 Simulation::Simulation(Config config) noexcept
 : config_{std::move(config)}
-, particles_{config.numParticles}
-, pbc_{config.boxLength}
+, particles_{config_.numParticles}
+, pbc_{config_.boxLength}
 , jastrowPade_{}
-, waveFunction_{}
+, waveFunction_{jastrowPade_}
 { }
