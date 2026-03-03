@@ -3,13 +3,13 @@
 #include <cmath>
 
 // store L and precompute invL
-periodicBoundaryCondition::periodicBoundaryCondition(double L) noexcept
+PeriodicBoundaryCondition::PeriodicBoundaryCondition(double L) noexcept
 : L_{L}
 , invL_{1.0 / L}
 { }
 
 // wrap coordinates into [0, L)
-double periodicBoundaryCondition::wrap(double x) const noexcept {
+double PeriodicBoundaryCondition::wrap(double x) const noexcept {
     double k{std::floor(x * invL())}; // floor of x / L. done this way to avoid dividing by L
     x = x - k*L();
 
@@ -22,14 +22,14 @@ double periodicBoundaryCondition::wrap(double x) const noexcept {
 }
 
 // wrap x, y, z indep
-void periodicBoundaryCondition::wrap3(double &x, double &y, double &z) const noexcept {
+void PeriodicBoundaryCondition::wrap3(double &x, double &y, double &z) const noexcept {
     x = wrap(x);
     y = wrap(y);
     z = wrap(z);
 }
 
 // apply min image mapping to displacement component
-double periodicBoundaryCondition::minImage(double dx) const noexcept {
+double PeriodicBoundaryCondition::minImage(double dx) const noexcept {
     // dx -= L * round(dx / L)
     dx -= L() * std::round(dx * invL());
 
@@ -42,7 +42,7 @@ double periodicBoundaryCondition::minImage(double dx) const noexcept {
 }
 
 // compute min image displacement vector from j to i
-void periodicBoundaryCondition::displacement(
+void PeriodicBoundaryCondition::displacement(
     double xi, double yi, double zi,
     double xj, double yj, double zj,
     double& dx, double& dy, double& dz
@@ -57,7 +57,7 @@ void periodicBoundaryCondition::displacement(
 }
 
 // compute euclidean norm of min image displacement
-double periodicBoundaryCondition::distance(
+double PeriodicBoundaryCondition::distance(
     double xi, double yi, double zi,
     double xj, double yj, double zj
     ) const noexcept {

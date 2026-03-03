@@ -13,7 +13,13 @@ public:
     : jastrowPade_{jastrowPade}
     { }
 
-    void evaluateLogPsi(Particles& particles, const periodicBoundaryCondition& pbc) const noexcept;
+    void evaluateLogPsi(
+        Particles& particles, 
+        const PeriodicBoundaryCondition& pbc
+    ) const noexcept;
 
-    void evaluateDerivatives(Particles& particles, const periodicBoundaryCondition& pbc) const noexcept;
+    void evaluateDerivatives(
+        Particles& particles, 
+        const PeriodicBoundaryCondition& pbc
+    ) const noexcept;
 };

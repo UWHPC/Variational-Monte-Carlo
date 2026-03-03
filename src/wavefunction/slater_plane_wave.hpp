@@ -13,11 +13,11 @@ private:
     // to do: cached std::vector matrices
     // to do: k-vectors
 public:
-    [[nodiscard]] double logAbsDet(const Particles& particles, const periodicBoundaryCondition& pbc);
+    [[nodiscard]] double logAbsDet(const Particles& particles, const PeriodicBoundaryCondition& pbc);
     
     void addDerivatives(
         const Particles& particles,
-        const periodicBoundaryCondition& pbc,
+        const PeriodicBoundaryCondition& pbc,
         double* gradX,
         double* gradY,
         double* gradZ,
