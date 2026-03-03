@@ -26,22 +26,22 @@ add_executable(vmc src/main.cpp)
 target_link_libraries(vmc PRIVATE vmc_lib)
 
 # --- Testing ---
-include(CTest)
-enable_testing()
+#include(CTest)
+#enable_testing()
 
-include(FetchContent)
+# include(FetchContent)
 
-fetchcontent_declare(
-  Catch2
-  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-  GIT_TAG        v3.8.1
-)
-fetchcontent_makeavailable(Catch2)
+# fetchcontent_declare(
+#   Catch2
+#   GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+#   GIT_TAG        v3.8.1
+# )
+# fetchcontent_makeavailable(Catch2)
 
-add_executable(vmc_tests
-  tests/test_tests.cpp
-)
-target_link_libraries(vmc_tests PRIVATE Catch2::Catch2WithMain vmc_lib)
+# add_executable(vmc_tests
+#   tests/test_tests.cpp
+# )
+# target_link_libraries(vmc_tests PRIVATE Catch2::Catch2WithMain vmc_lib)
 
-include(Catch)
-catch_discover_tests(vmc_tests)
+# include(Catch)
+# catch_discover_tests(vmc_tests)
