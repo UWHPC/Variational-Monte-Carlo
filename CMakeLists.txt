@@ -6,17 +6,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # --- Compiler warnings and optimizations ---
 if(MSVC)
-  add_compile_options(/W4 /permissive- /arch:AVX2)
+    add_compile_options(/W4 /permissive- /arch:AVX2)
 else()
-  add_compile_options(-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion)
+    add_compile_options(-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion)
 endif()
 
 # --- Library target for all source files ---
 add_library(vmc_lib STATIC
   src/pbc/pbc.cpp
-  src/wavefunction/jastrow_pade.cpp
+  src/jastrow_pade/jastrow_pade.cpp
   src/wavefunction/wavefunction.cpp
-  src/wavefunction/slater_plane_wave.cpp
+  src/slater_plane_wave/slater_plane_wave.cpp
   src/simulation/simulation.cpp
 )
 target_include_directories(vmc_lib PUBLIC src)
