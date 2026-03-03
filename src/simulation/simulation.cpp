@@ -12,15 +12,13 @@ Simulation::Simulation(Config config) noexcept
 
 /// @brief Intializes Random Positions for each particle, making sure to not exceed box length
 void Simulation::initializePositions() {
-    std::size_t const N{particles_.numParticles()};
-
   // X, Y, Z Position Blocks of Memory
   double* RESTRICT x{particles_.posX()};
   double* RESTRICT y{particles_.posY()};
   double* RESTRICT z{particles_.posZ()};
 
-  std::size_t N{particles_.numParticles()};
-  const std::mt19937_64 rng_local{rng()};
+  const std::size_t N{particles_.numParticles()};
+  std::mt19937_64 rng_local{rng()};
   double length{pbc_.L()};
 
   // Generate Random Starting Positions
