@@ -30,6 +30,15 @@ void periodicBoundaryCondition::wrap3(double &x, double &y, double &z) const noe
 
 // apply min image mapping to displacement component
 double periodicBoundaryCondition::minImage(double dx) const noexcept {
+    // dx -= L * round(dx / L)
+    dx -= L_ * std::round(dx * invL_);
+
+    // handle edge cases, ensure (-L/2, L/2]
+    const double halfL = 0.5 * L_;
+    if (dx > halfL) dx -= L_;
+    if (dx <= -halfL) dx += L_;
+
+    return dx;
 }
 
 // compute min image displacement vector from j to i
