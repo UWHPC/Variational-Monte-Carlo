@@ -2,9 +2,8 @@
 
 class PeriodicBoundaryCondition {
 private:
-    double L_{}; // Box length
+    double L_{};    // Box length
     double invL_{}; // evaluates to 1.0 / L. avoids repeated division
-
 public:
     // store L and precompute invL
     explicit PeriodicBoundaryCondition(double L) noexcept;
@@ -18,9 +17,9 @@ public:
 
     // wrap x, y, z independently
     void wrap3(
-        double &x,
-        double &y,
-        double &z
+        double& x,
+        double& y,
+        double& z
     ) const noexcept;
 
     // apply min image mapping to displacement component
@@ -28,14 +27,24 @@ public:
 
     // compute min image displacement vector from j to i
     void displacement(
-        double xi, double yi, double zi,
-        double xj, double yj, double zj,
-        double &dx, double &dy, double &dz
+        double xi,
+        double yi,
+        double zi,
+        double xj,
+        double yj,
+        double zj,
+        double& dx,
+        double& dy,
+        double& dz
     ) const noexcept;
 
     // compute euclidean norm of min image displacement
     [[nodiscard]] double distance(
-        double xi, double yi, double zi,
-        double xj, double yj, double zj
+        double xi,
+        double yi,
+        double zi,
+        double xj,
+        double yj,
+        double zj
     ) const noexcept;
 };

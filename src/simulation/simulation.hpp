@@ -23,7 +23,6 @@ private:
     std::size_t proposed_{};
     std::size_t accepted_{};
     double logPsiCurrent_{};
-
 public:
     explicit Simulation(Config cfg) noexcept;
 
@@ -33,7 +32,6 @@ public:
     [[nodiscard]] PeriodicBoundaryCondition pbc() { return pbc_; }
 
     void run();
-
 private:
     void initializePositions();
     bool metropolisStep();

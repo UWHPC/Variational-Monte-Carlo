@@ -12,13 +12,13 @@
 #include <string_view>
 
 struct Config {
-    std::size_t numParticles;  // Number of particles
-    double boxLength;          // Length of box (grid)
-    std::size_t warmupSteps;   // Warm up 
-    std::size_t measureSteps;  // M
-    double stepSize;           // proposal half-width s
-    uint64_t seed;             // Random seed
-    std::size_t blockSize;     // Size of block
+    std::size_t numParticles; // Number of particles
+    double boxLength;         // Length of box (grid)
+    std::size_t warmupSteps;  // Warm up
+    std::size_t measureSteps; // M
+    double stepSize;          // proposal half-width s
+    uint64_t seed;            // Random seed
+    std::size_t blockSize;    // Size of block
 };
 
 namespace {
@@ -92,7 +92,10 @@ struct RawConfigValues {
     throw std::logic_error{"Unknown option id"};
 }
 
-[[nodiscard]] std::optional<std::string_view> getOptionValue(const RawConfigValues& raw, OptionId id) {
+[[nodiscard]] std::optional<std::string_view> getOptionValue(
+    const RawConfigValues& raw,
+    OptionId id
+) {
     switch (id) {
         case OptionId::numParticles:
             return raw.numParticles;
@@ -112,7 +115,11 @@ struct RawConfigValues {
     throw std::logic_error{"Unknown option id"};
 }
 
-void setOptionValue(RawConfigValues& raw, OptionId id, std::string_view value) {
+void setOptionValue(
+    RawConfigValues& raw,
+    OptionId id,
+    std::string_view value
+) {
     switch (id) {
         case OptionId::numParticles:
             raw.numParticles = value;
@@ -139,27 +146,43 @@ void setOptionValue(RawConfigValues& raw, OptionId id, std::string_view value) {
     throw std::logic_error{"Unknown option id"};
 }
 
-template <typename T>
-[[nodiscard]] T parseInteger(std::string_view text, std::string_view optionName) {
+template<typename T>
+[[nodiscard]] T parseInteger(
+    std::string_view text,
+    std::string_view optionName
+) {
     T value{};
     const char* const begin{text.data()};
     const char* const end{text.data() + text.size()};
-    const auto [ptr, ec]{std::from_chars(begin, end, value)};
+    const auto [ptr, ec]{std::from_chars(
+        begin,
+        end,
+        value
+    )};
     if (ec != std::errc{} || ptr != end) {
         throw std::invalid_argument{
-            "Invalid integer value for --" + std::string{optionName} + ": '" + std::string{text} + "'"};
+            "Invalid integer value for --" + std::string{optionName} + ": '" + std::string{text} + "'"
+        };
     }
     return value;
 }
 
-[[nodiscard]] double parseDouble(std::string_view text, std::string_view optionName) {
+[[nodiscard]] double parseDouble(
+    std::string_view text,
+    std::string_view optionName
+) {
     double value{};
     const char* const begin{text.data()};
     const char* const end{text.data() + text.size()};
-    const auto [ptr, ec]{std::from_chars(begin, end, value)};
+    const auto [ptr, ec]{std::from_chars(
+        begin,
+        end,
+        value
+    )};
     if (ec != std::errc{} || ptr != end) {
         throw std::invalid_argument{
-            "Invalid floating-point value for --" + std::string{optionName} + ": '" + std::string{text} + "'"};
+            "Invalid floating-point value for --" + std::string{optionName} + ": '" + std::string{text} + "'"
+        };
     }
     return value;
 }
@@ -173,7 +196,10 @@ void printUsage(const char* programName) {
         << "  --num-particles, --box-length, --warmup-steps, --measure-steps, --step-size, --block-size\n";
 }
 
-[[nodiscard]] Config parseArgs(int argc, char** argv) {
+[[nodiscard]] Config parseArgs(
+    int argc,
+    char** argv
+) {
     if (argc <= 1) {
         throw std::invalid_argument{"No arguments provided"};
     }
@@ -204,7 +230,8 @@ void printUsage(const char* programName) {
             optionName = token;
             if (idx + 1 >= argc) {
                 throw std::invalid_argument{
-                    "Missing value for option --" + std::string{optionName}};
+                    "Missing value for option --" + std::string{optionName}
+                };
             }
             ++idx;
             optionValue = argv[idx];
@@ -219,11 +246,13 @@ void printUsage(const char* programName) {
         }
         if (optionValue.empty()) {
             throw std::invalid_argument{
-                "Missing value for option --" + std::string{canonicalOptionName(*parsedOption)}};
+                "Missing value for option --" + std::string{canonicalOptionName(*parsedOption)}
+            };
         }
         if (getOptionValue(raw, *parsedOption).has_value()) {
             throw std::invalid_argument{
-                "Duplicate option: --" + std::string{canonicalOptionName(*parsedOption)}};
+                "Duplicate option: --" + std::string{canonicalOptionName(*parsedOption)}
+            };
         }
 
         setOptionValue(raw, *parsedOption, optionValue);
@@ -254,13 +283,28 @@ void printUsage(const char* programName) {
     }
 
     return Config{
-        .numParticles = parseInteger<std::size_t>(*raw.numParticles, "numParticles"),
+        .numParticles = parseInteger<std::size_t>(
+            *raw.numParticles,
+            "numParticles"
+        ),
         .boxLength = parseDouble(*raw.boxLength, "boxLength"),
-        .warmupSteps = parseInteger<std::size_t>(*raw.warmupSteps, "warmupSteps"),
-        .measureSteps = parseInteger<std::size_t>(*raw.measureSteps, "measureSteps"),
+        .warmupSteps = parseInteger<std::size_t>(
+            *raw.warmupSteps,
+            "warmupSteps"
+        ),
+        .measureSteps = parseInteger<std::size_t>(
+            *raw.measureSteps,
+            "measureSteps"
+        ),
         .stepSize = parseDouble(*raw.stepSize, "stepSize"),
-        .seed = parseInteger<std::uint64_t>(*raw.seed, "seed"),
-        .blockSize = parseInteger<std::size_t>(*raw.blockSize, "blockSize"),
+        .seed = parseInteger<std::uint64_t>(
+            *raw.seed,
+            "seed"
+        ),
+        .blockSize = parseInteger<std::size_t>(
+            *raw.blockSize,
+            "blockSize"
+        ),
     };
 }
 

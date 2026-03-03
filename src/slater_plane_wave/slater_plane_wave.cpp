@@ -4,7 +4,7 @@
 #include <cmath>
 #include <algorithm>
 #include <cstddef>
-#include <new>      // std::bad_alloc
+#include <new>
 
 namespace {
 
@@ -30,17 +30,18 @@ int lu_decompose(double* LU, double* piv, std::size_t N) {
     // Track row swaps
     int swapCount{};
 
-    for (std::size_t row = 0; row < N; ++row) piv[row] = static_cast<double>(row);
+    for (std::size_t row = 0; row < N; ++row)
+        piv[row] = static_cast<double>(row);
     for (std::size_t col = 0; col < N; ++col) {
         // Pivot selection
         // Find row >= col maximizing |LU(row, col)|
-        std::size_t pivotRow{ col };
-        double maxAbs{ std::abs(LU[index(col, col, N)])};
+        std::size_t pivotRow{col};
+        double maxAbs{std::abs(LU[index(col, col, N)])};
 
-        for(std::size_t row = col + 1; row < N; ++row) {
+        for (std::size_t row = col + 1; row < N; ++row) {
             const double value = std::abs(LU[index(row, col, N)]);
-            if (value > maxAbs) { 
-                maxAbs = value; 
+            if (value > maxAbs) {
+                maxAbs = value;
                 pivotRow = row;
             };
         }
@@ -61,7 +62,7 @@ int lu_decompose(double* LU, double* piv, std::size_t N) {
         for (std::size_t row = col + 1; row < N; ++row) {
             LU[index(row, col, N)] /= pivotValue; // L (i,k)
             const double multiplier = LU[index(row, col, N)];
-            for (std::size_t col2 = col + 1; col2 < N; ++col2) {   
+            for (std::size_t col2 = col + 1; col2 < N; ++col2) {
                 LU[index(row, col2, N)] -= multiplier * LU[index(col, col2, N)];
             }
         }
@@ -76,13 +77,11 @@ solve (P^-1)LU x = b. given combined LU and pivot permutation piv.
 piv encodes the row permutation applied during LU so that
 we first permute b: y = P b, then solve L z = y, then U x = z.
 */
-void lu_solve(const double* LU, const double* piv,
-              const double* b, double* x, std::size_t N)
-{   
+void lu_solve(const double* LU, const double* piv, const double* b, double* x, std::size_t N) {
     // Apply permutation: x = Pb
     // store y in x temporarily
     for (std::size_t row = 0; row < N; ++row) {
-        const std::size_t permRow{ static_cast<std::size_t>(piv[row]) };
+        const std::size_t permRow{static_cast<std::size_t>(piv[row])};
         x[row] = b[permRow];
     }
 
@@ -106,20 +105,19 @@ void lu_solve(const double* LU, const double* piv,
     }
 }
 
-}
+} // namespace
 
 SlaterPlaneWave::SlaterPlaneWave(std::size_t N, double L)
 : N_{N}
-, L_{L}
-{
-    vecStride_ = { roundUpToSimd(N_) };
-    matStride_ = { roundUpToSimd(N_ * N_) };
+, L_{L} {
+    vecStride_ = {roundUpToSimd(N_)};
+    matStride_ = {roundUpToSimd(N_ * N_)};
 
     // Layout: [ D | invD | LU | piv | kx | ky | kz ]
-    const std::size_t totalDoubles {
-        3 * matStride_ +      // D, invD, LU
-        4 * vecStride_        // piv, kx, ky, kz
-    };      
+    const std::size_t totalDoubles{
+        3 * matStride_ + // D, invD, LU
+        4 * vecStride_   // piv, kx, ky, kz
+    };
     const std::size_t totalBytes = totalDoubles * sizeof(double);
 
     double* ptr = static_cast<double*>(alignedAlloc(alignmentBytes_, totalBytes));
@@ -130,20 +128,29 @@ SlaterPlaneWave::SlaterPlaneWave(std::size_t N, double L)
 
     double* cur = memoryBlock_.get();
 
-    D_    = cur; cur += matStride_;
-    invD_ = cur; cur += matStride_;
-    LU_   = cur; cur += matStride_;
+    D_ = cur;
+    cur += matStride_;
+    invD_ = cur;
+    cur += matStride_;
+    LU_ = cur;
+    cur += matStride_;
 
-    piv_  = cur; cur += vecStride_;
-    kx_   = cur; cur += vecStride_;
-    ky_   = cur; cur += vecStride_;
-    kz_   = cur; cur += vecStride_;
+    piv_ = cur;
+    cur += vecStride_;
+    kx_ = cur;
+    cur += vecStride_;
+    ky_ = cur;
+    cur += vecStride_;
+    kz_ = cur;
+    cur += vecStride_;
 
     if (cur != memoryBlock_.get() + totalDoubles) throw std::runtime_error("Bad slice");
 }
 
-double SlaterPlaneWave::logAbsDet(const Particles& particles, const PeriodicBoundaryCondition& pbc) 
-{
+double SlaterPlaneWave::logAbsDet(
+    const Particles& particles,
+    const PeriodicBoundaryCondition& pbc
+) {
     const std::size_t N = N_;
     const double* posX = particles.posX();
     const double* posY = particles.posY();
@@ -170,13 +177,13 @@ double SlaterPlaneWave::logAbsDet(const Particles& particles, const PeriodicBoun
     double logAbsDet = 0.0;
     for (std::size_t diag = 0; diag < N; ++diag) {
         const double Uii = LU_[index(diag, diag, N)];
-        const double absUii  = std::abs(Uii);
+        const double absUii = std::abs(Uii);
         if (absUii == 0.0 || !std::isfinite(absUii)) {
             return -std::numeric_limits<double>::infinity();
         }
         logAbsDet += std::log(absUii);
     }
-    // TO DO CHANGE THESE VECTORS 
+    // TO DO CHANGE THESE VECTORS
     std::vector<double> rhs(N, 0.0);
     std::vector<double> sol(N, 0.0);
 

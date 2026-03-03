@@ -22,7 +22,7 @@ void Simulation::initializePositions() {
 
     const double length{pbc_.L()};
 
-    for (std::size_t i{}; i<N; i++) {
+    for (std::size_t i{}; i < N; i++) {
         p_x[i] += uniform01_(rng_local) * length;
         p_y[i] += uniform01_(rng_local) * length;
         p_z[i] += uniform01_(rng_local) * length;

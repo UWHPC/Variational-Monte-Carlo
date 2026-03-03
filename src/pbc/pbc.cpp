@@ -9,7 +9,7 @@ PeriodicBoundaryCondition::PeriodicBoundaryCondition(double L) noexcept
 
 double PeriodicBoundaryCondition::wrap(double x) const noexcept {
     double k{std::floor(x * invL())}; // floor of x / L. done this way to avoid dividing by L
-    x = x - k*L();
+    x = x - k * L();
 
     // fix for rare float error putting x at L
     // avoids +/- epsilon issues with floating arithmatic
@@ -20,10 +20,10 @@ double PeriodicBoundaryCondition::wrap(double x) const noexcept {
 }
 
 void PeriodicBoundaryCondition::wrap3(
-    double &x,
-    double &y,
-    double &z
-    ) const noexcept {
+    double& x,
+    double& y,
+    double& z
+) const noexcept {
     x = wrap(x);
     y = wrap(y);
     z = wrap(z);
@@ -42,10 +42,16 @@ double PeriodicBoundaryCondition::minImage(double dx) const noexcept {
 }
 
 void PeriodicBoundaryCondition::displacement(
-    double xi, double yi, double zi,
-    double xj, double yj, double zj,
-    double& dx, double& dy, double& dz
-    ) const noexcept {
+    double xi,
+    double yi,
+    double zi,
+    double xj,
+    double yj,
+    double zj,
+    double& dx,
+    double& dy,
+    double& dz
+) const noexcept {
     dx = xi - xj;
     dy = yi - yj;
     dz = zi - zj;
@@ -56,19 +62,28 @@ void PeriodicBoundaryCondition::displacement(
 }
 
 double PeriodicBoundaryCondition::distance(
-    double xi, double yi, double zi,
-    double xj, double yj, double zj
-    ) const noexcept {
-
+    double xi,
+    double yi,
+    double zi,
+    double xj,
+    double yj,
+    double zj
+) const noexcept {
     double dx{};
     double dy{};
     double dz{};
 
     displacement(
-        xi, yi, zi, 
-        xj, yj, zj, 
-        dx, dy, dz
+        xi,
+        yi,
+        zi,
+        xj,
+        yj,
+        zj,
+        dx,
+        dy,
+        dz
     );
 
-    return std::sqrt(dx*dx + dy*dy + dz*dz);
+    return std::sqrt(dx * dx + dy * dy + dz * dz);
 }

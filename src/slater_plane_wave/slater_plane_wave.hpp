@@ -15,8 +15,8 @@ private:
     std::size_t N_{}; // number of orbitals (initialized to 0)
     double L_{};      // box length (initialized to 0.0)
 
-    // static constexpr std::size_t numVectorComponents_{8};                         // Number of components
-    static constexpr std::size_t alignmentBytes_{SIMD_BYTES};                     // SIMD byte alignment
+    // static constexpr std::size_t numVectorComponents_{8};  // Number of components
+    static constexpr std::size_t alignmentBytes_{SIMD_BYTES}; // SIMD byte alignment
 
     std::unique_ptr<double[], AlignedDeleter> memoryBlock_; // Memory block size
 
@@ -26,12 +26,10 @@ private:
     double* D_{nullptr};
     double* invD_{nullptr};
     double* LU_{nullptr};
-    double* piv_{nullptr}; //pivot indices stored as double
+    double* piv_{nullptr}; // pivot indices stored as double
     double* kx_{nullptr};
     double* ky_{nullptr};
     double* kz_{nullptr};
-
-
 public:
     explicit SlaterPlaneWave(std::size_t N, double L);
     [[nodiscard]] std::size_t N() const noexcept { return N_; }
@@ -64,7 +62,10 @@ public:
     [[nodiscard]] double const* kz() const noexcept { return kz_; } // IMMUT - Z component of k
 
     // Computes log|det(D)| and updates internal cached inverse/LU.
-    [[nodiscard]] double logAbsDet(const Particles& particles, const PeriodicBoundaryCondition& pbc);
+    [[nodiscard]] double logAbsDet(
+        const Particles& particles,
+        const PeriodicBoundaryCondition& pbc
+    );
 
     // Accumulates Slater contributions into grad/lap (length = stride/at least N).
     void addDerivatives(

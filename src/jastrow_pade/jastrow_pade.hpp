@@ -4,11 +4,11 @@
 #include "../pbc/pbc.hpp"
 
 #if defined(__GNUC__) || defined(__clang__)
-    #define RESTRICT __restrict__
+#define RESTRICT __restrict__
 #elif defined(_MSC_VER)
-    #define RESTRICT __restrict
+#define RESTRICT __restrict
 #else
-    #define RESTRICT
+#define RESTRICT
 #endif
 
 class JastrowPade {
@@ -16,9 +16,9 @@ private:
     double a_{};
     double b_{};
 public:
-    // eqn (28) on paper 
-    // u(r) = (a*r) / (1 + b*r) 
-    explicit JastrowPade(double a = 0.5, double b = 1) noexcept 
+    // eqn (28) on paper
+    // u(r) = (a*r) / (1 + b*r)
+    explicit JastrowPade(double a = 0.5, double b = 1) noexcept
     : a_{a}
     , b_{b}
     { }

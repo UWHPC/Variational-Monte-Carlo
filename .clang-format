@@ -1,0 +1,137 @@
+---
+# Variational-Monte-Carlo team formatting rules
+# Usage: clang-format -i <file>
+# Or integrate with your editor / CI pipeline
+
+Language: Cpp
+Standard: c++20
+
+# --- Indentation ---
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+IndentCaseLabels: true
+IndentPPDirectives: None
+NamespaceIndentation: None
+
+# --- Braces ---
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: false
+  AfterClass: false
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterFunction: false
+  AfterNamespace: false
+  AfterStruct: false
+  AfterUnion: false
+  AfterExternBlock: false
+  BeforeCatch: false
+  BeforeElse: false
+  BeforeLambdaBody: false
+  BeforeWhile: false
+  IndentBraces: false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: false
+# Opening brace on same line: void foo() {
+# Empty constructor body on its own line: { }
+
+# --- Column / Line Length ---
+ColumnLimit: 0
+
+# --- Alignment ---
+AlignAfterOpenBracket: BlockIndent
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignConsecutiveMacros: false
+AlignOperands: Align
+AlignTrailingComments: true
+
+# --- Short forms ---
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: false
+AllowShortLambdasOnASingleLine: All
+
+# --- Blank lines ---
+EmptyLineBeforeAccessModifier: Never
+EmptyLineAfterAccessModifier: Never
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+SeparateDefinitionBlocks: Leave
+
+# --- Constructor initializer lists ---
+BreakConstructorInitializers: BeforeComma
+# Results in:
+#   Foo::Foo(int x)
+#   : a_{x}
+#   , b_{0}
+#   { }
+ConstructorInitializerIndentWidth: 0
+PackConstructorInitializers: Never
+
+# --- Function declarations / parameters ---
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+BinPackArguments: true
+BinPackParameters: false
+# Multi-line parameters each get their own line
+
+# --- Pointer / Reference alignment ---
+PointerAlignment: Left
+ReferenceAlignment: Left
+# type* ptr; and const type& ref;
+
+# --- Spaces ---
+SpaceAfterCStyleCast: false
+SpaceAfterLogicalNot: false
+SpaceAfterTemplateKeyword: false
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCaseColon: false
+SpaceBeforeParens: ControlStatements
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceInEmptyBlock: true
+# Produces: { }  (space inside empty braces)
+SpaceInEmptyParentheses: false
+SpacesInAngles: false
+SpacesInCStyleCastParentheses: false
+SpacesInConditionalStatement: false
+SpacesInContainerLiterals: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+SpacesBeforeTrailingComments: 1
+
+# --- Includes ---
+IncludeBlocks: Preserve
+SortIncludes: Never
+# Team manages include order manually
+
+# --- Access modifiers ---
+AccessModifierOffset: -4
+# public: / private: flush with class keyword (outdented by IndentWidth)
+
+# --- Other ---
+BreakBeforeBinaryOperators: None
+BreakBeforeTernaryOperators: true
+BreakStringLiterals: true
+CompactNamespaces: false
+Cpp11BracedListStyle: true
+DerivePointerAlignment: false
+FixNamespaceComments: true
+InsertBraces: false
+InsertTrailingCommas: None
+ReflowComments: true
+SortUsingDeclarations: false
+
+# --- Penalties (prefer breaking at these locations) ---
+PenaltyBreakAssignment: 25
+PenaltyBreakBeforeFirstCallParameter: 1
+PenaltyBreakComment: 300
+PenaltyBreakFirstLessLess: 120
+PenaltyBreakString: 1000
+PenaltyExcessCharacter: 1000000
+PenaltyReturnTypeOnItsOwnLine: 60
+...
