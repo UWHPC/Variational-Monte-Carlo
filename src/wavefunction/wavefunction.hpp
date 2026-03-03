@@ -13,7 +13,7 @@ public:
     explicit WaveFunction(const JastrowPade& jastrowPade, SlaterPlaneWave& slaterPlaneWave) noexcept
     : jastrowPade_{jastrowPade}, slaterPlaneWave_{slaterPlaneWave} {};
 
-    void evaluateLogPsi(Particles& particles, const periodicBoundaryCondition& pbc); // not const noexcept because it calls slaterPlaneWave_.logAbsDet();
+    void evaluateLogPsi(Particles& particles, const PeriodicBoundaryCondition& pbc); // not const noexcept because it calls slaterPlaneWave_.logAbsDet();
 
     void evaluateDerivatives(
         Particles& particles, 

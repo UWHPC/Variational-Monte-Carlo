@@ -64,7 +64,7 @@ public:
     [[nodiscard]] double const* kz() const noexcept { return kz_; } // IMMUT - Z component of k
 
     // Computes log|det(D)| and updates internal cached inverse/LU.
-    [[nodiscard]] double logAbsDet(const Particles& particles, const periodicBoundaryCondition& pbc);
+    [[nodiscard]] double logAbsDet(const Particles& particles, const PeriodicBoundaryCondition& pbc);
 
     // Accumulates Slater contributions into grad/lap (length = stride/at least N).
     void addDerivatives(
