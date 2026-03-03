@@ -5,8 +5,6 @@
 #include "../pbc/pbc.hpp"
 #include "../wavefunction/jastrow_pade.hpp"
 #include "../wavefunction/wavefunction.hpp"
-#include "../config/config.hpp"
-#include "../pbc/pbc.hpp"
 
 #include <random>
 
@@ -17,9 +15,6 @@ private:
     PeriodicBoundaryCondition pbc_;
     JastrowPade jastrowPade_;
     WaveFunction waveFunction_;
-    Config cfg_;
-    Particles electrons_;
-    periodicBoundaryCondition pbc_;
 
     std::mt19937_64 rng_;
     std::uniform_real_distribution<double> uniform01_{0.0, 1.0};
