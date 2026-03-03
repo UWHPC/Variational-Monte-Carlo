@@ -1,5 +1,7 @@
 #pragma once
 
+// TODO: add docstrings
+
 class periodicBoundaryCondition {
 private:
     double L_{};
