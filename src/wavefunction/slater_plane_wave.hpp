@@ -69,7 +69,7 @@ public:
     // Accumulates Slater contributions into grad/lap (length = stride/at least N).
     void addDerivatives(
         const Particles& particles,
-        const periodicBoundaryCondition& pbc,
+        const PeriodicBoundaryCondition& pbc,
         double* gradX,
         double* gradY,
         double* gradZ,

@@ -15,5 +15,8 @@ public:
 
     void evaluateLogPsi(Particles& particles, const periodicBoundaryCondition& pbc); // not const noexcept because it calls slaterPlaneWave_.logAbsDet();
 
-    void evaluateDerivatives(Particles& particles, const periodicBoundaryCondition& pbc) const noexcept;
+    void evaluateDerivatives(
+        Particles& particles, 
+        const PeriodicBoundaryCondition& pbc
+    ) const noexcept;
 };
