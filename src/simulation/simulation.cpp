@@ -18,7 +18,7 @@ void Simulation::initializePositions() {
     double* RESTRICT p_y{particles_.posY()};
     double* RESTRICT p_z{particles_.posZ()};
 
-    const std::mt19937_64 rng_local{rng()};
+    std::mt19937_64 rng_local{rng()};
 
     const double length{pbc_.L()};
 
@@ -32,5 +32,19 @@ void Simulation::initializePositions() {
 }
 
 bool Simulation::metropolisStep() {
+    double* RESTRICT px{particles_.posX()};
+    double* RESTRICT py{particles_.posY()};
+    double* RESTRICT pz{particles_.posZ()};
 
+    std::size_t i{pickParticle_(rng())};
+
+    double oldX{px[i]};
+    double oldY{py[i]};
+    double oldZ{pz[i]};
+
+    px[i] += proposal()(rng());
+    py[i] += proposal()(rng());
+    pz[i] += proposal()(rng());
+
+    pbc().wrap3(*px, *py, *pz);
 }
