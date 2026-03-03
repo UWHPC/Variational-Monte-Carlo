@@ -11,23 +11,24 @@ Simulation::Simulation(Config config) noexcept
 
 /// @brief Intializes Random Positions for each particle, making sure to not exceed box length
 void Simulation::initializePositions() {
+    std::size_t const N{particles_.numParticles()};
 
-  // X, Y, Z Position Blocks of Memory
-  double* x = particles_.posX();
-  double* y = particles_.posY();
-  double* z = particles_.posZ();
+    // X, Y, Z Position Blocks of Memory
+    double* RESTRICT p_x{particles_.posX()};
+    double* RESTRICT p_y{particles_.posY()};
+    double* RESTRICT p_z{particles_.posZ()};
 
-  std::size_t N = particles_.numParticles();
+    const std::mt19937_64 rng_local{rng()};
 
-  double length{pbc_.L()};
+    const double length{pbc_.L()};
 
-  for (std::size_t i{}; i<N; i++) {
-    x[i] += uniform01_(rng_) * length;
-    y[i] += uniform01_(rng_) * length;
-    z[i] += uniform01_(rng_) * length;
-  }
-  
-  return;
+    for (std::size_t i{}; i<N; i++) {
+        p_x[i] += uniform01_(rng_local) * length;
+        p_y[i] += uniform01_(rng_local) * length;
+        p_z[i] += uniform01_(rng_local) * length;
+    }
+
+    return;
 }
 
 bool Simulation::metropolisStep() {
