@@ -18,7 +18,7 @@ private:
     std::unique_ptr<double[], AlignedDeleter> memoryBlock_; // Memory block size
 
 public:
-    explicit Particles(std::size_t numParticles) noexcept
+    explicit Particles(std::size_t numParticles)
     : numParticles_{numParticles}
     , alignmentPadding_{(numParticles_ + doublesPerAlignment_ - 1) & ~(doublesPerAlignment_ - 1)} {
         // Round to nearest multiple of 8 - needed to ensure sub-arrays are 64 byte aligned:
@@ -29,6 +29,7 @@ public:
         
         // 64 byte alignment and allocation:
         double* ptr{static_cast<double*>(alignedAlloc(alignmentBytes_, blockSizeBytes))};
+        if (!ptr) { throw std::bad_alloc(); }
 
         // Zero initialization:
         std::fill_n(ptr, memoryBlockSize, 0.0);
