@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../config/config.hpp"
 #include "../particles/particles.hpp"
+#include "../config/config.hpp"
 #include "../pbc/pbc.hpp"
 #include "../wavefunction/jastrow_pade.hpp"
 #include "../wavefunction/wavefunction.hpp"
