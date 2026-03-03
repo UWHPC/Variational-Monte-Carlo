@@ -15,6 +15,9 @@ private:
     Particles particles_;
     PeriodicBoundaryCondition pbc_;
 
+    SlaterPlaneWave slaterPlaneWave_;
+    JastrowPade jastrowPade_;
+
     std::mt19937_64 rng_;
     std::uniform_real_distribution<double> uniform01_{0.0, 1.0};
     std::uniform_real_distribution<double> proposal_;
@@ -27,6 +30,8 @@ private:
 public:
     explicit Simulation(Config cfg) noexcept;
     void run();
+
+    [[nodiscard]] std::mt19937_64 rng() { return rng_; }
 
 private:
     void initializePositions();
