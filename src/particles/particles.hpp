@@ -8,7 +8,7 @@
 #include <stdexcept>
 
 // Format of: Particles<bytes> particles{};
-template <std::size_t alignmentBytes = 64>
+template <std::size_t alignmentBytes = SIMD_BYTES>
 class Particles {
 private:
     static constexpr std::size_t numVectorComponents_{8};                             // Number of components

@@ -34,3 +34,16 @@
 struct AlignedDeleter {
     void operator()(double* ptr) const { alignedFree(ptr); }
 };
+
+// Detect SIMD width:
+#if defined(__AVX512F__)
+    constexpr std::size_t SIMD_BYTES{64};
+#elif defined(__AVX2__)
+    constexpr std::size_t SIMD_BYTES{32};
+#elif defined(__AVX__)
+    constexpr std::size_t SIMD_BYTES{32};
+#elif defined(__SSE2__)
+    constexpr std::size_t SIMD_BYTES{16};
+#else
+    constexpr std::size_t SIMD_BYTES{sizeof(double)};
+#endif
