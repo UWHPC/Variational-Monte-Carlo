@@ -10,7 +10,10 @@ private:
 public:
     explicit periodicBoundaryCondition(double L) noexcept;
 
-    [[nodiscard]] double boxLength() const noexcept { return L_; }
+    // Getters for L and invL:
+    [[nodiscard]] double L() const noexcept { return L_; }
+    [[nodiscard]] double invL() const noexcept { return invL_; }
+
     [[nodiscard]] double wrap(double x) const noexcept;
 
     void wrap3(double &x, double &y, double &z) const noexcept;

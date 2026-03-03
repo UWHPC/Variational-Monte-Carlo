@@ -1,6 +1,6 @@
 #include "pbc.hpp"
-#include <cmath>
 
+#include <cmath>
 
 // store L and precompute invL
 periodicBoundaryCondition::periodicBoundaryCondition(double L) noexcept
@@ -10,13 +10,13 @@ periodicBoundaryCondition::periodicBoundaryCondition(double L) noexcept
 
 // wrap coordinates into [0, L)
 double periodicBoundaryCondition::wrap(double x) const noexcept {
-    double k = std::floor(x * invL_); // floor of x / L. done this way to avoid dividing by L
-    x = x - k * L_;
+    double k{std::floor(x * invL())}; // floor of x / L. done this way to avoid dividing by L
+    x = x - k*L();
 
     // fix for rare float error putting x at L
     // avoids +/- epsilon issues with floating arithmatic
-    if (x >= L_) x -= L_;
-    if (x < 0.0) x += L_;
+    if (x >= L()) x -= L();
+    if (x < 0.0) x += L();
 
     return x;
 }
@@ -31,12 +31,12 @@ void periodicBoundaryCondition::wrap3(double &x, double &y, double &z) const noe
 // apply min image mapping to displacement component
 double periodicBoundaryCondition::minImage(double dx) const noexcept {
     // dx -= L * round(dx / L)
-    dx -= L_ * std::round(dx * invL_);
+    dx -= L() * std::round(dx * invL());
 
     // handle edge cases, ensure (-L/2, L/2]
-    const double halfL = 0.5 * L_;
-    if (dx > halfL) dx -= L_;
-    if (dx <= -halfL) dx += L_;
+    const double halfL{0.5 * L()};
+    if (dx > halfL) dx -= L();
+    if (dx <= -halfL) dx += L();
 
     return dx;
 }
@@ -45,7 +45,8 @@ double periodicBoundaryCondition::minImage(double dx) const noexcept {
 void periodicBoundaryCondition::displacement(
     double xi, double yi, double zi,
     double xj, double yj, double zj,
-    double& dx, double& dy, double& dz) const noexcept {
+    double& dx, double& dy, double& dz
+    ) const noexcept {
     dx = xi - xj;
     dy = yi - yj;
     dz = zi - zj;
@@ -58,12 +59,18 @@ void periodicBoundaryCondition::displacement(
 // compute euclidean norm of min image displacement
 double periodicBoundaryCondition::distance(
     double xi, double yi, double zi,
-    double xj, double yj, double zj) const noexcept {
+    double xj, double yj, double zj
+    ) const noexcept {
 
-    double dx = 0.0;
-    double dy = 0.0;
-    double dz = 0.0;
+    double dx{};
+    double dy{};
+    double dz{};
 
-    displacement(xi, yi, zi, xj, yj, zj, dx, dy, dz);
-    return std::sqrt(dx * dx + dy * dy + dz * dz);
+    displacement(
+        xi, yi, zi, 
+        xj, yj, zj, 
+        dx, dy, dz
+    );
+
+    return std::sqrt(dx*dx + dy*dy + dz*dz);
 }

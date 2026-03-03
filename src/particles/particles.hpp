@@ -29,7 +29,6 @@ public:
         
         // 64 byte alignment and allocation:
         double* ptr{static_cast<double*>(alignedAlloc(alignmentBytes_, blockSizeBytes))};
-        if (!ptr) { throw std::bad_alloc(); }
 
         // Zero initialization:
         std::fill_n(ptr, memoryBlockSize, 0.0);
