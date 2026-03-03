@@ -13,8 +13,6 @@ private:
     Config config_;
     Particles particles_;
     PeriodicBoundaryCondition pbc_;
-    JastrowPade jastrowPade_;
-    WaveFunction waveFunction_;
 
     std::mt19937_64 rng_;
     std::uniform_real_distribution<double> uniform01_{0.0, 1.0};
