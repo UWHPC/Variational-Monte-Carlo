@@ -14,7 +14,7 @@ private:
     static constexpr std::size_t doublesPerAlignment_{8};   // Ensures sub-arrays are 64 byte aligned
 
     std::size_t numParticles_;                              // Number of particles 
-    std::size_t alignmentPadding_;
+    std::size_t alignmentPadding_;                          // Ensures all sub-arrays are aligned
     std::unique_ptr<double[], AlignedDeleter> memoryBlock_; // Memory block size
 
 public:
@@ -28,7 +28,7 @@ public:
         std::size_t const blockSizeBytes{memoryBlockSize*sizeof(double)};
         
         // 64 byte alignment and allocation:
-        double* ptr = static_cast<double*>(alignedAlloc(alignmentBytes_, blockSizeBytes));
+        double* ptr{static_cast<double*>(alignedAlloc(alignmentBytes_, blockSizeBytes))};
         if (!ptr) { throw std::bad_alloc(); }
 
         // Zero initialization:
