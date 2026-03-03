@@ -3,7 +3,8 @@
 #include "../particles/particles.hpp"
 #include "../config/config.hpp"
 #include "../pbc/pbc.hpp"
-#include "../wavefunction/jastrow_pade.hpp"
+#include "../jastrow_pade/jastrow_pade.hpp"
+#include "../slater_plane_wave/slater_plane_wave.hpp"
 #include "../wavefunction/wavefunction.hpp"
 
 #include <random>
@@ -13,20 +14,21 @@ private:
     Config config_;
     Particles particles_;
     PeriodicBoundaryCondition pbc_;
-    JastrowPade jastrowPade_;
-    WaveFunction waveFunction_;
 
     std::mt19937_64 rng_;
     std::uniform_real_distribution<double> uniform01_{0.0, 1.0};
     std::uniform_real_distribution<double> proposal_;
     std::uniform_int_distribution<std::size_t> pickParticle_;
 
-    std::size_t proposed_{0};
-    std::size_t accepted_{0};
-    double logPsiCurrent_{0.0};
+    std::size_t proposed_{};
+    std::size_t accepted_{};
+    double logPsiCurrent_{};
 
 public:
     explicit Simulation(Config cfg) noexcept;
+
+    [[nodiscard]] std::mt19937_64 rng() const { return rng_; }
+
     void run();
 
 private:

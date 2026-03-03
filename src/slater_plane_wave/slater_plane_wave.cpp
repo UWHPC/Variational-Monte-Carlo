@@ -2,7 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <new>      // std::bad_alloc
+#include <new>
 
 namespace {
 
