@@ -5,7 +5,7 @@
 #include <cstdlib>
 #include <memory>
 #include <cstring>
-#include <stdexcept>
+#include <algorithm>
 
 class Particles {
 private:
