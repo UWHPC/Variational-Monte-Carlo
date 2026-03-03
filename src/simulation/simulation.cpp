@@ -31,5 +31,5 @@ void Simulation::initializePositions() {
 }
 
 bool Simulation::metropolisStep() {
-  return false;
+
 }

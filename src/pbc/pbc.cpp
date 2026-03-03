@@ -22,7 +22,11 @@ double PeriodicBoundaryCondition::wrap(double x) const noexcept {
 }
 
 // wrap x, y, z indep
-void PeriodicBoundaryCondition::wrap3(double &x, double &y, double &z) const noexcept {
+void PeriodicBoundaryCondition::wrap3(
+    double &x,
+    double &y,
+    double &z
+    ) const noexcept {
     x = wrap(x);
     y = wrap(y);
     z = wrap(z);
