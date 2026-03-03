@@ -1,19 +1,25 @@
 #include "wavefunction.hpp"
-#include <algorithm> // needed for fill_n
 
-void WaveFunction::evaluateLogPsi(Particles<>& particles, const periodicBoundaryCondition& pbc) const noexcept
-{
-    particles.logPsi()[0] = j_.value(particles, pbc);
+#include <algorithm>
+
+void WaveFunction::evaluateLogPsi(Particles& particles, const periodicBoundaryCondition& pbc) const noexcept {
+    particles.logPsi()[0] = jastrowPade_.value(particles, pbc);
 }
 
-void WaveFunction::evaluateDerivatives(Particles<>& particles, const periodicBoundaryCondition& pbc) const noexcept
-{
-    const std::size_t stride = particles.paddingStride();
+void WaveFunction::evaluateDerivatives(Particles& particles, const periodicBoundaryCondition& pbc) const noexcept {
+    const std::size_t paddedStride{particles.paddingStride()};
 
-    std::fill_n(particles.gradLogPsiX(), stride, 0.0);
-    std::fill_n(particles.gradLogPsiY(), stride, 0.0);
-    std::fill_n(particles.gradLogPsiZ(), stride, 0.0);
-    std::fill_n(particles.laplogPsi(),   stride, 0.0);
+    std::fill_n(particles.gradLogPsiX(), paddedStride, 0.0);
+    std::fill_n(particles.gradLogPsiY(), paddedStride, 0.0);
+    std::fill_n(particles.gradLogPsiZ(), paddedStride, 0.0);
+    std::fill_n(particles.laplogPsi(),   paddedStride, 0.0);
 
-    j_.addDerivatives(particles, pbc, particles.gradLogPsiX(), particles.gradLogPsiY(), particles.gradLogPsiZ(), particles.laplogPsi());
+    jastrowPade_.addDerivatives(
+        particles, 
+        pbc, 
+        particles.gradLogPsiX(),
+        particles.gradLogPsiY(), 
+        particles.gradLogPsiZ(), 
+        particles.laplogPsi()
+    );
 }

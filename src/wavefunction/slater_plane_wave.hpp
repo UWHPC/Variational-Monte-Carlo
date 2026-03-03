@@ -1,8 +1,10 @@
 #pragma once
-#include <cstddef>
-#include <vector>
+
 #include "../particles/particles.hpp"
 #include "../pbc/pbc.hpp"
+
+#include <cstddef>
+#include <vector>
 
 class SlaterPlaneWave {
 private:
@@ -11,7 +13,14 @@ private:
     // to do: cached std::vector matrices
     // to do: k-vectors
 public:
-    [[nodiscard]] double logAbsDet(const Particles<>& particles, const periodicBoundaryCondition& pbc);
+    [[nodiscard]] double logAbsDet(const Particles& particles, const periodicBoundaryCondition& pbc);
     
-    void addDerivatives(const Particles<>& p, const periodicBoundaryCondition& pbc, double* gradX, double* gradY, double* gradZ, double* lap) const noexcept;
+    void addDerivatives(
+        const Particles& particles,
+        const periodicBoundaryCondition& pbc,
+        double* gradX,
+        double* gradY,
+        double* gradZ,
+        double* la
+    ) const noexcept;
 };

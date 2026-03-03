@@ -14,7 +14,7 @@
     }
 #elif defined(__APPLE__)
     inline void* alignedAlloc(std::size_t alignment, std::size_t size) {
-        void* ptr = nullptr;
+        void* ptr{nullptr};
         posix_memalign(&ptr, alignment, size);
         return ptr;
     }
@@ -38,9 +38,7 @@ struct AlignedDeleter {
 // Detect SIMD width:
 #if defined(__AVX512F__)
     constexpr std::size_t SIMD_BYTES{64};
-#elif defined(__AVX2__)
-    constexpr std::size_t SIMD_BYTES{32};
-#elif defined(__AVX__)
+#elif defined(__AVX2__) || defined(__AVX__)
     constexpr std::size_t SIMD_BYTES{32};
 #elif defined(__SSE2__)
     constexpr std::size_t SIMD_BYTES{16};

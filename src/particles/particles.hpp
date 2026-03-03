@@ -7,20 +7,18 @@
 #include <cstring>
 #include <stdexcept>
 
-// Format of: Particles<bytes> particles{};
-template <std::size_t alignmentBytes = SIMD_BYTES>
 class Particles {
 private:
-    static constexpr std::size_t numVectorComponents_{8};                             // Number of components
-    static constexpr std::size_t alignmentBytes_{alignmentBytes};                     // 64 byte alignment
-    static constexpr std::size_t doublesPerAlignment_{alignmentBytes/sizeof(double)}; // Ensures sub-arrays are byte aligned
+    static constexpr std::size_t numVectorComponents_{8};                         // Number of components
+    static constexpr std::size_t alignmentBytes_{SIMD_BYTES};                     // 64 byte alignment
+    static constexpr std::size_t doublesPerAlignment_{SIMD_BYTES/sizeof(double)}; // Ensures sub-arrays are byte aligned
 
     std::size_t numParticles_;                              // Number of particles 
     std::size_t alignmentPadding_;                          // Ensures all sub-arrays are aligned
     std::unique_ptr<double[], AlignedDeleter> memoryBlock_; // Memory block size
 
 public:
-    explicit Particles(std::size_t numParticles)
+    explicit Particles(std::size_t numParticles) noexcept
     : numParticles_{numParticles}
     , alignmentPadding_{(numParticles_ + doublesPerAlignment_ - 1) & ~(doublesPerAlignment_ - 1)} {
         // Round to nearest multiple of 8 - needed to ensure sub-arrays are 64 byte aligned:
