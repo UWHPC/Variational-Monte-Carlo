@@ -4,7 +4,7 @@
 #include <cstddef>
 
 double JastrowPade::value(const Particles& particles, const periodicBoundaryCondition& pbc) const noexcept {
-    const std::size_t N{ particles.numParticles() };
+    const std::size_t N{particles.numParticles()};
 
     const double* RESTRICT p_x{particles.posX()};
     const double* RESTRICT p_y{particles.posY()};
@@ -41,10 +41,10 @@ double JastrowPade::value(const Particles& particles, const periodicBoundaryCond
 void JastrowPade::addDerivatives(
     const Particles& particles,
     const periodicBoundaryCondition& pbc,
-    double* gradX,
-    double* gradY,
-    double* gradZ,
-    double* lap
+    double* RESTRICT gradX,
+    double* RESTRICT gradY,
+    double* RESTRICT gradZ,
+    double* RESTRICT lap
     ) const noexcept {
     // NOTE: assumes gradX/gradY/gradZ/lap are zero-initialized by caller
     const std::size_t N{particles.numParticles()};
