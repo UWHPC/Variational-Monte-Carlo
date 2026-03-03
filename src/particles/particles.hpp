@@ -7,11 +7,13 @@
 #include <cstring>
 #include <stdexcept>
 
+// Format of: Particles<bytes> particles{};
+template <std::size_t alignmentBytes = 64>
 class Particles {
 private:
-    static constexpr std::size_t numVectorComponents_{8};   // Number of components
-    static constexpr std::size_t alignmentBytes_{64};       // 64 byte alignment
-    static constexpr std::size_t doublesPerAlignment_{8};   // Ensures sub-arrays are 64 byte aligned
+    static constexpr std::size_t numVectorComponents_{8};                             // Number of components
+    static constexpr std::size_t alignmentBytes_{alignmentBytes};                     // 64 byte alignment
+    static constexpr std::size_t doublesPerAlignment_{alignmentBytes/sizeof(double)}; // Ensures sub-arrays are byte aligned
 
     std::size_t numParticles_;                              // Number of particles 
     std::size_t alignmentPadding_;                          // Ensures all sub-arrays are aligned
