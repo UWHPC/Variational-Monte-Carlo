@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../memory/memory.hpp"
 #include "../particles/particles.hpp"
 #include "../pbc/pbc.hpp"
+#include "../utilities/memory.hpp"
 
 #include <algorithm>
 #include <cstddef>

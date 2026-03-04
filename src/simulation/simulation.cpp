@@ -31,7 +31,7 @@ bool Simulation::metropolisStep() {
     double* RESTRICT py{particles_.posY()};
     double* RESTRICT pz{particles_.posZ()};
 
-    std::size_t i{pickParticle_(rng())};
+    std::size_t i{pickParticle()(rng())};
 
     double oldX{px[i]};
     double oldY{py[i]};
@@ -41,5 +41,5 @@ bool Simulation::metropolisStep() {
     py[i] += proposal()(rng());
     pz[i] += proposal()(rng());
 
-    pbc().wrap3(*px, *py, *pz);
+    pbc().wrap3(px[i], py[i], pz[i]);
 }

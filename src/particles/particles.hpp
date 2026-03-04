@@ -1,6 +1,7 @@
 #pragma once
 
-#include "../memory/memory.hpp"
+#include "../utilities/aligned_soa.hpp"
+#include "../utilities/memory.hpp"
 
 #include <algorithm>
 #include <cstdlib>
@@ -9,99 +10,77 @@
 
 class Particles {
 private:
-    // Number of components
-    static constexpr std::size_t numVectorComponents_{8};
+    // All sub-arrays owned by Particles:
+    static constexpr std::size_t POS_X{0}, POS_Y{1}, POS_Z{2};
+    static constexpr std::size_t GRAD_X{3}, GRAD_Y{4}, GRAD_Z{5};
+    static constexpr std::size_t LOG_PSI{6}, LAP_LOG_PSI{7};
 
-    // SIMD byte alignment
-    static constexpr std::size_t alignmentBytes_{SIMD_BYTES};
+    // Number of sub-arrays:
+    static constexpr std::size_t NUM_SUB_ARRAYS{8};
 
-    // Ensures sub-arrays are byte aligned
-    static constexpr std::size_t doublesPerAlignment_{SIMD_BYTES / sizeof(double)};
-
-    // Number of particles
+    // Number of particles:
     std::size_t numParticles_;
 
-    // Ensures all sub-arrays are aligned
-    std::size_t alignmentPadding_;
-
-    // Memory block size
-    std::unique_ptr<double[], AlignedDeleter> memoryBlock_;
+    // Aligned memory block:
+    AlignedSoA particleData_;
 
 public:
     explicit Particles(std::size_t numParticles)
-        : numParticles_{numParticles},
-          alignmentPadding_{(numParticles_ + doublesPerAlignment_ - 1) & ~(doublesPerAlignment_ - 1)} {
-        // Round to nearest multiple of SIMD width - needed to ensure sub-arrays are byte aligned:
+        : particleData_{numParticles, NUM_SUB_ARRAYS}, numParticles_{numParticles} {}
 
-        // Determine size of the memory block in bytes:
-        std::size_t const memoryBlockSize{numVectorComponents_ * alignmentPadding_};
-        std::size_t const blockSizeBytes{memoryBlockSize * sizeof(double)};
-
-        // Proper byte alignment and allocation:
-        double* ptr{static_cast<double*>(alignedAlloc(alignmentBytes_, blockSizeBytes))};
-        if (!ptr)
-            throw std::bad_alloc();
-
-        // Zero initialization:
-        std::fill_n(ptr, memoryBlockSize, 0.0);
-
-        // Pointer owner transfership:
-        memoryBlock_.reset(ptr);
-    }
-
-    // Logical number of particles
+    // Physical number of particles
     [[nodiscard]] std::size_t numParticles() const { return numParticles_; }
 
-    // Memory stride for flat arrays
-    [[nodiscard]] std::size_t paddingStride() const { return alignmentPadding_; }
+    // Length of the padded stride
+    [[nodiscard]] std::size_t paddingStride() const { return particleData_.stride(); }
 
     // Raw Pointers - Mutable:
     // MUT - X position of particle
-    [[nodiscard]] double* posX() { return memoryBlock_.get(); }
+    [[nodiscard]] double* posX() { return particleData_[POS_X]; }
 
     // MUT - Y position of particle
-    [[nodiscard]] double* posY() { return memoryBlock_.get() + paddingStride(); }
+    [[nodiscard]] double* posY() { return particleData_[POS_Y]; }
 
     // MUT - Z position of particle
-    [[nodiscard]] double* posZ() { return memoryBlock_.get() + 2 * paddingStride(); }
+    [[nodiscard]] double* posZ() { return particleData_[POS_Z]; }
 
     // MUT - X component of gradient( log|PSI| )
-    [[nodiscard]] double* gradLogPsiX() { return memoryBlock_.get() + 3 * paddingStride(); }
+    [[nodiscard]] double* gradLogPsiX() { return particleData_[GRAD_X]; }
 
     // MUT - Y component of gradient( log|PSI| )
-    [[nodiscard]] double* gradLogPsiY() { return memoryBlock_.get() + 4 * paddingStride(); }
+    [[nodiscard]] double* gradLogPsiY() { return particleData_[GRAD_Y]; }
 
     // MUT - Z component of gradient( log|PSI| )
-    [[nodiscard]] double* gradLogPsiZ() { return memoryBlock_.get() + 5 * paddingStride(); }
+    [[nodiscard]] double* gradLogPsiZ() { return particleData_[GRAD_Z]; }
 
     // MUT - Log|PSI|
-    [[nodiscard]] double* logPsi() { return memoryBlock_.get() + 6 * paddingStride(); }
+    [[nodiscard]] double* logPsi() { return particleData_[LOG_PSI]; }
 
     // MUT - Laplacian of Log|PSI|
-    [[nodiscard]] double* laplogPsi() { return memoryBlock_.get() + 7 * paddingStride(); }
+    [[nodiscard]] double* laplogPsi() { return particleData_[LAP_LOG_PSI]; }
 
     // Raw Pointers - Immutable:
     // IMMUT - X position of particle
-    [[nodiscard]] double const* posX() const { return memoryBlock_.get(); }
+    [[nodiscard]] double const* posX() const { return particleData_[POS_X]; }
 
     // IMMUT - Y position of particle
-    [[nodiscard]] double const* posY() const { return memoryBlock_.get() + paddingStride(); }
+    [[nodiscard]] double const* posY() const { return particleData_[POS_Y]; }
 
     // IMMUT - Z position of particle
-    [[nodiscard]] double const* posZ() const { return memoryBlock_.get() + 2 * paddingStride(); }
+    [[nodiscard]] double const* posZ() const { return particleData_[POS_Z]; }
 
     // IMMUT - X component of gradient( log|PSI| )
-    [[nodiscard]] double const* gradLogPsiX() const { return memoryBlock_.get() + 3 * paddingStride(); }
+    [[nodiscard]] double const* gradLogPsiX() const { return particleData_[GRAD_X]; }
 
     // IMMUT - Y component of gradient( log|PSI| )
-    [[nodiscard]] double const* gradLogPsiY() const { return memoryBlock_.get() + 4 * paddingStride(); }
+    [[nodiscard]] double const* gradLogPsiY() const { return particleData_[GRAD_Y]; }
 
     // IMMUT - Z component of gradient( log|PSI| )
-    [[nodiscard]] double const* gradLogPsiZ() const { return memoryBlock_.get() + 5 * paddingStride(); }
+    [[nodiscard]] double const* gradLogPsiZ() const { return particleData_[GRAD_Z]; }
 
     // IMMUT - Log|PSI|
-    [[nodiscard]] double const* logPsi() const { return memoryBlock_.get() + 6 * paddingStride(); }
+    [[nodiscard]] double const* logPsi() const { return particleData_[LOG_PSI]; }
 
     // IMMUT - Laplacian of Log|PSI|
-    [[nodiscard]] double const* laplogPsi() const { return memoryBlock_.get() + 7 * paddingStride(); }
+    [[nodiscard]] double const* laplogPsi() const { return particleData_[LAP_LOG_PSI]; }
 };
