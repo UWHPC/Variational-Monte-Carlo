@@ -26,6 +26,6 @@ public:
      add jastrow contributions into provided derivative buffers:
      grad X/Y/Z is ∇_i J, lap is ∇_i^2 J (per particle i)
     */
-    void addDerivatives(const Particles& particles, const PeriodicBoundaryCondition& pbc, double* RESTRICT gradX,
-                        double* RESTRICT gradY, double* RESTRICT gradZ, double* RESTRICT lap) const noexcept;
+    void addDerivatives(const Particles& particles, const PeriodicBoundaryCondition& pbc, double* RESTRICT gradientX,
+                        double* RESTRICT gradientY, double* RESTRICT gradientZ, double* RESTRICT laplacian) const noexcept;
 };
