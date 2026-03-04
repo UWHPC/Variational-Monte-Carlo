@@ -72,8 +72,8 @@ void JastrowPade::addDerivatives(const Particles& particles, const PeriodicBound
 
             // Mask to get around if statement:
             const bool particlesCoincident{distance < 1e-12};
-            const double inv_r{particlesCoincident ? 1.0 : 1 / distance};
-            const double mask{particlesCoincident? 0.0 : 1.0};
+            const double inverseDistance{particlesCoincident ? 1.0 : 1 / distance};
+            const double mask{particlesCoincident ? 0.0 : 1.0};
 
             // u(r) = a*r / (1 + b*r)
             // u'(r) = a / (1 + b*r)^2
@@ -86,9 +86,9 @@ void JastrowPade::addDerivatives(const Particles& particles, const PeriodicBound
             const double usecond{-2.0 * a_local * b_local / denom_cb};
 
             // ∇_i u(r_ij) = u'(r) * (r_vec / r)
-            const double fx{uprime * displacementX * inv_r};
-            const double fy{uprime * displacementY * inv_r};
-            const double fz{uprime * displacementZ * inv_r};
+            const double fx{uprime * displacementX * inverseDistance};
+            const double fy{uprime * displacementY * inverseDistance};
+            const double fz{uprime * displacementZ * inverseDistance};
 
             gradX[i] += mask * fx;
             gradY[i] += mask * fy;
@@ -99,7 +99,7 @@ void JastrowPade::addDerivatives(const Particles& particles, const PeriodicBound
             gradZ[j] -= mask * fz;
 
             // ∇^2 u(r) = u''(r) + (2/r) u'(r)
-            const double lap_pair{usecond + 2.0 * uprime * inv_r};
+            const double lap_pair{usecond + 2.0 * uprime * inverseDistance};
 
             lap[i] += mask * lap_pair;
             lap[j] += mask * lap_pair;
