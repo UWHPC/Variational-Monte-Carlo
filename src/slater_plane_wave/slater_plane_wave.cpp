@@ -3,16 +3,11 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <new>
 #include <vector>
-#include <limits>
 
 namespace {
-
-inline std::size_t roundUpToSimd(std::size_t n) noexcept {
-    constexpr std::size_t doublesPerAlignment{SIMD_BYTES / sizeof(double)};
-    return (n + doublesPerAlignment - 1) & ~(doublesPerAlignment - 1);
-}
 
 // @brief helper function to convert i-jth indices -> n
 // @param stride is the difference between the row and the column.
@@ -108,46 +103,6 @@ void lu_solve(const double* LU, const double* piv, const double* b, double* x, s
 
 } // namespace
 
-SlaterPlaneWave::SlaterPlaneWave(std::size_t N, double L) : N_{N}, L_{L} {
-    vecStride_ = {roundUpToSimd(N_)};
-    matStride_ = {roundUpToSimd(N_ * N_)};
-
-    // Layout: [ D | invD | LU | piv | kx | ky | kz ]
-    const std::size_t totalDoubles{
-        3 * matStride_ + // D, invD, LU
-        4 * vecStride_   // piv, kx, ky, kz
-    };
-    const std::size_t totalBytes = totalDoubles * sizeof(double);
-
-    double* ptr = static_cast<double*>(alignedAlloc(alignmentBytes_, totalBytes));
-    if (!ptr)
-        throw std::bad_alloc();
-
-    std::fill_n(ptr, totalDoubles, 0.0);
-    memoryBlock_.reset(ptr);
-
-    double* cur = memoryBlock_.get();
-
-    D_ = cur;
-    cur += matStride_;
-    invD_ = cur;
-    cur += matStride_;
-    LU_ = cur;
-    cur += matStride_;
-
-    piv_ = cur;
-    cur += vecStride_;
-    kx_ = cur;
-    cur += vecStride_;
-    ky_ = cur;
-    cur += vecStride_;
-    kz_ = cur;
-    cur += vecStride_;
-
-    if (cur != memoryBlock_.get() + totalDoubles)
-        throw std::runtime_error("Bad slice");
-}
-
 double SlaterPlaneWave::logAbsDet(const Particles& particles, const PeriodicBoundaryCondition& pbc) {
     const std::size_t N = N_;
     const double* posX = particles.posX();
@@ -200,56 +155,62 @@ double SlaterPlaneWave::logAbsDet(const Particles& particles, const PeriodicBoun
 
 void SlaterPlaneWave::addDerivatives(const Particles& particles, const PeriodicBoundaryCondition& pbc, double* gradX,
                                      double* gradY, double* gradZ, double* lap) const noexcept {
-    const std::size_t N{N_};
+    const std::size_t N{numOrbitals()};
 
-    const double* posX{particles.posX()};
-    const double* posY{particles.posY()};
-    const double* posZ{particles.posZ()};
+    const double* RESTRICT posX{particles.posX()};
+    const double* RESTRICT posY{particles.posY()};
+    const double* RESTRICT posZ{particles.posZ()};
+
+    const double* RESTRICT k_x{kVectorX()};
+    const double* RESTRICT k_y{kVectorY()};
+    const double* RESTRICT k_z{kVectorZ()};
+
+    const double* RESTRICT inv_det{invDeterminant()};
 
     for (std::size_t particle = 0; particle < N; ++particle) {
-        const double x{posX[particle]};
-        const double y{posY[particle]};
-        const double z{posZ[particle]};
+        const double p_x{posX[particle]};
+        const double p_y{posY[particle]};
+        const double p_z{posZ[particle]};
 
-        double dLogDet_dx{}, dLogDet_dy{}, dLogDet_dz{};
+        double d_LogDet_dx{}, d_LogDet_dy{}, d_LogDet_dz{};
 
         // Σ_j (D^{-1})_{j,particle} * (∇^2 D_{particle,j})
-        double laplaceDeterminantTerm{};
+        double laplace_det_term{};
 
         for (std::size_t orbital = 0; orbital < N; ++orbital) {
-            const double kx{kx_[orbital]};
-            const double ky{ky_[orbital]};
-            const double kz{kz_[orbital]};
+            const double kx_orbital{k_x[orbital]};
+            const double ky_orbital{k_y[orbital]};
+            const double kz_orbital{k_z[orbital]};
 
-            const double kdotr{kx * x + ky * y + kz * z};
-            const double cosineTerm{std::cos(kdotr)};
-            const double sineTerm{std::sin(kdotr)};
+            const double k_dot_r{kx_orbital * p_x + ky_orbital * p_y + kz_orbital * p_z};
+            const double cosine_term{std::cos(k_dot_r)};
+            const double sine_term{std::sin(k_dot_r)};
             // D(particle,orbital) = cos(k·r)
             // ∇_particle D = -sin(k·r) * k
-            const double dD_dx{-sineTerm * kx};
-            const double dD_dy{-sineTerm * ky};
-            const double dD_dz{-sineTerm * kz};
+            const double dD_dx{-sine_term * kx_orbital};
+            const double dD_dy{-sine_term * ky_orbital};
+            const double dD_dz{-sine_term * kz_orbital};
 
             // ∇^2 D = -cos(k·r) * |k|^2
-            const double kSquared{kx * kx + ky * ky + kz * kz};
-            const double lapD{-cosineTerm * kSquared};
+            const double kSquared{kx_orbital * kx_orbital + ky_orbital * ky_orbital + kz_orbital * kz_orbital};
+            const double lapD{-cosine_term * kSquared};
             // Weight = (D^{-1})_{orbital,particle}
             // invD_ is row-major, so entry (row=orbital, col=particle):
-            const double weight{invD_[index(orbital, particle, N)]};
+            const double weight{inv_det[index(orbital, particle, N)]};
 
-            dLogDet_dx += weight * dD_dx;
-            dLogDet_dy += weight * dD_dy;
-            dLogDet_dz += weight * dD_dz;
+            d_LogDet_dx += weight * dD_dx;
+            d_LogDet_dy += weight * dD_dy;
+            d_LogDet_dz += weight * dD_dz;
 
-            laplaceDeterminantTerm += weight * lapD;
+            laplace_det_term += weight * lapD;
         }
         // ∇^2 log det D = Σ_j (D^{-1})_{j,i} ∇^2 D_{i,j}  -  ||∇ log det D||^2
-        const double gradSquared{dLogDet_dx * dLogDet_dx + dLogDet_dy * dLogDet_dy + dLogDet_dz * dLogDet_dz};
-        const double lapLogDet{laplaceDeterminantTerm - gradSquared};
+        const double gradSquared{d_LogDet_dx * d_LogDet_dx + d_LogDet_dy * d_LogDet_dy + d_LogDet_dz * d_LogDet_dz};
+        const double lapLogDet{laplace_det_term - gradSquared};
 
-        gradX[particle] += dLogDet_dx;
-        gradY[particle] += dLogDet_dy;
-        gradZ[particle] += dLogDet_dz;
+        gradX[particle] += d_LogDet_dx;
+        gradY[particle] += d_LogDet_dy;
+        gradZ[particle] += d_LogDet_dz;
         lap[particle] += lapLogDet;
     }
 }
