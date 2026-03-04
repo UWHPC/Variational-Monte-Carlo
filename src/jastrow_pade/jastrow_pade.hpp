@@ -14,8 +14,8 @@ public:
     explicit JastrowPade(double a = 0.5, double b = 1) noexcept : a_{a}, b_{b} {}
 
     // Getters:
-    [[nodiscard]] double a() const { return a_; }
-    [[nodiscard]] double b() const { return b_; }
+    [[nodiscard]] double a_ptr() const { return a_; }
+    [[nodiscard]] double b_ptr() const { return b_; }
 
     // eqn (27) on paper
     // J(R) = sum_{i<j} u(r_ij)
@@ -26,6 +26,6 @@ public:
      add jastrow contributions into provided derivative buffers:
      grad X/Y/Z is ∇_i J, lap is ∇_i^2 J (per particle i)
     */
-    void addDerivatives(const Particles& particles, const PeriodicBoundaryCondition& pbc, double* RESTRICT gradientX,
-                        double* RESTRICT gradientY, double* RESTRICT gradientZ, double* RESTRICT laplacian) const noexcept;
+    void add_derivatives(const Particles& particles, const PeriodicBoundaryCondition& pbc, double* RESTRICT grad_x,
+                         double* RESTRICT grad_y, double* RESTRICT grad_z, double* RESTRICT laplacian) const noexcept;
 };

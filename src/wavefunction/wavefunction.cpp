@@ -2,26 +2,24 @@
 
 #include <algorithm>
 
-void WaveFunction::evaluateLogPsi(
-    Particles& particles,
-    const PeriodicBoundaryCondition& pbc
-    ) {
-    const double logDet{slaterPlaneWave_.logAbsDet(particles, pbc)};
-    const double jastrowPade{jastrowPade_.value(particles, pbc)};
-    particles.logPsi()[0] = logDet + jastrowPade;
+void WaveFunction::evaluate_log_psi(Particles& particles, const PeriodicBoundaryCondition& pbc) {
+    const double log_det{slater_plane_wave_ptr().log_abs_det(particles)};
+    const double jastrow_pade{jastrow_pade_ptr().value(particles, pbc)};
+
+    particles.log_psi_ptr()[0] = log_det + jastrow_pade;
 }
 
 void WaveFunction::evaluateDerivatives(Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept {
-    const std::size_t paddedStride{particles.paddingStride()};
+    const std::size_t paddedStride{particles.padding_stride_ptr()};
 
-    std::fill_n(particles.gradLogPsiX(), paddedStride, 0.0);
-    std::fill_n(particles.gradLogPsiY(), paddedStride, 0.0);
-    std::fill_n(particles.gradLogPsiZ(), paddedStride, 0.0);
-    std::fill_n(particles.laplogPsi(), paddedStride, 0.0);
+    std::fill_n(particles.grad_log_psi_x_ptr(), paddedStride, 0.0);
+    std::fill_n(particles.grad_log_psi_y_ptr(), paddedStride, 0.0);
+    std::fill_n(particles.grad_log_psi_z_ptr(), paddedStride, 0.0);
+    std::fill_n(particles.log_psi_ptr(), paddedStride, 0.0);
 
-    slaterPlaneWave_.addDerivatives(particles, pbc, particles.gradLogPsiX(), particles.gradLogPsiY(), 
-                                    particles.gradLogPsiZ(), particles.laplogPsi());
+    slater_plane_wave_.add_derivatives(particles, particles.grad_log_psi_x_ptr(), particles.grad_log_psi_y_ptr(),
+                                       particles.grad_log_psi_z_ptr(), particles.lap_log_psi_ptr());
 
-    jastrowPade_.addDerivatives(particles, pbc, particles.gradLogPsiX(), particles.gradLogPsiY(),
-                                particles.gradLogPsiZ(), particles.laplogPsi());
+    jastrow_pade_.add_derivatives(particles, pbc, particles.grad_log_psi_x_ptr(), particles.grad_log_psi_y_ptr(),
+                                  particles.grad_log_psi_z_ptr(), particles.lap_log_psi_ptr());
 }

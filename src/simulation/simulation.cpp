@@ -2,26 +2,26 @@
 
 Simulation::Simulation(Config config) noexcept
 : config_{std::move(config)}
-, particles_{config_.numParticles}
-, pbc_{config_.boxLength}
+, particles_{config_.num_particles}
+, pbc_{config_.box_length}
 , jastrow_pade_{}
-, slater_plane_wave_{particles_.numParticles(), pbc_.L()}
+, slater_plane_wave_{particles_.num_particles_ptr(), pbc_.L_ptr()}
 , wave_function_{jastrow_pade_, slater_plane_wave_}
 , rng_{config.seed}
-, proposal_{-config_.stepSize, config_.stepSize}
-, pick_particle_{0, config_.numParticles - 1}
+, proposal_{-config_.step_size, config_.step_size}
+, pick_particle_{0, config_.num_particles - 1}
 { }
 
 /// @brief Intializes Random Positions for each particle, making sure to not exceed box length
 void Simulation::initialize_positions() {
   // X, Y, Z Position Blocks of Memory
-  double* RESTRICT p_x{particles_.posX()};
-  double* RESTRICT p_y{particles_.posY()};
-  double* RESTRICT p_z{particles_.posZ()};
+  double* RESTRICT p_x{particles_.pos_x_ptr()};
+  double* RESTRICT p_y{particles_.pos_y_ptr()};
+  double* RESTRICT p_z{particles_.pos_z_ptr()};
 
-  const std::size_t N{particles_.numParticles()};
+  const std::size_t N{particles_.num_particles_ptr()};
   std::mt19937_64 rng_local{rng()};
-  double length{pbc_.L()};
+  double length{pbc_.L_ptr()};
 
   // Generate Random Starting Positions
   for (std::size_t i{}; i<N; i++) {
@@ -30,18 +30,18 @@ void Simulation::initialize_positions() {
     p_z[i] = uniform01_(rng_local) * length;
   }
 
-  wave_function_.evaluateLogPsi(particles(), pbc());
-  log_psi_current_ = *particles().logPsi();
+  wave_function_.evaluate_log_psi(particles(), pbc());
+  log_psi_current_ = *particles().log_psi_ptr();
   
   return;
 }
 
 /// @brief Randomly selects a particle and proposes a new position, then checks if the proposed move was valid then either accepts or rejects it
-/// @return bool - If the proposed change was accepted 
+/// @return bool - Whether the proposed change was accepted 
 bool Simulation::metropolis_step() {
-    double* RESTRICT px{particles_.posX()};
-    double* RESTRICT py{particles_.posY()};
-    double* RESTRICT pz{particles_.posZ()};
+    double* RESTRICT px{particles_.pos_x_ptr()};
+    double* RESTRICT py{particles_.pos_y_ptr()};
+    double* RESTRICT pz{particles_.pos_z_ptr()};
 
     std::size_t i{pick_particle()(rng())};
 
@@ -53,15 +53,15 @@ bool Simulation::metropolis_step() {
     py[i] += proposal()(rng());
     pz[i] += proposal()(rng());
 
-    wave_function_.evaluateLogPsi(particles(), pbc());
+    wave_function_.evaluate_log_psi(particles(), pbc());
 
-    double delta_log_psi{*particles().logPsi() - log_psi_current_};
+    double delta_log_psi{*particles().log_psi_ptr() - log_psi_current_};
 
     double log_u{log(uniform01()(rng()))};
     double minterm{std::min(0.0, 2 * delta_log_psi)};
 
     if (log_u < minterm) {
-      log_psi_current_ = *particles().logPsi();
+      log_psi_current_ = *particles().log_psi_ptr();
       return true;
     } else {
       px[i] = old_x;
@@ -74,9 +74,9 @@ bool Simulation::metropolis_step() {
 
 /// @brief Warmup the simulation by processing a small warmup sweep on particles
 void Simulation::warmup() {
-  const std::size_t warmupSteps{config_.warmupSteps};
+  const std::size_t warmup_steps{config_.warmup_steps};
 
-  for (std::size_t i{}; i < warmupSteps; i++) {
+  for (std::size_t i{}; i < warmup_steps; i++) {
     metropolis_step();
   }
 
@@ -85,9 +85,9 @@ void Simulation::warmup() {
 
 
 void Simulation::measure() {
-  const std::size_t measureSteps{config_.warmupSteps};
+  const std::size_t measure_steps{config_.measure_steps};
 
-  for (std::size_t i{}; i < measureSteps; i++) {
+  for (std::size_t i{}; i < measure_steps; i++) {
     metropolis_step();
   }
 

@@ -2,56 +2,56 @@
 
 #include "memory.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <memory>
-#include <algorithm>
 
 template <typename T> class AlignedSoA {
 private:
     // SIMD byte alignment
-    static constexpr std::size_t alignmentBytes{SIMD_BYTES};
+    static constexpr std::size_t ALIGNMENT_BYTES{SIMD_BYTES};
 
     // Ensures sub-arrays are byte aligned
-    static constexpr std::size_t elementsPerAlignment{SIMD_BYTES / sizeof(T)};
+    static constexpr std::size_t ELEMENTS_PER_ALIGNMENTS{SIMD_BYTES / sizeof(T)};
 
-    std::size_t numElements_;
-    std::size_t strideLength_;
-    std::size_t numArrays_;
-    std::unique_ptr<T[], AlignedDeleter> memoryBlock_;
+    std::size_t num_elements_;
+    std::size_t stride_length_;
+    std::size_t num_arrays_;
+    std::unique_ptr<T[], AlignedDeleter> memory_block_;
 
     // Round up to nearest factor of SIMD bytes:
     std::size_t roundUp(std::size_t unpadded) const {
-        return (unpadded + elementsPerAlignment - 1) & ~(elementsPerAlignment - 1);
+        return (unpadded + ELEMENTS_PER_ALIGNMENTS - 1) & ~(ELEMENTS_PER_ALIGNMENTS - 1);
     }
 
 public:
-    AlignedSoA(std::size_t numElements, std::size_t numArrays)
-        : numElements_{numElements}, strideLength_{roundUp(numElements)}, numArrays_{numArrays} {
+    AlignedSoA(std::size_t num_elements, std::size_t num_arrays)
+        : num_elements_{num_elements}, stride_length_{roundUp(num_elements)}, num_arrays_{num_arrays} {
         // Determine the total elements and bytes needed for padded memory block:
-        std::size_t totalElements{numArrays_ * strideLength_};
-        std::size_t totalBytes{totalElements * sizeof(T)};
+        std::size_t total_elements{num_arrays_ * stride_length_};
+        std::size_t total_bytes{total_elements * sizeof(T)};
 
         // Allocate aligned bytes and check:
-        T* ptr{static_cast<T*>(alignedAlloc(alignmentBytes, totalBytes))};
+        T* ptr{static_cast<T*>(alignedAlloc(ALIGNMENT_BYTES, total_bytes))};
         if (!ptr)
             throw std::bad_alloc();
 
-        // Initialize the pointer to all default and transfer ownership to memoryBlock_:
-        std::fill_n(ptr, totalElements, T{});
-        memoryBlock_.reset(ptr);
+        // Initialize the pointer to all default and transfer ownership to memory_block_:
+        std::fill_n(ptr, total_elements, T{});
+        memory_block_.reset(ptr);
     }
 
     // Getters:
     // Padded stride length:
-    [[nodiscard]] std::size_t stride() const { return strideLength_; }
+    [[nodiscard]] std::size_t stride() const { return stride_length_; }
 
     // Number of elements:
-    [[nodiscard]] std::size_t numElements() const { return numElements_; }
+    [[nodiscard]] std::size_t num_elements() const { return num_elements_; }
 
     // Raw pointer accessors:
     // Mutable:
-    T* operator[](std::size_t arrayIndex) { return memoryBlock_.get() + arrayIndex * stride(); }
+    T* operator[](std::size_t arrayIndex) { return memory_block_.get() + arrayIndex * stride(); }
 
     // Immutable:
-    const T* operator[](std::size_t arrayIndex) const { return memoryBlock_.get() + arrayIndex * stride(); }
+    const T* operator[](std::size_t arrayIndex) const { return memory_block_.get() + arrayIndex * stride(); }
 };
