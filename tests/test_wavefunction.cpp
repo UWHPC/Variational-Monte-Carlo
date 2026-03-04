@@ -41,7 +41,14 @@ TEST_CASE("WaveFunction evaluateDerivatives clears buffers and delegates to Jast
     std::vector<double> expectedY(stride, 0.0);
     std::vector<double> expectedZ(stride, 0.0);
     std::vector<double> expectedLap(stride, 0.0);
-    jastrow.addDerivatives(particles, pbc, expectedX.data(), expectedY.data(), expectedZ.data(), expectedLap.data());
+
+    jastrow.addDerivatives(
+        particles, pbc,
+        expectedX.data(),
+        expectedY.data(),
+        expectedZ.data(),
+        expectedLap.data()
+    );
 
     waveFunction.evaluateDerivatives(particles, pbc);
 
@@ -63,16 +70,23 @@ TEST_CASE("WaveFunction evaluateLogPsi updates particle logPsi", "[wavefunction]
 
     const JastrowPade jastrow{0.5, 1.0};
     SlaterPlaneWave slater{1U, 10.0};
-    slater.kx()[0] = 0.3;
-    slater.ky()[0] = -0.2;
-    slater.kz()[0] = 0.5;
+
+    slater.kVectorX()[0] = 0.3;
+    slater.kVectorY()[0] = -0.2;
+    slater.kVectorZ()[0] = 0.5;
 
     WaveFunction waveFunction{jastrow, slater};
     waveFunction.evaluateLogPsi(particles, pbc);
 
-    const double kdotr{slater.kx()[0] * particles.posX()[0] + slater.ky()[0] * particles.posY()[0] +
-                       slater.kz()[0] * particles.posZ()[0]};
-    const double expectedLogPsi{std::log(std::abs(std::cos(kdotr)))};
+    const double kdotr{
+        slater.kVectorX()[0] * particles.posX()[0] +
+        slater.kVectorY()[0] * particles.posY()[0] +
+        slater.kVectorZ()[0] * particles.posZ()[0]
+    };
+
+    const double expectedLogPsi{
+        std::log(std::abs(std::cos(kdotr)))
+    };
 
     requireNearWave(particles.logPsi()[0], expectedLogPsi);
 }
