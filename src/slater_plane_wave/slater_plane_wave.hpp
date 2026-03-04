@@ -14,52 +14,63 @@
 class SlaterPlaneWave {
 private:
     std::size_t numOrbitals_;
+    std::size_t matrixSize_;
     double boxLength_;
 
-    // All sub-arrays:
-    enum ArrayIndex : std::size_t { D_, INV_D_, LU_, PIVOT_, K_X_, K_Y_, K_Z_, NUM_SUB_ARRAYS_ };
+    // All vectors:
+    enum VectorIndex : std::size_t { K_X_, K_Y_, K_Z_, NUM_VECTORS_ };
+    AlignedSoA<double> vectors_;
 
-    // Memory data:
-    AlignedSoA<double[]> slaterPlaneWaveData_;
+    // Pivot:
+    enum PivotIndex : std::size_t { PIVOT_, NUM_PIVOT_ };
+    AlignedSoA<int> pivot_;
 
-    // static constexpr std::size_t numVectorComponents_{8};  // Number of components
-    static constexpr std::size_t alignmentBytes_{SIMD_BYTES}; // SIMD byte alignment
+    // All matrices:
+    enum MatrixIndex : std::size_t { D_, INV_D_, LU_, NUM_MATRIX_ };
+    AlignedSoA<double> matrices_;
 
 public:
     explicit SlaterPlaneWave(std::size_t N, double L)
-        : numOrbitals_{N}, boxLength_{L}, slaterPlaneWaveData_{N, NUM_SUB_ARRAYS_} {};
+        : numOrbitals_{N}, matrixSize_{N * N}, boxLength_{L}, vectors_{N, NUM_VECTORS_}, pivot_{N, NUM_PIVOT_},
+          matrices_{N * N, NUM_MATRIX_} {};
 
+    // Getters:
+    // Num orbitals - N
     [[nodiscard]] std::size_t numOrbitals() const noexcept { return numOrbitals_; }
+
+    // Matrix size - N^2
+    [[nodiscard]] std::size_t matrixSize() const noexcept { return matrixSize_; }
+
+    // Box length - L
     [[nodiscard]] double boxLength() const noexcept { return boxLength_; }
 
-    // --- Matrix buffers (row-major N x N stored in padded block) ---
-    [[nodiscard]] double* determinant() noexcept { return slaterPlaneWaveData_[D_]; }
-    [[nodiscard]] double* invDeterminant() noexcept { return slaterPlaneWaveData_[INV_D_]; }
-    [[nodiscard]] double* lowerUpper() noexcept { return slaterPlaneWaveData_[LU_]; }
+    // Det. matrix
+    [[nodiscard]] double* determinant() noexcept { return matrices_[D_]; }
+    [[nodiscard]] double const* determinant() const noexcept { return matrices_[D_]; }
 
-    [[nodiscard]] double const* determinant() const noexcept { return slaterPlaneWaveData_[D_]; }
-    [[nodiscard]] double const* invDeterminant() const noexcept { return slaterPlaneWaveData_[INV_D_]; }
-    [[nodiscard]] double const* lowerUpper() const noexcept { return slaterPlaneWaveData_[LU_]; }
+    // Inv. det. matrix
+    [[nodiscard]] double* invDeterminant() noexcept { return matrices_[INV_D_]; }
+    [[nodiscard]] double const* invDeterminant() const noexcept { return matrices_[INV_D_]; }
 
-    // --- Pivot buffer ---
+    // Lower upper matrix
+    [[nodiscard]] double* lowerUpper() noexcept { return matrices_[LU_]; }
+    [[nodiscard]] double const* lowerUpper() const noexcept { return matrices_[LU_]; }
 
-    [[nodiscard]] double* pivot() noexcept { return slaterPlaneWaveData_[PIVOT_]; }             // MUT - pivot
-    [[nodiscard]] double const* pivot() const noexcept { return slaterPlaneWaveData_[PIVOT_]; } // IMMUT - pivot
+    // Pivot matrix
+    [[nodiscard]] int* pivot() noexcept { return pivot_[PIVOT_]; }
+    [[nodiscard]] int const* pivot() const noexcept { return pivot_[PIVOT_]; }
 
-    // --- k-vector buffers (length N, padded to vecStride_) ---
+    // X component of k
+    [[nodiscard]] double* kVectorX() noexcept { return vectors_[K_X_]; }
+    [[nodiscard]] double const* kVectorX() const noexcept { return vectors_[K_X_]; }
 
-    [[nodiscard]] double* kVectorX() noexcept { return slaterPlaneWaveData_[K_X_]; } // MUT - X component of k
-    [[nodiscard]] double* kVectorY() noexcept { return slaterPlaneWaveData_[K_Y_]; } // MUT - Y component of k
-    [[nodiscard]] double* kVectorZ() noexcept { return slaterPlaneWaveData_[K_Z_]; } // MUT - Z component of k
+    // Y component of k
+    [[nodiscard]] double* kVectorY() noexcept { return vectors_[K_Y_]; }
+    [[nodiscard]] double const* kVectorY() const noexcept { return vectors_[K_Y_]; }
 
-    // IMMUT - X component of k
-    [[nodiscard]] double const* kVectorX() const noexcept { return slaterPlaneWaveData_[K_X_]; }
-
-    // IMMUT - Y component of k
-    [[nodiscard]] double const* kVectorY() const noexcept { return slaterPlaneWaveData_[K_Y_]; }
-
-    // IMMUT - Z component of k
-    [[nodiscard]] double const* kVectorZ() const noexcept { return slaterPlaneWaveData_[K_Z_]; }
+    // Z component of k
+    [[nodiscard]] double* kVectorZ() noexcept { return vectors_[K_Z_]; }
+    [[nodiscard]] double const* kVectorZ() const noexcept { return vectors_[K_Z_]; }
 
     // Computes log|det(D)| and updates internal cached inverse/LU.
     [[nodiscard]] double logAbsDet(const Particles& particles, const PeriodicBoundaryCondition& pbc);

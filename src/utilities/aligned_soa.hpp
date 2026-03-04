@@ -1,6 +1,7 @@
 #pragma once
 
 #include "memory.hpp"
+
 #include <cstddef>
 #include <memory>
 
@@ -10,7 +11,7 @@ private:
     static constexpr std::size_t alignmentBytes{SIMD_BYTES};
 
     // Ensures sub-arrays are byte aligned
-    static constexpr std::size_t doublesPerAlignment{SIMD_BYTES / sizeof(double)};
+    static constexpr std::size_t elementsPerAlignment{SIMD_BYTES / sizeof(T)};
 
     std::size_t numElements_;
     std::size_t strideLength_;
@@ -19,23 +20,23 @@ private:
 
     // Round up to nearest factor of SIMD bytes:
     std::size_t roundUp(std::size_t unpadded) const {
-        return (unpadded + doublesPerAlignment - 1) & ~(doublesPerAlignment - 1);
+        return (unpadded + elementsPerAlignment - 1) & ~(elementsPerAlignment - 1);
     }
 
 public:
     AlignedSoA(std::size_t numElements, std::size_t numArrays)
         : numElements_{numElements}, strideLength_{roundUp(numElements)}, numArrays_{numArrays} {
-        // Determine the total doubles and bytes needed for padded memory block:
-        std::size_t totalDoubles{numArrays_ * strideLength_};
-        std::size_t totalBytes{totalDoubles * sizeof(double)};
+        // Determine the total elements and bytes needed for padded memory block:
+        std::size_t totalElements{numArrays_ * strideLength_};
+        std::size_t totalBytes{totalElements * sizeof(T)};
 
         // Allocate aligned bytes and check:
-        double* ptr{static_cast<double*>(alignedAlloc(alignmentBytes, totalBytes))};
+        T* ptr{static_cast<T*>(alignedAlloc(alignmentBytes, totalBytes))};
         if (!ptr)
             throw std::bad_alloc();
 
-        // Initialize the pointer to all 0.0 and transfer ownership to memoryBlock_:
-        std::fill_n(ptr, totalDoubles, 0.0);
+        // Initialize the pointer to all default and transfer ownership to memoryBlock_:
+        std::fill_n(ptr, totalElements, T{});
         memoryBlock_.reset(ptr);
     }
 
@@ -48,8 +49,8 @@ public:
 
     // Raw pointer accessors:
     // Mutable:
-    double* operator[](std::size_t arrayIndex) { return memoryBlock_.get() + arrayIndex * stride(); }
+    T* operator[](std::size_t arrayIndex) { return memoryBlock_.get() + arrayIndex * stride(); }
 
     // Immutable:
-    const double* operator[](std::size_t arrayIndex) const { return memoryBlock_.get() + arrayIndex * stride(); }
+    const T* operator[](std::size_t arrayIndex) const { return memoryBlock_.get() + arrayIndex * stride(); }
 };
