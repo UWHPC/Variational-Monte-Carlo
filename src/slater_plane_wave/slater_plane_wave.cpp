@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <new>
 #include <vector>
+#include <limits>
 
 namespace {
 

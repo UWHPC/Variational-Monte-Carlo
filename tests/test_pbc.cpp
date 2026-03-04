@@ -62,3 +62,39 @@ TEST_CASE("displacement and distance use minimum-image coordinates", "[pbc]") {
     requireNearPbc(pbc.distance(9.0, 1.0, 1.0, 1.0, 1.0, 1.0), 2.0);
     requireNearPbc(pbc.distance(1.0, 1.0, 1.0, 9.0, 1.0, 1.0), 2.0);
 }
+
+TEST_CASE("wrap and minImage are invariant under full-box translations", "[pbc]") {
+    const PeriodicBoundaryCondition pbc{10.0};
+    const double L{pbc.L()};
+
+    const double samples[]{-23.75, -10.1, -0.01, 0.0, 0.01, 4.9, 9.99, 10.01, 31.5};
+    for (const double x : samples) {
+        const double wrapped{pbc.wrap(x)};
+        REQUIRE(wrapped >= 0.0);
+        REQUIRE(wrapped < L);
+        requireNearPbc(pbc.wrap(x + 2.0 * L), wrapped);
+        requireNearPbc(pbc.wrap(x - 3.0 * L), wrapped);
+
+        const double minImg{pbc.minImage(x)};
+        requireNearPbc(pbc.minImage(x + 4.0 * L), minImg);
+        requireNearPbc(pbc.minImage(x - 5.0 * L), minImg);
+    }
+}
+
+TEST_CASE("minimum-image displacement is antisymmetric between particle orderings", "[pbc]") {
+    const PeriodicBoundaryCondition pbc{10.0};
+
+    double dxAB{};
+    double dyAB{};
+    double dzAB{};
+    pbc.displacement(1.2, 2.7, 4.0, 8.9, 1.3, 6.4, dxAB, dyAB, dzAB);
+
+    double dxBA{};
+    double dyBA{};
+    double dzBA{};
+    pbc.displacement(8.9, 1.3, 6.4, 1.2, 2.7, 4.0, dxBA, dyBA, dzBA);
+
+    requireNearPbc(dxAB, -dxBA);
+    requireNearPbc(dyAB, -dyBA);
+    requireNearPbc(dzAB, -dzBA);
+}
