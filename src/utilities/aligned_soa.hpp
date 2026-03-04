@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <algorithm>
 
 template <typename T> class AlignedSoA {
 private:
