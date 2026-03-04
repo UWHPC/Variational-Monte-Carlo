@@ -10,7 +10,6 @@ int main(int argc, char** argv) {
         assert(config.warmupSteps >= 0);
         assert(config.measureSteps >= 1);
         assert(config.blockSize >= 1);
-        
         // WARN: check blocking uncertainty assert
         printConfig(config);
         return 0;

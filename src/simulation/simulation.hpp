@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../particles/particles.hpp"
 #include "../config/config.hpp"
-#include "../pbc/pbc.hpp"
 #include "../jastrow_pade/jastrow_pade.hpp"
+#include "../particles/particles.hpp"
+#include "../pbc/pbc.hpp"
 #include "../slater_plane_wave/slater_plane_wave.hpp"
 #include "../wavefunction/wavefunction.hpp"
 
@@ -23,6 +23,7 @@ private:
     std::size_t proposed_{};
     std::size_t accepted_{};
     double logPsiCurrent_{};
+
 public:
     explicit Simulation(Config cfg) noexcept;
 
@@ -32,6 +33,7 @@ public:
     [[nodiscard]] PeriodicBoundaryCondition pbc() { return pbc_; }
 
     void run();
+
 private:
     void initializePositions();
     bool metropolisStep();

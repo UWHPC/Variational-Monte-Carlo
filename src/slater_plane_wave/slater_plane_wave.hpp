@@ -1,13 +1,13 @@
 #pragma once
 
+#include "../memory/memory.hpp"
 #include "../particles/particles.hpp"
 #include "../pbc/pbc.hpp"
-#include "../memory/memory.hpp"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdlib>
 #include <memory>
-#include <cstddef>
 #include <stdexcept>
 
 class SlaterPlaneWave {
@@ -30,6 +30,7 @@ private:
     double* kx_{nullptr};
     double* ky_{nullptr};
     double* kz_{nullptr};
+
 public:
     explicit SlaterPlaneWave(std::size_t N, double L);
     [[nodiscard]] std::size_t N() const noexcept { return N_; }
@@ -62,18 +63,9 @@ public:
     [[nodiscard]] double const* kz() const noexcept { return kz_; } // IMMUT - Z component of k
 
     // Computes log|det(D)| and updates internal cached inverse/LU.
-    [[nodiscard]] double logAbsDet(
-        const Particles& particles,
-        const PeriodicBoundaryCondition& pbc
-    );
+    [[nodiscard]] double logAbsDet(const Particles& particles, const PeriodicBoundaryCondition& pbc);
 
     // Accumulates Slater contributions into grad/lap (length = stride/at least N).
-    void addDerivatives(
-        const Particles& particles,
-        const PeriodicBoundaryCondition& pbc,
-        double* gradX,
-        double* gradY,
-        double* gradZ,
-        double* la
-    ) const noexcept;
+    void addDerivatives(const Particles& particles, const PeriodicBoundaryCondition& pbc, double* gradX, double* gradY,
+                        double* gradZ, double* la) const noexcept;
 };

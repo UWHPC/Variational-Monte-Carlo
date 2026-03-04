@@ -1,8 +1,8 @@
 #pragma once
 
+#include "../jastrow_pade/jastrow_pade.hpp"
 #include "../particles/particles.hpp"
 #include "../pbc/pbc.hpp"
-#include "../jastrow_pade/jastrow_pade.hpp"
 #include "../slater_plane_wave/slater_plane_wave.hpp"
 
 class WaveFunction {
@@ -11,17 +11,10 @@ private:
     SlaterPlaneWave& slaterPlaneWave_; // holds a non-const reference because logsAbsDet catches LU/inv
 public:
     explicit WaveFunction(const JastrowPade& jastrowPade, SlaterPlaneWave& slaterPlaneWave) noexcept
-    : jastrowPade_{jastrowPade}
-    , slaterPlaneWave_{slaterPlaneWave}
-    { }
-
+        : jastrowPade_{jastrowPade}, slaterPlaneWave_{slaterPlaneWave} {}
     void evaluateLogPsi(
         Particles& particles,
-        const PeriodicBoundaryCondition& pbc
-    ); // not const noexcept because it calls slaterPlaneWave_.logAbsDet();
+        const PeriodicBoundaryCondition& pbc); // not const noexcept because it calls slaterPlaneWave_.logAbsDet();
 
-    void evaluateDerivatives(
-        Particles& particles,
-        const PeriodicBoundaryCondition& pbc
-    ) const noexcept;
+    void evaluateDerivatives(Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept;
 };

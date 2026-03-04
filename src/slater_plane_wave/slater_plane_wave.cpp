@@ -1,10 +1,10 @@
 #include "slater_plane_wave.hpp"
 
-#include <vector>
-#include <cmath>
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <new>
+#include <vector>
 
 namespace {
 
@@ -16,9 +16,7 @@ inline std::size_t roundUpToSimd(std::size_t n) noexcept {
 // @brief helper function to convert i-jth indices -> n
 // @param stride is the difference between the row and the column.
 // @return the appropriate i-th row j-th column as a size_t.
-inline std::size_t index(std::size_t row, std::size_t col, std::size_t stride) noexcept {
-    return row * stride + col;
-}
+inline std::size_t index(std::size_t row, std::size_t col, std::size_t stride) noexcept { return row * stride + col; }
 
 /*
 see https://www.geeksforgeeks.org/dsa/doolittle-algorithm-lu-decomposition/
@@ -48,7 +46,8 @@ int lu_decompose(double* LU, double* piv, std::size_t N) {
         }
 
         // max abs = 0.0 implies the pivot column is 0 & det = 0.
-        if (maxAbs == 0.0) continue;
+        if (maxAbs == 0.0)
+            continue;
 
         if (pivotRow != col) {
             for (std::size_t col2 = 0; col2 < N; ++col2) {
@@ -78,13 +77,7 @@ solve (P^-1)LU x = b. given combined LU and pivot permutation piv.
 piv encodes the row permutation applied during LU so that
 we first permute b: y = P b, then solve L z = y, then U x = z.
 */
-void lu_solve(
-    const double* LU, 
-    const double* piv, 
-    const double* b, 
-    double* x, 
-    std::size_t N
-) {
+void lu_solve(const double* LU, const double* piv, const double* b, double* x, std::size_t N) {
     // Apply permutation: x = Pb
     // store y in x temporarily
     for (std::size_t row = 0; row < N; ++row) {
@@ -114,9 +107,7 @@ void lu_solve(
 
 } // namespace
 
-SlaterPlaneWave::SlaterPlaneWave(std::size_t N, double L)
-: N_{N}
-, L_{L} {
+SlaterPlaneWave::SlaterPlaneWave(std::size_t N, double L) : N_{N}, L_{L} {
     vecStride_ = {roundUpToSimd(N_)};
     matStride_ = {roundUpToSimd(N_ * N_)};
 
@@ -128,7 +119,8 @@ SlaterPlaneWave::SlaterPlaneWave(std::size_t N, double L)
     const std::size_t totalBytes = totalDoubles * sizeof(double);
 
     double* ptr = static_cast<double*>(alignedAlloc(alignmentBytes_, totalBytes));
-    if (!ptr) throw std::bad_alloc();
+    if (!ptr)
+        throw std::bad_alloc();
 
     std::fill_n(ptr, totalDoubles, 0.0);
     memoryBlock_.reset(ptr);
@@ -151,13 +143,11 @@ SlaterPlaneWave::SlaterPlaneWave(std::size_t N, double L)
     kz_ = cur;
     cur += vecStride_;
 
-    if (cur != memoryBlock_.get() + totalDoubles) throw std::runtime_error("Bad slice");
+    if (cur != memoryBlock_.get() + totalDoubles)
+        throw std::runtime_error("Bad slice");
 }
 
-double SlaterPlaneWave::logAbsDet(
-    const Particles& particles,
-    const PeriodicBoundaryCondition& pbc
-) {
+double SlaterPlaneWave::logAbsDet(const Particles& particles, const PeriodicBoundaryCondition& pbc) {
     const std::size_t N = N_;
     const double* posX = particles.posX();
     const double* posY = particles.posY();

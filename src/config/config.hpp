@@ -1,9 +1,9 @@
 #pragma once
 
-#include <cstdint>
-#include <cstddef>
 #include <array>
 #include <charconv>
+#include <cstddef>
+#include <cstdint>
 #include <exception>
 #include <iostream>
 #include <optional>
@@ -74,115 +74,91 @@ struct RawConfigValues {
 
 [[nodiscard]] std::string_view canonicalOptionName(OptionId id) {
     switch (id) {
-        case OptionId::numParticles:
-            return "numParticles";
-        case OptionId::boxLength:
-            return "boxLength";
-        case OptionId::warmupSteps:
-            return "warmupSteps";
-        case OptionId::measureSteps:
-            return "measureSteps";
-        case OptionId::stepSize:
-            return "stepSize";
-        case OptionId::seed:
-            return "seed";
-        case OptionId::blockSize:
-            return "blockSize";
+    case OptionId::numParticles:
+        return "numParticles";
+    case OptionId::boxLength:
+        return "boxLength";
+    case OptionId::warmupSteps:
+        return "warmupSteps";
+    case OptionId::measureSteps:
+        return "measureSteps";
+    case OptionId::stepSize:
+        return "stepSize";
+    case OptionId::seed:
+        return "seed";
+    case OptionId::blockSize:
+        return "blockSize";
     }
     throw std::logic_error{"Unknown option id"};
 }
 
-[[nodiscard]] std::optional<std::string_view> getOptionValue(
-    const RawConfigValues& raw,
-    OptionId id
-) {
+[[nodiscard]] std::optional<std::string_view> getOptionValue(const RawConfigValues& raw, OptionId id) {
     switch (id) {
-        case OptionId::numParticles:
-            return raw.numParticles;
-        case OptionId::boxLength:
-            return raw.boxLength;
-        case OptionId::warmupSteps:
-            return raw.warmupSteps;
-        case OptionId::measureSteps:
-            return raw.measureSteps;
-        case OptionId::stepSize:
-            return raw.stepSize;
-        case OptionId::seed:
-            return raw.seed;
-        case OptionId::blockSize:
-            return raw.blockSize;
+    case OptionId::numParticles:
+        return raw.numParticles;
+    case OptionId::boxLength:
+        return raw.boxLength;
+    case OptionId::warmupSteps:
+        return raw.warmupSteps;
+    case OptionId::measureSteps:
+        return raw.measureSteps;
+    case OptionId::stepSize:
+        return raw.stepSize;
+    case OptionId::seed:
+        return raw.seed;
+    case OptionId::blockSize:
+        return raw.blockSize;
     }
     throw std::logic_error{"Unknown option id"};
 }
 
-void setOptionValue(
-    RawConfigValues& raw,
-    OptionId id,
-    std::string_view value
-) {
+void setOptionValue(RawConfigValues& raw, OptionId id, std::string_view value) {
     switch (id) {
-        case OptionId::numParticles:
-            raw.numParticles = value;
-            return;
-        case OptionId::boxLength:
-            raw.boxLength = value;
-            return;
-        case OptionId::warmupSteps:
-            raw.warmupSteps = value;
-            return;
-        case OptionId::measureSteps:
-            raw.measureSteps = value;
-            return;
-        case OptionId::stepSize:
-            raw.stepSize = value;
-            return;
-        case OptionId::seed:
-            raw.seed = value;
-            return;
-        case OptionId::blockSize:
-            raw.blockSize = value;
-            return;
+    case OptionId::numParticles:
+        raw.numParticles = value;
+        return;
+    case OptionId::boxLength:
+        raw.boxLength = value;
+        return;
+    case OptionId::warmupSteps:
+        raw.warmupSteps = value;
+        return;
+    case OptionId::measureSteps:
+        raw.measureSteps = value;
+        return;
+    case OptionId::stepSize:
+        raw.stepSize = value;
+        return;
+    case OptionId::seed:
+        raw.seed = value;
+        return;
+    case OptionId::blockSize:
+        raw.blockSize = value;
+        return;
     }
     throw std::logic_error{"Unknown option id"};
 }
 
-template<typename T>
-[[nodiscard]] T parseInteger(
-    std::string_view text,
-    std::string_view optionName
-) {
+template <typename T> [[nodiscard]] T parseInteger(std::string_view text, std::string_view optionName) {
     T value{};
     const char* const begin{text.data()};
     const char* const end{text.data() + text.size()};
-    const auto [ptr, ec]{std::from_chars(
-        begin,
-        end,
-        value
-    )};
+    const auto [ptr, ec]{std::from_chars(begin, end, value)};
     if (ec != std::errc{} || ptr != end) {
-        throw std::invalid_argument{
-            "Invalid integer value for --" + std::string{optionName} + ": '" + std::string{text} + "'"
-        };
+        throw std::invalid_argument{"Invalid integer value for --" + std::string{optionName} + ": '" +
+                                    std::string{text} + "'"};
     }
     return value;
 }
 
-[[nodiscard]] double parseDouble(
-    std::string_view text,
-    std::string_view optionName
-) {
+[[nodiscard]] double parseDouble(std::string_view text, std::string_view optionName) {
     double value{};
     const char* const begin{text.data()};
     const char* const end{text.data() + text.size()};
-    const auto [ptr, ec]{std::from_chars(
-        begin,
-        end,
-        value
-    )};
+    const auto [ptr, ec]{std::from_chars(begin, end, value)};
     if (ec != std::errc{} || ptr != end) {
-        throw std::invalid_argument{
-            "Invalid floating-point value for --" + std::string{optionName} + ": '" + std::string{text} + "'"
-        };
+        throw std::invalid_argument{"Invalid floating-point value for --" + std::string{optionName} + ": '" +
+                                    std::string{text} + "'"};
     }
     return value;
 }
@@ -196,10 +172,7 @@ void printUsage(const char* programName) {
         << "  --num-particles, --box-length, --warmup-steps, --measure-steps, --step-size, --block-size\n";
 }
 
-[[nodiscard]] Config parseArgs(
-    int argc,
-    char** argv
-) {
+[[nodiscard]] Config parseArgs(int argc, char** argv) {
     if (argc <= 1) {
         throw std::invalid_argument{"No arguments provided"};
     }
@@ -229,9 +202,7 @@ void printUsage(const char* programName) {
         if (equalsPos == std::string_view::npos) {
             optionName = token;
             if (idx + 1 >= argc) {
-                throw std::invalid_argument{
-                    "Missing value for option --" + std::string{optionName}
-                };
+                throw std::invalid_argument{"Missing value for option --" + std::string{optionName}};
             }
             ++idx;
             optionValue = argv[idx];
@@ -245,27 +216,19 @@ void printUsage(const char* programName) {
             throw std::invalid_argument{"Unknown option: --" + std::string{optionName}};
         }
         if (optionValue.empty()) {
-            throw std::invalid_argument{
-                "Missing value for option --" + std::string{canonicalOptionName(*parsedOption)}
-            };
+            throw std::invalid_argument{"Missing value for option --" +
+                                        std::string{canonicalOptionName(*parsedOption)}};
         }
         if (getOptionValue(raw, *parsedOption).has_value()) {
-            throw std::invalid_argument{
-                "Duplicate option: --" + std::string{canonicalOptionName(*parsedOption)}
-            };
+            throw std::invalid_argument{"Duplicate option: --" + std::string{canonicalOptionName(*parsedOption)}};
         }
 
         setOptionValue(raw, *parsedOption, optionValue);
     }
 
     constexpr std::array<OptionId, 7> allOptions{
-        OptionId::numParticles,
-        OptionId::boxLength,
-        OptionId::warmupSteps,
-        OptionId::measureSteps,
-        OptionId::stepSize,
-        OptionId::seed,
-        OptionId::blockSize,
+        OptionId::numParticles, OptionId::boxLength, OptionId::warmupSteps, OptionId::measureSteps,
+        OptionId::stepSize,     OptionId::seed,      OptionId::blockSize,
     };
 
     std::string missing{};
@@ -283,40 +246,24 @@ void printUsage(const char* programName) {
     }
 
     return Config{
-        .numParticles = parseInteger<std::size_t>(
-            *raw.numParticles,
-            "numParticles"
-        ),
+        .numParticles = parseInteger<std::size_t>(*raw.numParticles, "numParticles"),
         .boxLength = parseDouble(*raw.boxLength, "boxLength"),
-        .warmupSteps = parseInteger<std::size_t>(
-            *raw.warmupSteps,
-            "warmupSteps"
-        ),
-        .measureSteps = parseInteger<std::size_t>(
-            *raw.measureSteps,
-            "measureSteps"
-        ),
+        .warmupSteps = parseInteger<std::size_t>(*raw.warmupSteps, "warmupSteps"),
+        .measureSteps = parseInteger<std::size_t>(*raw.measureSteps, "measureSteps"),
         .stepSize = parseDouble(*raw.stepSize, "stepSize"),
-        .seed = parseInteger<std::uint64_t>(
-            *raw.seed,
-            "seed"
-        ),
-        .blockSize = parseInteger<std::size_t>(
-            *raw.blockSize,
-            "blockSize"
-        ),
+        .seed = parseInteger<std::uint64_t>(*raw.seed, "seed"),
+        .blockSize = parseInteger<std::size_t>(*raw.blockSize, "blockSize"),
     };
 }
 
 void printConfig(const Config& config) {
-    std::cout
-        << "numParticles: " << config.numParticles << '\n'
-        << "boxLength: " << config.boxLength << '\n'
-        << "warmupSteps: " << config.warmupSteps << '\n'
-        << "measureSteps: " << config.measureSteps << '\n'
-        << "stepSize: " << config.stepSize << '\n'
-        << "seed: " << config.seed << '\n'
-        << "blockSize: " << config.blockSize << '\n';
+    std::cout << "numParticles: " << config.numParticles << '\n'
+              << "boxLength: " << config.boxLength << '\n'
+              << "warmupSteps: " << config.warmupSteps << '\n'
+              << "measureSteps: " << config.measureSteps << '\n'
+              << "stepSize: " << config.stepSize << '\n'
+              << "seed: " << config.seed << '\n'
+              << "blockSize: " << config.blockSize << '\n';
 }
 
 } // Namespace

@@ -3,10 +3,7 @@
 #include <cmath>
 #include <cstddef>
 
-double JastrowPade::value(
-    const Particles& particles,
-    const PeriodicBoundaryCondition& pbc
-) const noexcept {
+double JastrowPade::value(const Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept {
     const std::size_t N{particles.numParticles()};
 
     const double* RESTRICT p_x{particles.posX()};
@@ -22,11 +19,7 @@ double JastrowPade::value(
         for (std::size_t j = i + 1; j < N; ++j) {
             double dx{}, dy{}, dz{};
 
-            pbc.displacement(
-                p_x[i], p_y[i], p_z[i],
-                p_x[j], p_y[j], p_z[j],
-                dx, dy, dz
-            );
+            pbc.displacement(p_x[i], p_y[i], p_z[i], p_x[j], p_y[j], p_z[j], dx, dy, dz);
             const double r_sq{dx * dx + dy * dy + dz * dz};
             const double r{std::sqrt(r_sq)};
 
@@ -42,14 +35,9 @@ double JastrowPade::value(
     return jastrowPade;
 }
 
-void JastrowPade::addDerivatives(
-    const Particles& particles,
-    const PeriodicBoundaryCondition& pbc,
-    double* RESTRICT gradX,
-    double* RESTRICT gradY,
-    double* RESTRICT gradZ,
-    double* RESTRICT lap
-) const noexcept {
+void JastrowPade::addDerivatives(const Particles& particles, const PeriodicBoundaryCondition& pbc,
+                                 double* RESTRICT gradX, double* RESTRICT gradY, double* RESTRICT gradZ,
+                                 double* RESTRICT lap) const noexcept {
     // NOTE: assumes gradX/gradY/gradZ/lap are zero-initialized by caller
     const std::size_t N{particles.numParticles()};
 
@@ -64,11 +52,7 @@ void JastrowPade::addDerivatives(
         for (std::size_t j = i + 1; j < N; ++j) {
             double dx{}, dy{}, dz{};
 
-            pbc.displacement(
-                p_x[i], p_y[i], p_z[i],
-                p_x[j], p_y[j], p_z[j],
-                dx, dy, dz
-            );
+            pbc.displacement(p_x[i], p_y[i], p_z[i], p_x[j], p_y[j], p_z[j], dx, dy, dz);
             const double r_sq{dx * dx + dy * dy + dz * dz};
             const double r{std::sqrt(r_sq)};
 

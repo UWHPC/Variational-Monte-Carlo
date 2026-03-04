@@ -2,30 +2,35 @@
 
 #include "../memory/memory.hpp"
 
-#include <cstdlib>
-#include <memory>
-#include <cstring>
 #include <algorithm>
+#include <cstdlib>
+#include <cstring>
+#include <memory>
 
 class Particles {
 private:
     // Number of components
     static constexpr std::size_t numVectorComponents_{8};
+
     // SIMD byte alignment
     static constexpr std::size_t alignmentBytes_{SIMD_BYTES};
+
     // Ensures sub-arrays are byte aligned
     static constexpr std::size_t doublesPerAlignment_{SIMD_BYTES / sizeof(double)};
 
     // Number of particles
     std::size_t numParticles_;
+
     // Ensures all sub-arrays are aligned
     std::size_t alignmentPadding_;
+
     // Memory block size
     std::unique_ptr<double[], AlignedDeleter> memoryBlock_;
+
 public:
     explicit Particles(std::size_t numParticles)
-    : numParticles_{numParticles}
-    , alignmentPadding_{(numParticles_ + doublesPerAlignment_ - 1) & ~(doublesPerAlignment_ - 1)} {
+        : numParticles_{numParticles},
+          alignmentPadding_{(numParticles_ + doublesPerAlignment_ - 1) & ~(doublesPerAlignment_ - 1)} {
         // Round to nearest multiple of SIMD width - needed to ensure sub-arrays are byte aligned:
 
         // Determine size of the memory block in bytes:
@@ -34,7 +39,8 @@ public:
 
         // Proper byte alignment and allocation:
         double* ptr{static_cast<double*>(alignedAlloc(alignmentBytes_, blockSizeBytes))};
-        if (!ptr) throw std::bad_alloc();
+        if (!ptr)
+            throw std::bad_alloc();
 
         // Zero initialization:
         std::fill_n(ptr, memoryBlockSize, 0.0);
