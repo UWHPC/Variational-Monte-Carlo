@@ -72,7 +72,7 @@ void JastrowPade::addDerivatives(const Particles& particles, const PeriodicBound
 
             // Mask to get around if statement:
             const bool particlesCoincident{distance < 1e-12};
-            const double inverseDistance{particlesCoincident ? 1.0 : 1 / distance};
+            const double inverseDistance{particlesCoincident ? 1.0 : 1.0 / distance};
             const double mask{particlesCoincident ? 0.0 : 1.0};
 
             // u(r) = a*r / (1 + b*r)
@@ -83,7 +83,7 @@ void JastrowPade::addDerivatives(const Particles& particles, const PeriodicBound
             const double denominatorCubed{denominatorSquared * denominator};
 
             const double firstDerivative{aParameter / denominatorSquared};
-            const double secondDerivative{-2.0 * aParameter * aParameter / denominatorCubed};
+            const double secondDerivative{-2.0 * aParameter * bParameter / denominatorCubed};
 
             // ∇_i u(r_ij) = u'(r) * (r_vec / r)
             const double gradientFactor{firstDerivative * inverseDistance};
