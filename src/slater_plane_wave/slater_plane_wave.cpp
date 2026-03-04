@@ -1,53 +1,63 @@
 #include "slater_plane_wave.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
-#include <new>
+#include <limits>
+#include <vector>
 
 namespace {
 
-inline std::size_t roundUpToSimd(std::size_t n) noexcept {
-    constexpr std::size_t doublesPerAlignment = SIMD_BYTES / sizeof(double);
-    return (n + doublesPerAlignment - 1) & ~(doublesPerAlignment - 1);
-}
-
-inline std::size_t id(std::size_t i, std::size_t j, std::size_t N) noexcept {
-    return i * N + j;
-}
+// @brief helper function to convert i-jth indices -> n
+// @param stride is the difference between the row and the column.
+// @return the appropriate i-th row j-th column as a size_t.
+inline std::size_t index(std::size_t row, std::size_t col, std::size_t stride) noexcept { return row * stride + col; }
 
 /*
+see https://www.geeksforgeeks.org/dsa/doolittle-algorithm-lu-decomposition/
 In-Place LU with partial pivoting in LU (size N*N, row-major)
-pivot is length >= N, which stores row permutation info as doubles,
+pivot is length >= N storing row permutation indices
 return numbers of row swaps (parity info, if you need det sign).
 */
-int lu_decompose(double* LU, double* piv, std::size_t N) {
-    for(std::size_t i = 0; i < N; ++i) piv[i] = static_cast<double>(i);
+int lowerUpperDecompose(double* lowerUpper, std::size_t* pivot, std::size_t N) {
+    // Track row swaps
     int swapCount{};
-    for (std::size_t k = 0; k < N; ++k) {
-        // we chose a pivot row p
-        std::size_t p{ k };
-        double maxAbs{ std::abs(LU[id(k,k, N)])};
-        for(std::size_t i = k + 1; i < N; ++i) {
-            const double v = std::abs(LU[id(k, k, N)]);
-            if (v > maxAbs) { maxAbs = v; p = i; };
+
+    for (std::size_t row = 0; row < N; ++row) pivot[row] = row;
+
+    for (std::size_t col = 0; col < N; ++col) {
+        // Pivot selection
+        // Find row >= col maximizing |LU(row, col)|
+        std::size_t pivotRow{col};
+        double maxAbs{std::abs(lowerUpper[index(col, col, N)])};
+
+        for (std::size_t row = col + 1; row < N; ++row) {
+            const double value = std::abs(lowerUpper[index(row, col, N)]);
+            if (value > maxAbs) {
+                maxAbs = value;
+                pivotRow = row;
+            };
         }
-        if (maxAbs == 0.0) continue; // singular column det will be 0 so just continue
-        if (p != k) {
-            // we swap rows p and k in LU
-            for (std::size_t j = 0; j < N; ++j)
-            {
-                std::swap(LU[id(k, j, N)], LU[id(p, j, N)]);
+
+        // max abs = 0.0 implies the pivot column is 0 & det = 0.
+        if (maxAbs == 0.0)
+            continue;
+
+        if (pivotRow != col) {
+            for (std::size_t col2 = 0; col2 < N; ++col2) {
+                std::swap(lowerUpper[index(col, col2, N)], lowerUpper[index(pivotRow, col2, N)]);
             }
-            std::swap(piv[k], piv[p]);
+            std::swap(pivot[col], pivot[pivotRow]);
             ++swapCount;
         }
 
-        const double Akk = LU[id(k, k, N)];
-        for (std::size_t i = k + 1; i < N; ++i) {
-            LU[id(i, k, N)] /= Akk; // L (i,k)
-            const double Lik = LU[id(i, k, N)];
-            for (std::size_t j = k + 1; j < N; ++j) {
-                LU[id(i, j, N)] -= Lik * LU[id(k, j, N)];
+        // eliminate
+        const double pivotValue{ lowerUpper[index(col, col, N)] };
+        for (std::size_t row = col + 1; row < N; ++row) {
+            lowerUpper[index(row, col, N)] /= pivotValue; // L (i,k)
+            const double multiplier{ lowerUpper[index(row, col, N)] };
+            for (std::size_t col2 = col + 1; col2 < N; ++col2) {
+                lowerUpper[index(row, col2, N)] -= multiplier * lowerUpper[index(col, col2, N)];
             }
         }
     }
@@ -56,75 +66,184 @@ int lu_decompose(double* LU, double* piv, std::size_t N) {
 }
 
 /*
-Solving LU*x = b using LU, piv permutation.
-We use x as an output buffer (length N), b as input (length N).
+see https://www.geeksforgeeks.org/dsa/doolittle-algorithm-lu-decomposition/
+solve (P^-1)LU x = b. given combined LU and pivot permutation piv.
+piv encodes the row permutation applied during LU so that
+we first permute b: y = P b, then solve L z = y, then U x = z.
 */
-void lu_solve(const double* LU, const double* piv,
-              const double* b, double* x, std::size_t N)
-{   
+void lowerUpperSolve(const double* LU, const std::size_t* pivot, const double* b, double* x, std::size_t N) {
     // Apply permutation: x = Pb
-    for (std::size_t i = 0; i < N; ++i) {
-        const std::size_t pi{ static_cast<std::size_t>(piv[i]) };
-        x[i] = b[pi];
+    // store y in x temporarily
+    for (std::size_t row = 0; row < N; ++row) {
+        const std::size_t permRow{pivot[row]};
+        x[row] = b[permRow];
     }
 
     // forward solve: ly = Pb (L has implicit on diagonal)
-    for (std::size_t i = 0; i < N; ++i) {
-        for (std::size_t j = 0; j < i; ++j) {
-            x[i] -= LU[id(i, j, N)] * x[j];
+    for (std::size_t row = 0; row < N; ++row) {
+        double sum = x[row];
+        for (std::size_t col = 0; col < row; ++col) {
+            sum -= LU[index(row, col, N)] * x[col];
         }
+        x[row] = sum;
     }
 
     // backward solve: Ux = y
-    for (std::size_t ii = 0; ii < N; ++ii) {
-        const std::size_t i = N - 1 - ii;
-        for (std::size_t j = i + 1; j < N; ++j) {
-            x[i] -= LU[id(i, j, N)] * x[j];
+    for (std::size_t rev = 0; rev < N; ++rev) {
+        const std::size_t row = N - 1 - rev;
+        double sum = x[row];
+        for (std::size_t col = row + 1; col < N; ++col) {
+            sum -= LU[index(row, col, N)] * x[col];
         }
-        x[i] /= LU[id(i, i, N)];
+        x[row] = sum / LU[index(row, row, N)];
     }
 }
 
+} // namespace
+
+double SlaterPlaneWave::logAbsDet(const Particles& particles,
+                                  const PeriodicBoundaryCondition& pbc)
+{
+    (void)pbc; // to not fuck the compiler. cast pbc to void
+    const std::size_t N = numOrbitals();
+
+    const double* particlePosX = particles.posX();
+    const double* particlePosY = particles.posY();
+    const double* particlePosZ = particles.posZ();
+
+    double* determinantMatrix = determinant();
+    double* lowerUpperMatrix = lowerUpper();
+    double* inverseDeterminantMatrix = invDeterminant();
+    std::size_t* pivotVector = pivot();
+
+    const double* kVectorXComponent = kVectorX();
+    const double* kVectorYComponent = kVectorY();
+    const double* kVectorZComponent = kVectorZ();
+
+    // Build determinant matrix D
+    for (std::size_t particle = 0; particle < N; ++particle) {
+        const double x = particlePosX[particle];
+        const double y = particlePosY[particle];
+        const double z = particlePosZ[particle];
+
+        for (std::size_t orbital = 0; orbital < N; ++orbital) {
+            const double kDotR =
+                kVectorXComponent[orbital] * x +
+                kVectorYComponent[orbital] * y +
+                kVectorZComponent[orbital] * z;
+
+            determinantMatrix[index(particle, orbital, N)] =
+                std::cos(kDotR);
+        }
+    }
+
+    // Copy determinant matrix into LU storage
+    std::copy_n(determinantMatrix,
+                N * N,
+                lowerUpperMatrix);
+
+    // Perform LU decomposition
+    (void)lowerUpperDecompose(lowerUpperMatrix, pivotVector, N);
+
+    // Compute log|det(D)| = Σ log|U_ii|
+    double logAbsoluteDeterminant = 0.0;
+
+    for (std::size_t diag = 0; diag < N; ++diag) {
+        const double Uii =
+            lowerUpperMatrix[index(diag, diag, N)];
+
+        const double absUii = std::abs(Uii);
+
+        if (absUii == 0.0 || !std::isfinite(absUii)) {
+            return -std::numeric_limits<double>::infinity();
+        }
+
+        logAbsoluteDeterminant += std::log(absUii);
+    }
+
+    std::vector<double> rhs(N);
+    std::vector<double> solution(N);
+
+    for (std::size_t column = 0; column < N; ++column) {
+        std::fill(rhs.begin(), rhs.end(), 0.0);
+        rhs[column] = 1.0;
+
+        lowerUpperSolve(lowerUpperMatrix,
+                 pivotVector,
+                 rhs.data(),
+                 solution.data(),
+                 N);
+
+        for (std::size_t row = 0; row < N; ++row) {
+            inverseDeterminantMatrix[
+                index(row, column, N)
+            ] = solution[row];
+        }
+    }
+
+    return logAbsoluteDeterminant;
 }
 
-SlaterPlaneWave::SlaterPlaneWave(std::size_t N, double L)
-: N_{N}
-, L_{L}
-{
-    vecStride_ = { roundUpToSimd(N_) };
-    matStride_ = { roundUpToSimd(N_ * N_) };
+void SlaterPlaneWave::addDerivatives(const Particles& particles, const PeriodicBoundaryCondition& pbc,
+                                     double* RESTRICT gradX, double* RESTRICT gradY, double* RESTRICT gradZ,
+                                     double* RESTRICT lap) const noexcept {
+    (void)pbc;
+    const std::size_t N{numOrbitals()};
 
-    // Layout: [ D | invD | LU | piv | kx | ky | kz ]
-    const std::size_t totalDoubles {
-        3 * matStride_ +      // D, invD, LU
-        4 * vecStride_        // piv, kx, ky, kz
-    };      
-    const std::size_t totalBytes = totalDoubles * sizeof(double);
+    const double* RESTRICT posX{particles.posX()};
+    const double* RESTRICT posY{particles.posY()};
+    const double* RESTRICT posZ{particles.posZ()};
 
-    double* ptr = static_cast<double*>(alignedAlloc(alignmentBytes_, totalBytes));
-    if (!ptr) throw std::bad_alloc();
+    const double* RESTRICT k_x{kVectorX()};
+    const double* RESTRICT k_y{kVectorY()};
+    const double* RESTRICT k_z{kVectorZ()};
 
-    std::fill_n(ptr, totalDoubles, 0.0);
-    memoryBlock_.reset(ptr);
+    const double* RESTRICT inv_det{invDeterminant()};
 
-    double* cur = memoryBlock_.get();
+    for (std::size_t particle = 0; particle < N; ++particle) {
+        const double p_x{posX[particle]};
+        const double p_y{posY[particle]};
+        const double p_z{posZ[particle]};
 
-    D_    = cur; cur += matStride_;
-    invD_ = cur; cur += matStride_;
-    LU_   = cur; cur += matStride_;
+        double d_LogDet_dx{}, d_LogDet_dy{}, d_LogDet_dz{};
 
-    piv_  = cur; cur += vecStride_;
-    kx_   = cur; cur += vecStride_;
-    ky_   = cur; cur += vecStride_;
-    kz_   = cur; cur += vecStride_;
+        // Σ_j (D^{-1})_{j,particle} * (∇^2 D_{particle,j})
+        double laplace_det_term{};
 
-    if (cur != memoryBlock_.get() + totalDoubles) throw std::runtime_error("Bad slice");
-}
+        for (std::size_t orbital = 0; orbital < N; ++orbital) {
+            const double kx_orbital{k_x[orbital]};
+            const double ky_orbital{k_y[orbital]};
+            const double kz_orbital{k_z[orbital]};
 
-double SlaterPlaneWave::logAbsDet(const Particles& particles, const PeriodicBoundaryCondition& pbc) 
-{
-    const std::size_t N = N_;
-    const double* x = particles.posX();
-    const double* y = particles.posY();
-    const double* z = particles.posX();
+            const double k_dot_r{kx_orbital * p_x + ky_orbital * p_y + kz_orbital * p_z};
+            const double cosine_term{std::cos(k_dot_r)};
+            const double sine_term{std::sin(k_dot_r)};
+            // D(particle,orbital) = cos(k·r)
+            // ∇_particle D = -sin(k·r) * k
+            const double dD_dx{-sine_term * kx_orbital};
+            const double dD_dy{-sine_term * ky_orbital};
+            const double dD_dz{-sine_term * kz_orbital};
+
+            // ∇^2 D = -cos(k·r) * |k|^2
+            const double kSquared{kx_orbital * kx_orbital + ky_orbital * ky_orbital + kz_orbital * kz_orbital};
+            const double lapD{-cosine_term * kSquared};
+            // Weight = (D^{-1})_{orbital,particle}
+            // invD_ is row-major, so entry (row=orbital, col=particle):
+            const double weight{inv_det[index(orbital, particle, N)]};
+
+            d_LogDet_dx += weight * dD_dx;
+            d_LogDet_dy += weight * dD_dy;
+            d_LogDet_dz += weight * dD_dz;
+
+            laplace_det_term += weight * lapD;
+        }
+        // ∇^2 log det D = Σ_j (D^{-1})_{j,i} ∇^2 D_{i,j}  -  ||∇ log det D||^2
+        const double gradSquared{d_LogDet_dx * d_LogDet_dx + d_LogDet_dy * d_LogDet_dy + d_LogDet_dz * d_LogDet_dz};
+        const double lapLogDet{laplace_det_term - gradSquared};
+
+        gradX[particle] += d_LogDet_dx;
+        gradY[particle] += d_LogDet_dy;
+        gradZ[particle] += d_LogDet_dz;
+        lap[particle] += lapLogDet;
+    }
 }

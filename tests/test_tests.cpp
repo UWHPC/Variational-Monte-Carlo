@@ -1,10 +1,8 @@
-#include <catch2/catch_test_macros.hpp>
-
-TEST_CASE("Sanity test: build and test runner works", "[sanity]") {
-    REQUIRE(1 + 1 == 2);
-}
-
-TEST_CASE("Floating point sanity", "[sanity]") {
-    const double x = 0.1 + 0.2;
-    REQUIRE(x > 0.0);
-}
+#include "test_blocking_analysis.cpp"
+#include "test_config.cpp"
+#include "test_jastrow_pade.cpp"
+#include "test_particles.cpp"
+#include "test_pbc.cpp"
+#include "test_simulation.cpp"
+#include "test_slater_plane_wave.cpp"
+#include "test_wavefunction.cpp"

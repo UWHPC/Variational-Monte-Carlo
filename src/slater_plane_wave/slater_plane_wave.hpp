@@ -2,77 +2,77 @@
 
 #include "../particles/particles.hpp"
 #include "../pbc/pbc.hpp"
-#include "../memory/memory.hpp"
+#include "../utilities/aligned_soa.hpp"
+#include "../utilities/memory.hpp"
 
-#include <algorithm>
-#include <cstdlib>
-#include <memory>
 #include <cstddef>
-#include <stdexcept>
+#include <cstdlib>
 
 class SlaterPlaneWave {
 private:
-    std::size_t N_{}; // number of orbitals (initialized to 0)
-    double L_{};      // box length (initialized to 0.0)
+    std::size_t numOrbitals_;
+    std::size_t matrixSize_;
+    double boxLength_;
 
-    // static constexpr std::size_t numVectorComponents_{8};                         // Number of components
-    static constexpr std::size_t alignmentBytes_{SIMD_BYTES};                     // SIMD byte alignment
+    // All vectors:
+    enum VectorIndex : std::size_t { K_X_, K_Y_, K_Z_, NUM_VECTORS_ };
+    AlignedSoA<double> vectors_;
 
-    std::unique_ptr<double[], AlignedDeleter> memoryBlock_; // Memory block size
+    // Pivot:
+    enum PivotIndex : std::size_t { PIVOT_, NUM_PIVOT_ };
+    AlignedSoA<std::size_t> pivot_;
 
-    std::size_t matStride_{}; // padded length for N*N arrays
-    std::size_t vecStride_{}; // padded length for N arrays
-
-    double* D_{nullptr};
-    double* invD_{nullptr};
-    double* LU_{nullptr};
-    double* piv_{nullptr}; //pivot indices stored as double
-    double* kx_{nullptr};
-    double* ky_{nullptr};
-    double* kz_{nullptr};
-
+    // All matrices:
+    enum MatrixIndex : std::size_t { D_, INV_D_, LU_, NUM_MATRIX_ };
+    AlignedSoA<double> matrices_;
 
 public:
-    explicit SlaterPlaneWave(std::size_t N, double L);
-    [[nodiscard]] std::size_t N() const noexcept { return N_; }
-    [[nodiscard]] double L() const noexcept { return L_; }
-    [[nodiscard]] std::size_t matStride() const noexcept { return matStride_; }
-    [[nodiscard]] std::size_t vecStride() const noexcept { return vecStride_; }
+    explicit SlaterPlaneWave(std::size_t N, double L)
+        : numOrbitals_{N}, matrixSize_{N * N}, boxLength_{L}, vectors_{N, NUM_VECTORS_}, pivot_{N, NUM_PIVOT_},
+          matrices_{N * N, NUM_MATRIX_} {};
 
-    // --- Matrix buffers (row-major N x N stored in padded block) ---
-    [[nodiscard]] double* D() noexcept { return D_; }
-    [[nodiscard]] double* invD() noexcept { return invD_; }
-    [[nodiscard]] double* LU() noexcept { return LU_; }
+    // Getters:
+    // Num orbitals - N
+    [[nodiscard]] std::size_t numOrbitals() const noexcept { return numOrbitals_; }
 
-    [[nodiscard]] double const* D() const noexcept { return D_; }
-    [[nodiscard]] double const* invD() const noexcept { return invD_; }
-    [[nodiscard]] double const* LU() const noexcept { return LU_; }
+    // Matrix size - N^2
+    [[nodiscard]] std::size_t matrixSize() const noexcept { return matrixSize_; }
 
-    // --- Pivot buffer ---
+    // Box length - L
+    [[nodiscard]] double boxLength() const noexcept { return boxLength_; }
 
-    [[nodiscard]] double* piv() noexcept { return piv_; }             // MUT - pivot
-    [[nodiscard]] double const* piv() const noexcept { return piv_; } // IMMUT - pivot
+    // Det. matrix
+    [[nodiscard]] double* determinant() noexcept { return matrices_[D_]; }
+    [[nodiscard]] double const* determinant() const noexcept { return matrices_[D_]; }
 
-    // --- k-vector buffers (length N, padded to vecStride_) ---
+    // Inv. det. matrix
+    [[nodiscard]] double* invDeterminant() noexcept { return matrices_[INV_D_]; }
+    [[nodiscard]] double const* invDeterminant() const noexcept { return matrices_[INV_D_]; }
 
-    [[nodiscard]] double* kx() noexcept { return kx_; } // MUT - X component of k
-    [[nodiscard]] double* ky() noexcept { return ky_; } // MUT - Y component of k
-    [[nodiscard]] double* kz() noexcept { return kz_; } // MUT - Z component of k
+    // Lower upper matrix
+    [[nodiscard]] double* lowerUpper() noexcept { return matrices_[LU_]; }
+    [[nodiscard]] double const* lowerUpper() const noexcept { return matrices_[LU_]; }
 
-    [[nodiscard]] double const* kx() const noexcept { return kx_; } // IMMUT - X component of k
-    [[nodiscard]] double const* ky() const noexcept { return ky_; } // IMMUT - Y component of k
-    [[nodiscard]] double const* kz() const noexcept { return kz_; } // IMMUT - Z component of k
+    // Pivot matrix
+    [[nodiscard]] std::size_t* pivot() noexcept { return pivot_[PIVOT_]; }
+    [[nodiscard]] std::size_t const* pivot() const noexcept { return pivot_[PIVOT_]; }
+
+    // X component of k
+    [[nodiscard]] double* kVectorX() noexcept { return vectors_[K_X_]; }
+    [[nodiscard]] double const* kVectorX() const noexcept { return vectors_[K_X_]; }
+
+    // Y component of k
+    [[nodiscard]] double* kVectorY() noexcept { return vectors_[K_Y_]; }
+    [[nodiscard]] double const* kVectorY() const noexcept { return vectors_[K_Y_]; }
+
+    // Z component of k
+    [[nodiscard]] double* kVectorZ() noexcept { return vectors_[K_Z_]; }
+    [[nodiscard]] double const* kVectorZ() const noexcept { return vectors_[K_Z_]; }
 
     // Computes log|det(D)| and updates internal cached inverse/LU.
     [[nodiscard]] double logAbsDet(const Particles& particles, const PeriodicBoundaryCondition& pbc);
 
     // Accumulates Slater contributions into grad/lap (length = stride/at least N).
-    void addDerivatives(
-        const Particles& particles,
-        const PeriodicBoundaryCondition& pbc,
-        double* gradX,
-        double* gradY,
-        double* gradZ,
-        double* la
-    ) const noexcept;
+    void addDerivatives(const Particles& particles, const PeriodicBoundaryCondition& pbc, double* RESTRICT gradX,
+                        double* RESTRICT gradY, double* RESTRICT gradZ, double* RESTRICT lap) const noexcept;
 };
