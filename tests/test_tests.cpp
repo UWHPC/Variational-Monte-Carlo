@@ -1,6 +1,8 @@
+#include "test_blocking_analysis.cpp"
 #include "test_config.cpp"
 #include "test_jastrow_pade.cpp"
 #include "test_particles.cpp"
 #include "test_pbc.cpp"
+#include "test_simulation.cpp"
 #include "test_slater_plane_wave.cpp"
 #include "test_wavefunction.cpp"

@@ -197,6 +197,73 @@ TEST_CASE("parseArgs rejects empty invocation and invalid integer values", "[con
     }
 }
 
+TEST_CASE("parseArgs enforces runtime numeric constraints", "[config]") {
+    {
+        const std::string message{
+            invalidArgumentMessage({"vmc",
+                                    "--numParticles", "0",
+                                    "--boxLength", "4",
+                                    "--warmupSteps", "10",
+                                    "--measureSteps", "100",
+                                    "--stepSize", "0.25",
+                                    "--seed", "1",
+                                    "--blockSize", "4"})};
+        REQUIRE(message.find("--numParticles must be >= 1") != std::string::npos);
+    }
+
+    {
+        const std::string message{
+            invalidArgumentMessage({"vmc",
+                                    "--numParticles", "4",
+                                    "--boxLength", "0",
+                                    "--warmupSteps", "10",
+                                    "--measureSteps", "100",
+                                    "--stepSize", "0.25",
+                                    "--seed", "1",
+                                    "--blockSize", "4"})};
+        REQUIRE(message.find("--boxLength must be finite and > 0") != std::string::npos);
+    }
+
+    {
+        const std::string message{
+            invalidArgumentMessage({"vmc",
+                                    "--numParticles", "4",
+                                    "--boxLength", "4",
+                                    "--warmupSteps", "10",
+                                    "--measureSteps", "0",
+                                    "--stepSize", "0.25",
+                                    "--seed", "1",
+                                    "--blockSize", "4"})};
+        REQUIRE(message.find("--measureSteps must be >= 1") != std::string::npos);
+    }
+
+    {
+        const std::string message{
+            invalidArgumentMessage({"vmc",
+                                    "--numParticles", "4",
+                                    "--boxLength", "4",
+                                    "--warmupSteps", "10",
+                                    "--measureSteps", "100",
+                                    "--stepSize", "0",
+                                    "--seed", "1",
+                                    "--blockSize", "4"})};
+        REQUIRE(message.find("--stepSize must be finite and > 0") != std::string::npos);
+    }
+
+    {
+        const std::string message{
+            invalidArgumentMessage({"vmc",
+                                    "--numParticles", "4",
+                                    "--boxLength", "4",
+                                    "--warmupSteps", "10",
+                                    "--measureSteps", "100",
+                                    "--stepSize", "0.25",
+                                    "--seed", "1",
+                                    "--blockSize", "0"})};
+        REQUIRE(message.find("--blockSize must be >= 1") != std::string::npos);
+    }
+}
+
 TEST_CASE("printUsage and printConfig include all expected fields", "[config]") {
     const std::string usage{captureStdout([] { printUsage("vmc-test"); })};
     REQUIRE(usage.find("Usage:") != std::string::npos);
