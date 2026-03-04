@@ -14,21 +14,21 @@ void requireNearJastrow(double actual, double expected, double tolerance = 1e-12
 }
 
 Particles copyParticlePositions(const Particles& source) {
-    Particles copy{source.numParticles()};
-    const std::size_t numParticles{source.numParticles()};
-    std::copy_n(source.posX(), numParticles, copy.posX());
-    std::copy_n(source.posY(), numParticles, copy.posY());
-    std::copy_n(source.posZ(), numParticles, copy.posZ());
+    Particles copy{source.num_particles_ptr()};
+    const std::size_t numParticles{source.num_particles_ptr()};
+    std::copy_n(source.pos_x_ptr(), numParticles, copy.pos_x_ptr());
+    std::copy_n(source.pos_y_ptr(), numParticles, copy.pos_y_ptr());
+    std::copy_n(source.pos_z_ptr(), numParticles, copy.pos_z_ptr());
     return copy;
 }
 
 double valueAtOffset(const JastrowPade& jastrow, const Particles& reference, const PeriodicBoundaryCondition& pbc,
                      std::size_t particle, double dx, double dy, double dz) {
     Particles shifted{copyParticlePositions(reference)};
-    shifted.posX()[particle] += dx;
-    shifted.posY()[particle] += dy;
-    shifted.posZ()[particle] += dz;
-    pbc.wrap3(shifted.posX()[particle], shifted.posY()[particle], shifted.posZ()[particle]);
+    shifted.pos_x_ptr()[particle] += dx;
+    shifted.pos_y_ptr()[particle] += dy;
+    shifted.pos_z_ptr()[particle] += dz;
+    pbc.wrap3(shifted.pos_x_ptr()[particle], shifted.pos_y_ptr()[particle], shifted.pos_z_ptr()[particle]);
     return jastrow.value(shifted, pbc);
 }
 
@@ -39,13 +39,13 @@ TEST_CASE("Jastrow value uses minimum-image pair distances", "[jastrow]") {
     const PeriodicBoundaryCondition pbc{10.0};
     Particles particles{2U};
 
-    particles.posX()[0] = 0.1;
-    particles.posY()[0] = 0.0;
-    particles.posZ()[0] = 0.0;
+    particles.pos_x_ptr()[0] = 0.1;
+    particles.pos_y_ptr()[0] = 0.0;
+    particles.pos_z_ptr()[0] = 0.0;
 
-    particles.posX()[1] = 9.9;
-    particles.posY()[1] = 0.0;
-    particles.posZ()[1] = 0.0;
+    particles.pos_x_ptr()[1] = 9.9;
+    particles.pos_y_ptr()[1] = 0.0;
+    particles.pos_z_ptr()[1] = 0.0;
 
     const double r{0.2};
     const double expected{(0.5 * r) / (1.0 + r)};
@@ -57,13 +57,13 @@ TEST_CASE("Jastrow value skips degenerate pairs", "[jastrow]") {
     const PeriodicBoundaryCondition pbc{10.0};
     Particles particles{2U};
 
-    particles.posX()[0] = 1.0;
-    particles.posY()[0] = 2.0;
-    particles.posZ()[0] = 3.0;
+    particles.pos_x_ptr()[0] = 1.0;
+    particles.pos_y_ptr()[0] = 2.0;
+    particles.pos_z_ptr()[0] = 3.0;
 
-    particles.posX()[1] = 1.0;
-    particles.posY()[1] = 2.0;
-    particles.posZ()[1] = 3.0;
+    particles.pos_x_ptr()[1] = 1.0;
+    particles.pos_y_ptr()[1] = 2.0;
+    particles.pos_z_ptr()[1] = 3.0;
 
     requireNearJastrow(jastrow.value(particles, pbc), 0.0);
 }
@@ -73,21 +73,21 @@ TEST_CASE("Jastrow derivatives match the analytic two-particle result", "[jastro
     const PeriodicBoundaryCondition pbc{100.0};
     Particles particles{2U};
 
-    particles.posX()[0] = 0.0;
-    particles.posY()[0] = 0.0;
-    particles.posZ()[0] = 0.0;
+    particles.pos_x_ptr()[0] = 0.0;
+    particles.pos_y_ptr()[0] = 0.0;
+    particles.pos_z_ptr()[0] = 0.0;
 
-    particles.posX()[1] = 1.0;
-    particles.posY()[1] = 0.0;
-    particles.posZ()[1] = 0.0;
+    particles.pos_x_ptr()[1] = 1.0;
+    particles.pos_y_ptr()[1] = 0.0;
+    particles.pos_z_ptr()[1] = 0.0;
 
-    const std::size_t stride{particles.paddingStride()};
+    const std::size_t stride{particles.padding_stride_ptr()};
     std::vector<double> gradX(stride, 0.0);
     std::vector<double> gradY(stride, 0.0);
     std::vector<double> gradZ(stride, 0.0);
     std::vector<double> lap(stride, 0.0);
 
-    jastrow.addDerivatives(particles, pbc, gradX.data(), gradY.data(), gradZ.data(), lap.data());
+    jastrow.add_derivatives(particles, pbc, gradX.data(), gradY.data(), gradZ.data(), lap.data());
 
     requireNearJastrow(gradX[0], -0.125);
     requireNearJastrow(gradX[1], 0.125);
@@ -114,21 +114,21 @@ TEST_CASE("Jastrow derivatives are unchanged for degenerate pairs", "[jastrow]")
     const PeriodicBoundaryCondition pbc{10.0};
     Particles particles{2U};
 
-    particles.posX()[0] = 4.0;
-    particles.posY()[0] = 5.0;
-    particles.posZ()[0] = 6.0;
+    particles.pos_x_ptr()[0] = 4.0;
+    particles.pos_y_ptr()[0] = 5.0;
+    particles.pos_z_ptr()[0] = 6.0;
 
-    particles.posX()[1] = 4.0;
-    particles.posY()[1] = 5.0;
-    particles.posZ()[1] = 6.0;
+    particles.pos_x_ptr()[1] = 4.0;
+    particles.pos_y_ptr()[1] = 5.0;
+    particles.pos_z_ptr()[1] = 6.0;
 
-    const std::size_t stride{particles.paddingStride()};
+    const std::size_t stride{particles.padding_stride_ptr()};
     std::vector<double> gradX(stride, 3.0);
     std::vector<double> gradY(stride, -2.0);
     std::vector<double> gradZ(stride, 1.5);
     std::vector<double> lap(stride, 7.0);
 
-    jastrow.addDerivatives(particles, pbc, gradX.data(), gradY.data(), gradZ.data(), lap.data());
+    jastrow.add_derivatives(particles, pbc, gradX.data(), gradY.data(), gradZ.data(), lap.data());
 
     for (std::size_t i = 0; i < stride; ++i) {
         requireNearJastrow(gradX[i], 3.0);
@@ -143,24 +143,24 @@ TEST_CASE("Jastrow derivatives match finite-difference gradients and Laplacians"
     const PeriodicBoundaryCondition pbc{20.0};
     Particles particles{3U};
 
-    particles.posX()[0] = 1.1;
-    particles.posY()[0] = 2.2;
-    particles.posZ()[0] = 0.7;
+    particles.pos_x_ptr()[0] = 1.1;
+    particles.pos_y_ptr()[0] = 2.2;
+    particles.pos_z_ptr()[0] = 0.7;
 
-    particles.posX()[1] = 3.8;
-    particles.posY()[1] = 1.4;
-    particles.posZ()[1] = 2.5;
+    particles.pos_x_ptr()[1] = 3.8;
+    particles.pos_y_ptr()[1] = 1.4;
+    particles.pos_z_ptr()[1] = 2.5;
 
-    particles.posX()[2] = 0.2;
-    particles.posY()[2] = 4.1;
-    particles.posZ()[2] = 3.3;
+    particles.pos_x_ptr()[2] = 0.2;
+    particles.pos_y_ptr()[2] = 4.1;
+    particles.pos_z_ptr()[2] = 3.3;
 
-    const std::size_t stride{particles.paddingStride()};
+    const std::size_t stride{particles.padding_stride_ptr()};
     std::vector<double> gradX(stride, 0.0);
     std::vector<double> gradY(stride, 0.0);
     std::vector<double> gradZ(stride, 0.0);
     std::vector<double> lap(stride, 0.0);
-    jastrow.addDerivatives(particles, pbc, gradX.data(), gradY.data(), gradZ.data(), lap.data());
+    jastrow.add_derivatives(particles, pbc, gradX.data(), gradY.data(), gradZ.data(), lap.data());
 
     const double h{1e-5};
     const double valueCenter{jastrow.value(particles, pbc)};
