@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <memory>
 
-class AlignedSoA {
+template <typename T> class AlignedSoA {
 private:
     // SIMD byte alignment
     static constexpr std::size_t alignmentBytes{SIMD_BYTES};
@@ -15,7 +15,7 @@ private:
     std::size_t numElements_;
     std::size_t strideLength_;
     std::size_t numArrays_;
-    std::unique_ptr<double[], AlignedDeleter> memoryBlock_;
+    std::unique_ptr<T[], AlignedDeleter> memoryBlock_;
 
     // Round up to nearest factor of SIMD bytes:
     std::size_t roundUp(std::size_t unpadded) const {

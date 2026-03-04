@@ -17,23 +17,17 @@ private:
     double boxLength_;
 
     // All sub-arrays:
-    static constexpr std::size_t D_{0}, INV_D_{1};
-    static constexpr std::size_t LU_{2};
-    static constexpr std::size_t PIVOT_{3};
-    static constexpr std::size_t K_X_{4}, K_Y_{5}, K_Z_{6};
-
-    // Number of sub-arrays:
-    static constexpr std::size_t NUM_SUB_ARRAYS{7};
+    enum ArrayIndex : std::size_t { D_, INV_D_, LU_, PIVOT_, K_X_, K_Y_, K_Z_, NUM_SUB_ARRAYS_ };
 
     // Memory data:
-    AlignedSoA slaterPlaneWaveData_;
+    AlignedSoA<double[]> slaterPlaneWaveData_;
 
     // static constexpr std::size_t numVectorComponents_{8};  // Number of components
     static constexpr std::size_t alignmentBytes_{SIMD_BYTES}; // SIMD byte alignment
 
 public:
     explicit SlaterPlaneWave(std::size_t N, double L)
-        : numOrbitals_{N}, boxLength_{L}, slaterPlaneWaveData_{N, NUM_SUB_ARRAYS} {};
+        : numOrbitals_{N}, boxLength_{L}, slaterPlaneWaveData_{N, NUM_SUB_ARRAYS_} {};
 
     [[nodiscard]] std::size_t numOrbitals() const noexcept { return numOrbitals_; }
     [[nodiscard]] double boxLength() const noexcept { return boxLength_; }
