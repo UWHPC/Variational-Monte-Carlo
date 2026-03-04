@@ -3,9 +3,11 @@
 #include "config/config.hpp"
 
 #include <initializer_list>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -47,6 +49,19 @@ std::string invalidArgumentMessage(std::initializer_list<std::string_view> args)
 
     FAIL("Expected parseArgs to throw std::invalid_argument");
     return {};
+}
+
+template <typename Fn> std::string captureStdout(Fn&& fn) {
+    std::ostringstream output{};
+    std::streambuf* const oldBuffer{std::cout.rdbuf(output.rdbuf())};
+    try {
+        std::forward<Fn>(fn)();
+    } catch (...) {
+        std::cout.rdbuf(oldBuffer);
+        throw;
+    }
+    std::cout.rdbuf(oldBuffer);
+    return output.str();
 }
 
 } // namespace
@@ -175,4 +190,71 @@ TEST_CASE("parseArgs throws HelpRequested for --help and -h", "[config]") {
         ArgvBuilder argv{"vmc", "-h"};
         REQUIRE_THROWS_AS(parseArgs(argv.argc(), argv.argv()), HelpRequested);
     }
+}
+
+TEST_CASE("parseArgs rejects missing option values", "[config]") {
+    {
+        const std::string message{invalidArgumentMessage({"vmc", "--numParticles"})};
+        REQUIRE(message.find("Missing value for option --numParticles") != std::string::npos);
+    }
+
+    {
+        const std::string message{invalidArgumentMessage({"vmc", "--numParticles=", "--boxLength", "4"})};
+        REQUIRE(message.find("Missing value for option --numParticles") != std::string::npos);
+    }
+}
+
+TEST_CASE("parseArgs rejects unexpected positional arguments and empty option names", "[config]") {
+    {
+        const std::string message{
+            invalidArgumentMessage({"vmc", "--numParticles", "16", "oops", "--boxLength", "4", "--warmupSteps", "10"})};
+        REQUIRE(message.find("Unexpected positional argument") != std::string::npos);
+        REQUIRE(message.find("oops") != std::string::npos);
+    }
+
+    {
+        const std::string message{invalidArgumentMessage({"vmc", "--", "1"})};
+        REQUIRE(message.find("Invalid empty option name") != std::string::npos);
+    }
+}
+
+TEST_CASE("parseArgs rejects empty invocation and invalid integer values", "[config]") {
+    {
+        const std::string message{invalidArgumentMessage({"vmc"})};
+        REQUIRE(message.find("No arguments provided") != std::string::npos);
+    }
+
+    {
+        const std::string message{
+            invalidArgumentMessage({"vmc",
+                                    "--numParticles", "1.5",
+                                    "--boxLength", "4",
+                                    "--warmupSteps", "10",
+                                    "--measureSteps", "100",
+                                    "--stepSize", "0.25",
+                                    "--seed", "1",
+                                    "--blockSize", "4"})};
+        REQUIRE(message.find("Invalid integer value") != std::string::npos);
+        REQUIRE(message.find("--numParticles") != std::string::npos);
+    }
+}
+
+TEST_CASE("printUsage and printConfig include all expected fields", "[config]") {
+    const std::string usage{captureStdout([] { printUsage("vmc-test"); })};
+    REQUIRE(usage.find("Usage:") != std::string::npos);
+    REQUIRE(usage.find("vmc-test") != std::string::npos);
+    REQUIRE(usage.find("--numParticles") != std::string::npos);
+    REQUIRE(usage.find("--blockSize") != std::string::npos);
+    REQUIRE(usage.find("Aliases:") != std::string::npos);
+
+    const Config cfg{
+        .numParticles = 12U, .boxLength = 9.5, .warmupSteps = 30U, .measureSteps = 500U, .stepSize = 0.2, .seed = 99U, .blockSize = 25U};
+    const std::string configText{captureStdout([&cfg] { printConfig(cfg); })};
+    REQUIRE(configText.find("numParticles: 12") != std::string::npos);
+    REQUIRE(configText.find("boxLength: 9.5") != std::string::npos);
+    REQUIRE(configText.find("warmupSteps: 30") != std::string::npos);
+    REQUIRE(configText.find("measureSteps: 500") != std::string::npos);
+    REQUIRE(configText.find("stepSize: 0.2") != std::string::npos);
+    REQUIRE(configText.find("seed: 99") != std::string::npos);
+    REQUIRE(configText.find("blockSize: 25") != std::string::npos);
 }
