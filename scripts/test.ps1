@@ -1,4 +1,4 @@
-cmake -S . -B build-tests -DBUILD_TESTING=ON
+cmake -S . -B build-tests -DBUILD_TESTING=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 cmake --build build-tests --target vmc_tests
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

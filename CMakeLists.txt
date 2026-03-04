@@ -1,5 +1,16 @@
 cmake_minimum_required(VERSION 3.20)
 
+if(
+    NOT DEFINED CMAKE_EXPORT_COMPILE_COMMANDS
+    OR CMAKE_EXPORT_COMPILE_COMMANDS STREQUAL ""
+)
+    set(
+        CMAKE_EXPORT_COMPILE_COMMANDS
+        ON
+        CACHE BOOL "Generate compile_commands.json for tooling" FORCE
+    )
+endif()
+
 project(Variational-Monte-Carlo LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
