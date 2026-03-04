@@ -153,8 +153,9 @@ double SlaterPlaneWave::logAbsDet(const Particles& particles, const PeriodicBoun
     return logAbsDet;
 }
 
-void SlaterPlaneWave::addDerivatives(const Particles& particles, const PeriodicBoundaryCondition& pbc, double* gradX,
-                                     double* gradY, double* gradZ, double* lap) const noexcept {
+void SlaterPlaneWave::addDerivatives(const Particles& particles, const PeriodicBoundaryCondition& pbc,
+                                     double* RESTRICT gradX, double* RESTRICT gradY, double* RESTRICT gradZ,
+                                     double* RESTRICT lap) const noexcept {
     const std::size_t N{numOrbitals()};
 
     const double* RESTRICT posX{particles.posX()};

@@ -71,6 +71,6 @@ public:
     [[nodiscard]] double logAbsDet(const Particles& particles, const PeriodicBoundaryCondition& pbc);
 
     // Accumulates Slater contributions into grad/lap (length = stride/at least N).
-    void addDerivatives(const Particles& particles, const PeriodicBoundaryCondition& pbc, double* gradX, double* gradY,
-                        double* gradZ, double* la) const noexcept;
+    void addDerivatives(const Particles& particles, const PeriodicBoundaryCondition& pbc, double* RESTRICT gradX,
+                        double* RESTRICT gradY, double* RESTRICT gradZ, double* RESTRICT lap) const noexcept;
 };
