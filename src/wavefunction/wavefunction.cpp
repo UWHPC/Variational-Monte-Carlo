@@ -15,7 +15,7 @@ void WaveFunction::evaluateDerivatives(Particles& particles, const PeriodicBound
     std::fill_n(particles.grad_log_psi_x_ptr(), paddedStride, 0.0);
     std::fill_n(particles.grad_log_psi_y_ptr(), paddedStride, 0.0);
     std::fill_n(particles.grad_log_psi_z_ptr(), paddedStride, 0.0);
-    std::fill_n(particles.log_psi_ptr(), paddedStride, 0.0);
+    std::fill_n(particles.lap_log_psi_ptr(), paddedStride, 0.0);
 
     slater_plane_wave_.add_derivatives(particles, particles.grad_log_psi_x_ptr(), particles.grad_log_psi_y_ptr(),
                                        particles.grad_log_psi_z_ptr(), particles.lap_log_psi_ptr());

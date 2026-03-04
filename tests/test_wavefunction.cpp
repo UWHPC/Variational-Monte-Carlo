@@ -17,20 +17,20 @@ TEST_CASE("WaveFunction evaluateDerivatives clears buffers and delegates to Jast
     Particles particles{2U};
     const PeriodicBoundaryCondition pbc{10.0};
 
-    particles.posX()[0] = 0.0;
-    particles.posY()[0] = 0.0;
-    particles.posZ()[0] = 0.0;
+    particles.pos_x_ptr()[0] = 0.0;
+    particles.pos_y_ptr()[0] = 0.0;
+    particles.pos_z_ptr()[0] = 0.0;
 
-    particles.posX()[1] = 1.0;
-    particles.posY()[1] = 0.0;
-    particles.posZ()[1] = 0.0;
+    particles.pos_x_ptr()[1] = 1.0;
+    particles.pos_y_ptr()[1] = 0.0;
+    particles.pos_z_ptr()[1] = 0.0;
 
-    const std::size_t stride{particles.paddingStride()};
+    const std::size_t stride{particles.padding_stride_ptr()};
     for (std::size_t i = 0; i < stride; ++i) {
-        particles.gradLogPsiX()[i] = 999.0;
-        particles.gradLogPsiY()[i] = 999.0;
-        particles.gradLogPsiZ()[i] = 999.0;
-        particles.laplogPsi()[i] = 999.0;
+        particles.grad_log_psi_x_ptr()[i] = 999.0;
+        particles.grad_log_psi_y_ptr()[i] = 999.0;
+        particles.grad_log_psi_z_ptr()[i] = 999.0;
+        particles.lap_log_psi_ptr()[i] = 999.0;
     }
 
     const JastrowPade jastrow{0.5, 1.0};
@@ -42,7 +42,7 @@ TEST_CASE("WaveFunction evaluateDerivatives clears buffers and delegates to Jast
     std::vector<double> expectedZ(stride, 0.0);
     std::vector<double> expectedLap(stride, 0.0);
 
-    jastrow.addDerivatives(
+    jastrow.add_derivatives(
         particles, pbc,
         expectedX.data(),
         expectedY.data(),
@@ -53,40 +53,40 @@ TEST_CASE("WaveFunction evaluateDerivatives clears buffers and delegates to Jast
     waveFunction.evaluateDerivatives(particles, pbc);
 
     for (std::size_t i = 0; i < stride; ++i) {
-        requireNearWave(particles.gradLogPsiX()[i], expectedX[i]);
-        requireNearWave(particles.gradLogPsiY()[i], expectedY[i]);
-        requireNearWave(particles.gradLogPsiZ()[i], expectedZ[i]);
-        requireNearWave(particles.laplogPsi()[i], expectedLap[i]);
+        requireNearWave(particles.grad_log_psi_x_ptr()[i], expectedX[i]);
+        requireNearWave(particles.grad_log_psi_y_ptr()[i], expectedY[i]);
+        requireNearWave(particles.grad_log_psi_z_ptr()[i], expectedZ[i]);
+        requireNearWave(particles.lap_log_psi_ptr()[i], expectedLap[i]);
     }
 }
 
-TEST_CASE("WaveFunction evaluateLogPsi updates particle logPsi", "[wavefunction]") {
+TEST_CASE("WaveFunction evaluate_log_psi updates particle log_psi", "[wavefunction]") {
     Particles particles{1U};
     const PeriodicBoundaryCondition pbc{10.0};
 
-    particles.posX()[0] = 0.4;
-    particles.posY()[0] = 0.7;
-    particles.posZ()[0] = 0.9;
+    particles.pos_x_ptr()[0] = 0.4;
+    particles.pos_y_ptr()[0] = 0.7;
+    particles.pos_z_ptr()[0] = 0.9;
 
     const JastrowPade jastrow{0.5, 1.0};
     SlaterPlaneWave slater{1U, 10.0};
 
-    slater.kVectorX()[0] = 0.3;
-    slater.kVectorY()[0] = -0.2;
-    slater.kVectorZ()[0] = 0.5;
+    slater.k_vector_x_ptr()[0] = 0.3;
+    slater.k_vector_y_ptr()[0] = -0.2;
+    slater.k_vector_z_ptr()[0] = 0.5;
 
     WaveFunction waveFunction{jastrow, slater};
-    waveFunction.evaluateLogPsi(particles, pbc);
+    waveFunction.evaluate_log_psi(particles, pbc);
 
     const double kdotr{
-        slater.kVectorX()[0] * particles.posX()[0] +
-        slater.kVectorY()[0] * particles.posY()[0] +
-        slater.kVectorZ()[0] * particles.posZ()[0]
+        slater.k_vector_x_ptr()[0] * particles.pos_x_ptr()[0] +
+        slater.k_vector_y_ptr()[0] * particles.pos_y_ptr()[0] +
+        slater.k_vector_z_ptr()[0] * particles.pos_z_ptr()[0]
     };
 
     const double expectedLogPsi{
         std::log(std::abs(std::cos(kdotr)))
     };
 
-    requireNearWave(particles.logPsi()[0], expectedLogPsi);
+    requireNearWave(particles.log_psi_ptr()[0], expectedLogPsi);
 }

@@ -36,15 +36,15 @@ TEST_CASE("wrap3 wraps each coordinate independently", "[pbc]") {
     requireNearPbc(z, 0.0);
 }
 
-TEST_CASE("minImage enforces interval (-L/2, L/2]", "[pbc]") {
+TEST_CASE("min_image enforces interval (-L/2, L/2]", "[pbc]") {
     const PeriodicBoundaryCondition pbc{10.0};
 
-    requireNearPbc(pbc.minImage(6.0), -4.0);
-    requireNearPbc(pbc.minImage(-6.0), 4.0);
-    requireNearPbc(pbc.minImage(5.0), 5.0);
-    requireNearPbc(pbc.minImage(-5.0), 5.0);
-    requireNearPbc(pbc.minImage(15.0), 5.0);
-    requireNearPbc(pbc.minImage(-15.0), 5.0);
+    requireNearPbc(pbc.min_image(6.0), -4.0);
+    requireNearPbc(pbc.min_image(-6.0), 4.0);
+    requireNearPbc(pbc.min_image(5.0), 5.0);
+    requireNearPbc(pbc.min_image(-5.0), 5.0);
+    requireNearPbc(pbc.min_image(15.0), 5.0);
+    requireNearPbc(pbc.min_image(-15.0), 5.0);
 }
 
 TEST_CASE("displacement and distance use minimum-image coordinates", "[pbc]") {
@@ -63,9 +63,9 @@ TEST_CASE("displacement and distance use minimum-image coordinates", "[pbc]") {
     requireNearPbc(pbc.distance(1.0, 1.0, 1.0, 9.0, 1.0, 1.0), 2.0);
 }
 
-TEST_CASE("wrap and minImage are invariant under full-box translations", "[pbc]") {
+TEST_CASE("wrap and min_image are invariant under full-box translations", "[pbc]") {
     const PeriodicBoundaryCondition pbc{10.0};
-    const double L{pbc.L()};
+    const double L{pbc.L_ptr()};
 
     const double samples[]{-23.75, -10.1, -0.01, 0.0, 0.01, 4.9, 9.99, 10.01, 31.5};
     for (const double x : samples) {
@@ -75,9 +75,9 @@ TEST_CASE("wrap and minImage are invariant under full-box translations", "[pbc]"
         requireNearPbc(pbc.wrap(x + 2.0 * L), wrapped);
         requireNearPbc(pbc.wrap(x - 3.0 * L), wrapped);
 
-        const double minImg{pbc.minImage(x)};
-        requireNearPbc(pbc.minImage(x + 4.0 * L), minImg);
-        requireNearPbc(pbc.minImage(x - 5.0 * L), minImg);
+        const double minImg{pbc.min_image(x)};
+        requireNearPbc(pbc.min_image(x + 4.0 * L), minImg);
+        requireNearPbc(pbc.min_image(x - 5.0 * L), minImg);
     }
 }
 
