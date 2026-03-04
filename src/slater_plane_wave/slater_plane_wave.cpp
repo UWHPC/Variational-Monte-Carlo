@@ -104,6 +104,7 @@ void lowerUpperSolve(const double* LU, const std::size_t* pivot, const double* b
 double SlaterPlaneWave::logAbsDet(const Particles& particles,
                                   const PeriodicBoundaryCondition& pbc)
 {
+    (void)pbc; // to not fuck the compiler. cast pbc to void
     const std::size_t N = numOrbitals();
 
     const double* particlePosX = particles.posX();
