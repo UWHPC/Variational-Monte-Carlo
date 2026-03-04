@@ -5,11 +5,8 @@
 #include "../utilities/aligned_soa.hpp"
 #include "../utilities/memory.hpp"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdlib>
-#include <memory>
-#include <stdexcept>
 
 class SlaterPlaneWave {
 private:
@@ -23,7 +20,7 @@ private:
 
     // Pivot:
     enum PivotIndex : std::size_t { PIVOT_, NUM_PIVOT_ };
-    AlignedSoA<int> pivot_;
+    AlignedSoA<std::size_t> pivot_;
 
     // All matrices:
     enum MatrixIndex : std::size_t { D_, INV_D_, LU_, NUM_MATRIX_ };
@@ -57,8 +54,8 @@ public:
     [[nodiscard]] double const* lowerUpper() const noexcept { return matrices_[LU_]; }
 
     // Pivot matrix
-    [[nodiscard]] int* pivot() noexcept { return pivot_[PIVOT_]; }
-    [[nodiscard]] int const* pivot() const noexcept { return pivot_[PIVOT_]; }
+    [[nodiscard]] std::size_t* pivot() noexcept { return pivot_[PIVOT_]; }
+    [[nodiscard]] std::size_t const* pivot() const noexcept { return pivot_[PIVOT_]; }
 
     // X component of k
     [[nodiscard]] double* kVectorX() noexcept { return vectors_[K_X_]; }
