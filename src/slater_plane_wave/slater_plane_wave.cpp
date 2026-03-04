@@ -196,3 +196,59 @@ double SlaterPlaneWave::logAbsDet(const Particles& particles, const PeriodicBoun
 
     return logAbsDet;
 }
+
+void SlaterPlaneWave::addDerivatives(const Particles& particles, const PeriodicBoundaryCondition& pbc, double* gradX, double* gradY, double* gradZ, double* lap) const noexcept
+{
+    const std::size_t N{N_};
+
+    const double* posX{particles.posX()};
+    const double* posY{particles.posY()};
+    const double* posZ{particles.posZ()};
+
+    for (std::size_t particle = 0; particle < N; ++particle) {
+        const double x{posX[particle]};
+        const double y{posY[particle]};
+        const double z{posZ[particle]};
+
+        double dLogDet_dx{}, dLogDet_dy{}, dLogDet_dz{};
+        
+        // Σ_j (D^{-1})_{j,particle} * (∇^2 D_{particle,j})
+        double laplaceDeterminantTerm{};
+
+        for (std::size_t orbital = 0; orbital < N; ++orbital) {
+            const double kx{kx_[orbital]};
+            const double ky{ky_[orbital]};
+            const double kz{kz_[orbital]};
+
+            const double kdotr{kx * x + ky * y + kz * z};
+            const double cosineTerm{std::cos(kdotr)};
+            const double sineTerm{std::sin(kdotr)};
+            // D(particle,orbital) = cos(k·r)
+            // ∇_particle D = -sin(k·r) * k
+            const double dD_dx{-sineTerm * kx};
+            const double dD_dy{-sineTerm * ky};
+            const double dD_dz{-sineTerm * kz};
+
+            // ∇^2 D = -cos(k·r) * |k|^2
+            const double kSquared{kx*kx+ky*ky+kz*kz};
+            const double lapD{-cosineTerm*kSquared};
+            // Weight = (D^{-1})_{orbital,particle}
+            // invD_ is row-major, so entry (row=orbital, col=particle):
+            const double weight{ invD_[index(orbital, particle, N)]};
+
+            dLogDet_dx += weight * dD_dx;
+            dLogDet_dy += weight * dD_dy;
+            dLogDet_dz += weight * dD_dz;
+
+            laplaceDeterminantTerm += weight*lapD;
+        }
+        // ∇^2 log det D = Σ_j (D^{-1})_{j,i} ∇^2 D_{i,j}  -  ||∇ log det D||^2
+        const double gradSquared{ dLogDet_dx*dLogDet_dx+dLogDet_dy*dLogDet_dy+dLogDet_dz*dLogDet_dz};
+        const double lapLogDet{laplaceDeterminantTerm - gradSquared};
+
+        gradX[particle] += dLogDet_dx;
+        gradY[particle] += dLogDet_dy;
+        gradZ[particle] += dLogDet_dz;
+        lap[particle] += lapLogDet;
+    }
+}
