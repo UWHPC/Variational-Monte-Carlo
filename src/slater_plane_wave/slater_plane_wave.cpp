@@ -9,7 +9,7 @@
 namespace {
 
 inline std::size_t roundUpToSimd(std::size_t n) noexcept {
-    constexpr std::size_t doublesPerAlignment = SIMD_BYTES / sizeof(double);
+    constexpr std::size_t doublesPerAlignment{SIMD_BYTES / sizeof(double)};
     return (n + doublesPerAlignment - 1) & ~(doublesPerAlignment - 1);
 }
 
@@ -32,6 +32,7 @@ int lu_decompose(double* LU, double* piv, std::size_t N) {
 
     for (std::size_t row = 0; row < N; ++row)
         piv[row] = static_cast<double>(row);
+
     for (std::size_t col = 0; col < N; ++col) {
         // Pivot selection
         // Find row >= col maximizing |LU(row, col)|
@@ -77,7 +78,13 @@ solve (P^-1)LU x = b. given combined LU and pivot permutation piv.
 piv encodes the row permutation applied during LU so that
 we first permute b: y = P b, then solve L z = y, then U x = z.
 */
-void lu_solve(const double* LU, const double* piv, const double* b, double* x, std::size_t N) {
+void lu_solve(
+    const double* LU, 
+    const double* piv, 
+    const double* b, 
+    double* x, 
+    std::size_t N
+) {
     // Apply permutation: x = Pb
     // store y in x temporarily
     for (std::size_t row = 0; row < N; ++row) {

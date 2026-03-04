@@ -42,15 +42,9 @@ double PeriodicBoundaryCondition::minImage(double dx) const noexcept {
 }
 
 void PeriodicBoundaryCondition::displacement(
-    double xi,
-    double yi,
-    double zi,
-    double xj,
-    double yj,
-    double zj,
-    double& dx,
-    double& dy,
-    double& dz
+    double xi, double yi, double zi,
+    double xj, double yj, double zj,
+    double& dx, double& dy, double& dz
 ) const noexcept {
     dx = xi - xj;
     dy = yi - yj;
@@ -62,27 +56,15 @@ void PeriodicBoundaryCondition::displacement(
 }
 
 double PeriodicBoundaryCondition::distance(
-    double xi,
-    double yi,
-    double zi,
-    double xj,
-    double yj,
-    double zj
+    double xi, double yi, double zi,
+    double xj, double yj, double zj
 ) const noexcept {
-    double dx{};
-    double dy{};
-    double dz{};
+    double dx{}, dy{}, dz{};
 
     displacement(
-        xi,
-        yi,
-        zi,
-        xj,
-        yj,
-        zj,
-        dx,
-        dy,
-        dz
+        xi, yi, zi,
+        xj, yj, zj,
+        dx, dy, dz
     );
 
     return std::sqrt(dx * dx + dy * dy + dz * dz);

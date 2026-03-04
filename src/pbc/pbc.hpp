@@ -27,24 +27,14 @@ public:
 
     // compute min image displacement vector from j to i
     void displacement(
-        double xi,
-        double yi,
-        double zi,
-        double xj,
-        double yj,
-        double zj,
-        double& dx,
-        double& dy,
-        double& dz
+        double xi, double yi, double zi,
+        double xj, double yj, double zj,
+        double& dx, double& dy, double& dz
     ) const noexcept;
 
     // compute euclidean norm of min image displacement
     [[nodiscard]] double distance(
-        double xi,
-        double yi,
-        double zi,
-        double xj,
-        double yj,
-        double zj
+        double xi, double yi, double zi,
+        double xj, double yj, double zj
     ) const noexcept;
 };
