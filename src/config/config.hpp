@@ -13,13 +13,13 @@
 #include <string_view>
 
 struct Config {
-    std::size_t numParticles; // Number of particles
-    double boxLength;         // Length of box (grid)
-    std::size_t warmupSteps;  // Warm up
-    std::size_t measureSteps; // M
-    double stepSize;          // proposal half-width s
-    uint64_t seed;            // Random seed
-    std::size_t blockSize;    // Size of block
+    std::size_t num_particles; // Number of particles
+    double box_length;         // Length of box (grid)
+    std::size_t warmup_steps;  // Warm up
+    std::size_t measure_steps; // M
+    double step_size;          // proposal half-width s
+    uint64_t seed;             // Random seed
+    std::size_t block_size;    // Size of block
 };
 
 namespace {
@@ -29,112 +29,112 @@ struct HelpRequested final : std::exception {
 };
 
 enum class OptionId {
-    numParticles,
-    boxLength,
-    warmupSteps,
-    measureSteps,
-    stepSize,
+    num_particles,
+    box_length,
+    warmup_steps,
+    measure_steps,
+    step_size,
     seed,
-    blockSize,
+    block_size,
 };
 
 struct RawConfigValues {
-    std::optional<std::string_view> numParticles;
-    std::optional<std::string_view> boxLength;
-    std::optional<std::string_view> warmupSteps;
-    std::optional<std::string_view> measureSteps;
-    std::optional<std::string_view> stepSize;
+    std::optional<std::string_view> num_particles;
+    std::optional<std::string_view> box_length;
+    std::optional<std::string_view> warmup_steps;
+    std::optional<std::string_view> measure_steps;
+    std::optional<std::string_view> step_size;
     std::optional<std::string_view> seed;
-    std::optional<std::string_view> blockSize;
+    std::optional<std::string_view> block_size;
 };
 
 [[nodiscard]] std::optional<OptionId> parseOptionName(std::string_view name) {
-    if (name == "numParticles" || name == "num-particles") {
-        return OptionId::numParticles;
+    if (name == "num_particles" || name == "num-particles") {
+        return OptionId::num_particles;
     }
-    if (name == "boxLength" || name == "box-length") {
-        return OptionId::boxLength;
+    if (name == "box_length" || name == "box-length") {
+        return OptionId::box_length;
     }
-    if (name == "warmupSteps" || name == "warmup-steps") {
-        return OptionId::warmupSteps;
+    if (name == "warmup_steps" || name == "warmup-steps") {
+        return OptionId::warmup_steps;
     }
-    if (name == "measureSteps" || name == "measure-steps") {
-        return OptionId::measureSteps;
+    if (name == "measure_steps" || name == "measure-steps") {
+        return OptionId::measure_steps;
     }
-    if (name == "stepSize" || name == "step-size") {
-        return OptionId::stepSize;
+    if (name == "step_size" || name == "step-size") {
+        return OptionId::step_size;
     }
     if (name == "seed") {
         return OptionId::seed;
     }
-    if (name == "blockSize" || name == "block-size") {
-        return OptionId::blockSize;
+    if (name == "block_size" || name == "block-size") {
+        return OptionId::block_size;
     }
     return std::nullopt;
 }
 
 [[nodiscard]] std::string_view canonicalOptionName(OptionId id) {
     switch (id) {
-    case OptionId::numParticles:
-        return "numParticles";
-    case OptionId::boxLength:
-        return "boxLength";
-    case OptionId::warmupSteps:
-        return "warmupSteps";
-    case OptionId::measureSteps:
-        return "measureSteps";
-    case OptionId::stepSize:
-        return "stepSize";
+    case OptionId::num_particles:
+        return "num_particles";
+    case OptionId::box_length:
+        return "box_length";
+    case OptionId::warmup_steps:
+        return "warmup_steps";
+    case OptionId::measure_steps:
+        return "measure_steps";
+    case OptionId::step_size:
+        return "step_size";
     case OptionId::seed:
         return "seed";
-    case OptionId::blockSize:
-        return "blockSize";
+    case OptionId::block_size:
+        return "block_size";
     }
     throw std::logic_error{"Unknown option id"};
 }
 
 [[nodiscard]] std::optional<std::string_view> getOptionValue(const RawConfigValues& raw, OptionId id) {
     switch (id) {
-    case OptionId::numParticles:
-        return raw.numParticles;
-    case OptionId::boxLength:
-        return raw.boxLength;
-    case OptionId::warmupSteps:
-        return raw.warmupSteps;
-    case OptionId::measureSteps:
-        return raw.measureSteps;
-    case OptionId::stepSize:
-        return raw.stepSize;
+    case OptionId::num_particles:
+        return raw.num_particles;
+    case OptionId::box_length:
+        return raw.box_length;
+    case OptionId::warmup_steps:
+        return raw.warmup_steps;
+    case OptionId::measure_steps:
+        return raw.measure_steps;
+    case OptionId::step_size:
+        return raw.step_size;
     case OptionId::seed:
         return raw.seed;
-    case OptionId::blockSize:
-        return raw.blockSize;
+    case OptionId::block_size:
+        return raw.block_size;
     }
     throw std::logic_error{"Unknown option id"};
 }
 
 void setOptionValue(RawConfigValues& raw, OptionId id, std::string_view value) {
     switch (id) {
-    case OptionId::numParticles:
-        raw.numParticles = value;
+    case OptionId::num_particles:
+        raw.num_particles = value;
         return;
-    case OptionId::boxLength:
-        raw.boxLength = value;
+    case OptionId::box_length:
+        raw.box_length = value;
         return;
-    case OptionId::warmupSteps:
-        raw.warmupSteps = value;
+    case OptionId::warmup_steps:
+        raw.warmup_steps = value;
         return;
-    case OptionId::measureSteps:
-        raw.measureSteps = value;
+    case OptionId::measure_steps:
+        raw.measure_steps = value;
         return;
-    case OptionId::stepSize:
-        raw.stepSize = value;
+    case OptionId::step_size:
+        raw.step_size = value;
         return;
     case OptionId::seed:
         raw.seed = value;
         return;
-    case OptionId::blockSize:
-        raw.blockSize = value;
+    case OptionId::block_size:
+        raw.block_size = value;
         return;
     }
     throw std::logic_error{"Unknown option id"};
@@ -165,30 +165,30 @@ template <typename T> [[nodiscard]] T parseInteger(std::string_view text, std::s
 }
 
 void validateConfig(const Config& config) {
-    if (config.numParticles < 1U) {
-        throw std::invalid_argument{"--numParticles must be >= 1"};
+    if (config.num_particles < 1U) {
+        throw std::invalid_argument{"--num_particles must be >= 1"};
     }
-    if (!std::isfinite(config.boxLength) || config.boxLength <= 0.0) {
-        throw std::invalid_argument{"--boxLength must be finite and > 0"};
+    if (!std::isfinite(config.box_length) || config.box_length <= 0.0) {
+        throw std::invalid_argument{"--box_length must be finite and > 0"};
     }
-    if (!std::isfinite(config.stepSize) || config.stepSize <= 0.0) {
-        throw std::invalid_argument{"--stepSize must be finite and > 0"};
+    if (!std::isfinite(config.step_size) || config.step_size <= 0.0) {
+        throw std::invalid_argument{"--step_size must be finite and > 0"};
     }
-    if (config.measureSteps < 1U) {
-        throw std::invalid_argument{"--measureSteps must be >= 1"};
+    if (config.measure_steps < 1U) {
+        throw std::invalid_argument{"--measure_steps must be >= 1"};
     }
-    if (config.blockSize < 1U) {
-        throw std::invalid_argument{"--blockSize must be >= 1"};
+    if (config.block_size < 1U) {
+        throw std::invalid_argument{"--block_size must be >= 1"};
     }
 }
 
 void printUsage(const char* programName) {
-    std::cout
-        << "Usage:\n"
-        << "  " << programName
-        << " --numParticles N --boxLength L --warmupSteps W --measureSteps M --stepSize S --seed R --blockSize B\n\n"
-        << "Aliases:\n"
-        << "  --num-particles, --box-length, --warmup-steps, --measure-steps, --step-size, --block-size\n";
+    std::cout << "Usage:\n"
+              << "  " << programName
+              << " --num_particles N --box_length L --warmup_steps W --measure_steps M --step_size S --seed R "
+                 "--block_size B\n\n"
+              << "Aliases:\n"
+              << "  --num-particles, --box-length, --warmup-steps, --measure-steps, --step-size, --block-size\n";
 }
 
 [[nodiscard]] Config parseArgs(int argc, char** argv) {
@@ -246,8 +246,8 @@ void printUsage(const char* programName) {
     }
 
     constexpr std::array<OptionId, 7> allOptions{
-        OptionId::numParticles, OptionId::boxLength, OptionId::warmupSteps, OptionId::measureSteps,
-        OptionId::stepSize,     OptionId::seed,      OptionId::blockSize,
+        OptionId::num_particles, OptionId::box_length, OptionId::warmup_steps, OptionId::measure_steps,
+        OptionId::step_size,     OptionId::seed,       OptionId::block_size,
     };
 
     std::string missing{};
@@ -265,26 +265,26 @@ void printUsage(const char* programName) {
     }
 
     const Config config{
-        .numParticles = parseInteger<std::size_t>(*raw.numParticles, "numParticles"),
-        .boxLength = parseDouble(*raw.boxLength, "boxLength"),
-        .warmupSteps = parseInteger<std::size_t>(*raw.warmupSteps, "warmupSteps"),
-        .measureSteps = parseInteger<std::size_t>(*raw.measureSteps, "measureSteps"),
-        .stepSize = parseDouble(*raw.stepSize, "stepSize"),
+        .num_particles = parseInteger<std::size_t>(*raw.num_particles, "num_particles"),
+        .box_length = parseDouble(*raw.box_length, "box_length"),
+        .warmup_steps = parseInteger<std::size_t>(*raw.warmup_steps, "warmup_steps"),
+        .measure_steps = parseInteger<std::size_t>(*raw.measure_steps, "measure_steps"),
+        .step_size = parseDouble(*raw.step_size, "step_size"),
         .seed = parseInteger<std::uint64_t>(*raw.seed, "seed"),
-        .blockSize = parseInteger<std::size_t>(*raw.blockSize, "blockSize"),
+        .block_size = parseInteger<std::size_t>(*raw.block_size, "block_size"),
     };
     validateConfig(config);
     return config;
 }
 
 void printConfig(const Config& config) {
-    std::cout << "numParticles: " << config.numParticles << '\n'
-              << "boxLength: " << config.boxLength << '\n'
-              << "warmupSteps: " << config.warmupSteps << '\n'
-              << "measureSteps: " << config.measureSteps << '\n'
-              << "stepSize: " << config.stepSize << '\n'
+    std::cout << "num_particles: " << config.num_particles << '\n'
+              << "box_length: " << config.box_length << '\n'
+              << "warmup_steps: " << config.warmup_steps << '\n'
+              << "measure_steps: " << config.measure_steps << '\n'
+              << "step_size: " << config.step_size << '\n'
               << "seed: " << config.seed << '\n'
-              << "blockSize: " << config.blockSize << '\n';
+              << "block_size: " << config.block_size << '\n';
 }
 
 } // Namespace

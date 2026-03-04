@@ -2,15 +2,15 @@
 
 class PeriodicBoundaryCondition {
 private:
-    double L_{};    // Box length
-    double invL_{}; // evaluates to 1.0 / L. avoids repeated division
+    double L_{};     // Box length
+    double inv_L_{}; // evaluates to 1.0 / L. avoids repeated division
 public:
     // store L and precompute invL
     explicit PeriodicBoundaryCondition(double L) noexcept;
 
     // Getters for L and invL
-    [[nodiscard]] double L() const noexcept { return L_; }
-    [[nodiscard]] double invL() const noexcept { return invL_; }
+    [[nodiscard]] double L_ptr() const noexcept { return L_; }
+    [[nodiscard]] double inv_L_ptr() const noexcept { return inv_L_; }
 
     // wrap coordinates into [0, L)
     [[nodiscard]] double wrap(double x) const noexcept;
@@ -19,7 +19,7 @@ public:
     void wrap3(double& x, double& y, double& z) const noexcept;
 
     // apply min image mapping to displacement component
-    [[nodiscard]] double minImage(double dx) const noexcept;
+    [[nodiscard]] double min_image(double dx) const noexcept;
 
     // compute min image displacement vector from j to i
     void displacement(double xi, double yi, double zi, double xj, double yj, double zj, double& dx, double& dy,

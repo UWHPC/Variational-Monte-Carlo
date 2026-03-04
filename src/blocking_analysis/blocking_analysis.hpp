@@ -4,7 +4,7 @@
 
 class BlockingAnalysis {
 private:
-    std::size_t blockSize_;
+    std::size_t block_size_;
     std::size_t K_;
 
 public:

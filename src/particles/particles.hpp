@@ -23,51 +23,51 @@ private:
         NUM_SUB_ARRAYS_
     };
     // Number of particles:
-    std::size_t numParticles_;
+    std::size_t num_particles_;
 
     // Aligned memory block:
-    AlignedSoA<double> particleData_;
+    AlignedSoA<double> particle_data_;
 
 public:
-    explicit Particles(std::size_t numParticles)
-        : particleData_{numParticles, NUM_SUB_ARRAYS_}, numParticles_{numParticles} {}
+    explicit Particles(std::size_t num_particles)
+        : particle_data_{num_particles, NUM_SUB_ARRAYS_}, num_particles_{num_particles} {}
 
     // Physical number of particles
-    [[nodiscard]] std::size_t numParticles() const { return numParticles_; }
+    [[nodiscard]] std::size_t num_particles_ptr() const { return num_particles_; }
 
     // Length of the padded stride
-    [[nodiscard]] std::size_t paddingStride() const { return particleData_.stride(); }
+    [[nodiscard]] std::size_t padding_stride_ptr() const { return particle_data_.stride(); }
 
     // Raw Pointers:
     // X position of particle
-    [[nodiscard]] double* posX() noexcept { return particleData_[POS_X_]; }
-    [[nodiscard]] double const* posX() const noexcept { return particleData_[POS_X_]; }
+    [[nodiscard]] double* pos_x_ptr() noexcept { return particle_data_[POS_X_]; }
+    [[nodiscard]] double const* pos_x_ptr() const noexcept { return particle_data_[POS_X_]; }
 
     // Y position of particle
-    [[nodiscard]] double* posY() noexcept { return particleData_[POS_Y_]; }
-    [[nodiscard]] double const* posY() const noexcept { return particleData_[POS_Y_]; }
+    [[nodiscard]] double* pos_y_ptr() noexcept { return particle_data_[POS_Y_]; }
+    [[nodiscard]] double const* pos_y_ptr() const noexcept { return particle_data_[POS_Y_]; }
 
     // Z position of particle
-    [[nodiscard]] double* posZ() noexcept { return particleData_[POS_Z_]; }
-    [[nodiscard]] double const* posZ() const noexcept { return particleData_[POS_Z_]; }
+    [[nodiscard]] double* pos_z_ptr() noexcept { return particle_data_[POS_Z_]; }
+    [[nodiscard]] double const* pos_z_ptr() const noexcept { return particle_data_[POS_Z_]; }
 
     // X component of gradient( log|PSI| )
-    [[nodiscard]] double* gradLogPsiX() noexcept { return particleData_[GRAD_X_]; }
-    [[nodiscard]] double const* gradLogPsiX() const noexcept { return particleData_[GRAD_X_]; }
+    [[nodiscard]] double* grad_log_psi_x_ptr() noexcept { return particle_data_[GRAD_X_]; }
+    [[nodiscard]] double const* grad_log_psi_x_ptr() const noexcept { return particle_data_[GRAD_X_]; }
 
     // Y component of gradient( log|PSI| )
-    [[nodiscard]] double* gradLogPsiY() noexcept { return particleData_[GRAD_Y_]; }
-    [[nodiscard]] double const* gradLogPsiY() const noexcept { return particleData_[GRAD_Y_]; }
+    [[nodiscard]] double* grad_log_psi_y_ptr() noexcept { return particle_data_[GRAD_Y_]; }
+    [[nodiscard]] double const* grad_log_psi_y_ptr() const noexcept { return particle_data_[GRAD_Y_]; }
 
     // Z component of gradient( log|PSI| )
-    [[nodiscard]] double* gradLogPsiZ() noexcept { return particleData_[GRAD_Z_]; }
-    [[nodiscard]] double const* gradLogPsiZ() const noexcept { return particleData_[GRAD_Z_]; }
+    [[nodiscard]] double* grad_log_psi_z_ptr() noexcept { return particle_data_[GRAD_Z_]; }
+    [[nodiscard]] double const* grad_log_psi_z_ptr() const noexcept { return particle_data_[GRAD_Z_]; }
 
     // Log|PSI|
-    [[nodiscard]] double* logPsi() noexcept { return particleData_[LOG_PSI_]; }
-    [[nodiscard]] double const* logPsi() const noexcept { return particleData_[LOG_PSI_]; }
+    [[nodiscard]] double* log_psi_ptr() noexcept { return particle_data_[LOG_PSI_]; }
+    [[nodiscard]] double const* log_psi_ptr() const noexcept { return particle_data_[LOG_PSI_]; }
 
     // Laplacian of Log|PSI|
-    [[nodiscard]] double* laplogPsi() noexcept { return particleData_[LAP_LOG_PSI_]; }
-    [[nodiscard]] double const* laplogPsi() const noexcept { return particleData_[LAP_LOG_PSI_]; }
+    [[nodiscard]] double* lap_log_psi_ptr() noexcept { return particle_data_[LAP_LOG_PSI_]; }
+    [[nodiscard]] double const* lap_log_psi_ptr() const noexcept { return particle_data_[LAP_LOG_PSI_]; }
 };
