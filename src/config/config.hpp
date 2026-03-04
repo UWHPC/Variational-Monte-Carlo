@@ -2,6 +2,7 @@
 
 #include <array>
 #include <charconv>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -163,6 +164,24 @@ template <typename T> [[nodiscard]] T parseInteger(std::string_view text, std::s
     return value;
 }
 
+void validateConfig(const Config& config) {
+    if (config.numParticles < 1U) {
+        throw std::invalid_argument{"--numParticles must be >= 1"};
+    }
+    if (!std::isfinite(config.boxLength) || config.boxLength <= 0.0) {
+        throw std::invalid_argument{"--boxLength must be finite and > 0"};
+    }
+    if (!std::isfinite(config.stepSize) || config.stepSize <= 0.0) {
+        throw std::invalid_argument{"--stepSize must be finite and > 0"};
+    }
+    if (config.measureSteps < 1U) {
+        throw std::invalid_argument{"--measureSteps must be >= 1"};
+    }
+    if (config.blockSize < 1U) {
+        throw std::invalid_argument{"--blockSize must be >= 1"};
+    }
+}
+
 void printUsage(const char* programName) {
     std::cout
         << "Usage:\n"
@@ -245,7 +264,7 @@ void printUsage(const char* programName) {
         throw std::invalid_argument{"Missing required options: " + missing};
     }
 
-    return Config{
+    const Config config{
         .numParticles = parseInteger<std::size_t>(*raw.numParticles, "numParticles"),
         .boxLength = parseDouble(*raw.boxLength, "boxLength"),
         .warmupSteps = parseInteger<std::size_t>(*raw.warmupSteps, "warmupSteps"),
@@ -254,6 +273,8 @@ void printUsage(const char* programName) {
         .seed = parseInteger<std::uint64_t>(*raw.seed, "seed"),
         .blockSize = parseInteger<std::size_t>(*raw.blockSize, "blockSize"),
     };
+    validateConfig(config);
+    return config;
 }
 
 void printConfig(const Config& config) {

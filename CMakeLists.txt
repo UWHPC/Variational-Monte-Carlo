@@ -18,9 +18,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # --- Compiler warnings and optimizations ---
 if(MSVC)
-    add_compile_options(/W4 /permissive- /arch:AVX2)
+    set(VMC_WARNING_OPTIONS /W4 /permissive- /arch:AVX2)
 else()
-    add_compile_options(
+    set(VMC_WARNING_OPTIONS
         -Wall
         -Wextra
         -Wpedantic
@@ -40,6 +40,7 @@ add_library(vmc_lib STATIC
 )
 
 target_include_directories(vmc_lib PUBLIC src)
+target_compile_options(vmc_lib PRIVATE ${VMC_WARNING_OPTIONS})
 
 # --- Main executable ---
 add_executable(vmc
@@ -47,6 +48,7 @@ add_executable(vmc
 )
 
 target_link_libraries(vmc PRIVATE vmc_lib)
+target_compile_options(vmc PRIVATE ${VMC_WARNING_OPTIONS})
 
 # --- Testing (opt-in via BUILD_TESTING argument) ---
 include(CTest)
@@ -71,6 +73,7 @@ if(BUILD_TESTING)
         Catch2::Catch2WithMain
         vmc_lib
     )
+    target_compile_options(vmc_tests PRIVATE ${VMC_WARNING_OPTIONS})
 
     list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
     include(Catch)

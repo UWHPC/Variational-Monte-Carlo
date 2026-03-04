@@ -52,3 +52,27 @@ TEST_CASE("WaveFunction evaluateDerivatives clears buffers and delegates to Jast
         requireNearWave(particles.laplogPsi()[i], expectedLap[i]);
     }
 }
+
+TEST_CASE("WaveFunction evaluateLogPsi updates particle logPsi", "[wavefunction]") {
+    Particles particles{1U};
+    const PeriodicBoundaryCondition pbc{10.0};
+
+    particles.posX()[0] = 0.4;
+    particles.posY()[0] = 0.7;
+    particles.posZ()[0] = 0.9;
+
+    const JastrowPade jastrow{0.5, 1.0};
+    SlaterPlaneWave slater{1U, 10.0};
+    slater.kx()[0] = 0.3;
+    slater.ky()[0] = -0.2;
+    slater.kz()[0] = 0.5;
+
+    WaveFunction waveFunction{jastrow, slater};
+    waveFunction.evaluateLogPsi(particles, pbc);
+
+    const double kdotr{slater.kx()[0] * particles.posX()[0] + slater.ky()[0] * particles.posY()[0] +
+                       slater.kz()[0] * particles.posZ()[0]};
+    const double expectedLogPsi{std::log(std::abs(std::cos(kdotr)))};
+
+    requireNearWave(particles.logPsi()[0], expectedLogPsi);
+}
