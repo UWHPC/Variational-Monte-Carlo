@@ -16,8 +16,8 @@ The easiest way to build is to execute: \
 `./scripts/build.sh` or `./scripts/build.ps1`
 
 Alternatively, a manual build involves: \
-`cmake -S . -B build` \
-`cmake --build build`
+`cmake -S . -B build -DBUILD_TESTING=OFF` \
+`cmake --build build --target vmc`
 
 ## Run Tests
 
@@ -25,4 +25,6 @@ The easiest way to run tests is to execute: \
 `./scripts/test.sh` or `./scripts/test.ps1`
 
 Alternatively, manually testing involves: \
-`ctest --test-dir build`
+`cmake -S . -B build-tests -DBUILD_TESTING=ON` \
+`cmake --build build-tests --target vmc_tests` \
+`ctest --test-dir build-tests`

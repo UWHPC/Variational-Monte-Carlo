@@ -1,4 +1,4 @@
-cmake --build build
+cmake -S . -B build -DBUILD_TESTING=OFF
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-cmake -S . -B build
+cmake --build build --target vmc
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
