@@ -66,11 +66,10 @@ bool Simulation::metropolis_step() {
     if (LOG_U < MIN_TERM) {
         log_psi_current_ = NEW_LOG_PSI;
         return true;
-    } else {
-        p_x[RAND_PARTICLE] = OLD_X;
-        p_y[RAND_PARTICLE] = OLD_Y;
-        p_z[RAND_PARTICLE] = OLD_Z;
-    }
+    } 
+    p_x[RAND_PARTICLE] = OLD_X;
+    p_y[RAND_PARTICLE] = OLD_Y;
+    p_z[RAND_PARTICLE] = OLD_Z;
 
     return false;
 }
