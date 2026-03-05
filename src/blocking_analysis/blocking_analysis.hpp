@@ -1,22 +1,29 @@
 #pragma once
-#include <vector>
-#include <numeric>
+
 #include "../config/config.hpp"
+
+#include <numeric>
+#include <vector>
 
 class BlockingAnalysis {
 private:
-    std::size_t blockSize;
-    std::size_t K;
-    double blockSum{};
-    std::size_t inBlock{};
-    std::vector<double> blockMeans;
+    std::size_t block_size_;
+    std::size_t in_block_;
+
+    double block_sum_;
+    std::vector<double> block_means_;
+
+    [[nodiscard]] std::size_t block_size_get() const { return block_size_; }
+    [[nodiscard]] std::size_t in_block_get() const { return in_block_; }
+    [[nodiscard]] double block_sum_get() const { return block_sum_; }
+
+    [[nodiscard]] std::vector<double>& block_means_get() { return block_means_; }
+    [[nodiscard]] const std::vector<double>& block_means_get() const { return block_means_; }
+
 public:
-    explicit BlockingAnalysis(std::size_t blockSize);
-    std::pair<double, double> BlockingAnalysis::meanAndStandardError() const;
+    explicit BlockingAnalysis(std::size_t block_size);
+
+    std::pair<double, double> mean_and_standard_error() const;
     void add(double x);
     bool ready() const noexcept;
-
-    
-
-
 };

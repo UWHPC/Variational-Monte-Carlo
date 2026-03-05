@@ -1,45 +1,45 @@
 #include "blocking_analysis.hpp"
 
+BlockingAnalysis::BlockingAnalysis(std::size_t block_size)
+    : block_size_{block_size}, in_block_{}, block_sum_{}, block_means_{} {}
 
-std::pair<double, double> BlockingAnalysis::meanAndStandardError() const {
-        if (!ready()) {
-            // The document says if K < 2, report mean only or flag it [cite: 35]
-            throw std::runtime_error("Not enough blocks to calculate Standard Error.");
-        }
-
-        const double K{static_cast<double>(blockMeans.size())};
-        double overallMean{};
-
-        // calculating average
-        overallMean = std::accumulate(blockMeans.begin(), blockMeans.end(), 0.0) / K;
-
-        // 2. Calculate the variance between the blocks (Eq. 39) 
-        double varianceSum{};
-        for (double i = 0; i < K; i++ ) {
-            varianceSum += (blockMeans[i] - overallMean) * (blockMeans[i] - overallMean);
-        }
-        double s_sq = varianceSum / (K - 1.0);
-
-        // 3. Calculate the Standard Error (Eq. 40) 
-        double standardError{std::sqrt(s_sq / K)};
-
-        return {overallMean, standardError};
+std::pair<double, double> BlockingAnalysis::mean_and_standard_error() const {
+    if (!ready()) {
+        // The document says if K < 2, report mean only or flag it [cite: 35]
+        throw std::runtime_error("Not enough blocks to calculate Standard Error.");
     }
 
-    void BlockingAnalysis::add(double x){
-        blockSum += x;
-        inBlock++;
+    const double K{static_cast<double>(block_means_get().size())};
+    double overall_mean{};
 
-        // When the block is full, calculate its average and save it
-        if (inBlock == blockSize) {
-            blockMeans.push_back(blockSum / blockSize); // Eq. 37 
-            
-            // Reset for the next block
-            blockSum = 0;
-            inBlock = 0;
-        }
-    }
+    // calculating average
+    overall_mean = std::accumulate(block_means_get().begin(), block_means_get().end(), 0.0) / K;
 
-    bool BlockingAnalysis::ready() const noexcept {
-        return blockMeans.size() >= 2; 
+    // 2. Calculate the variance between the blocks (Eq. 39)
+    double variance_sum{};
+    for (double i = 0; i < K; i++) {
+        variance_sum += (block_means_get()[i] - overall_mean) * (block_means_get()[i] - overall_mean);
     }
+    double s_sq = variance_sum / (K - 1.0);
+
+    // 3. Calculate the Standard Error (Eq. 40)
+    double standard_error{std::sqrt(s_sq / K)};
+
+    return {overall_mean, standard_error};
+}
+
+void BlockingAnalysis::add(double x) {
+    block_sum_ += x;
+    in_block_++;
+
+    // When the block is full, calculate its average and save it
+    if (in_block_ == block_size_) {
+        block_means_.push_back(block_sum_ / block_size_); // Eq. 37
+
+        // Reset for the next block
+        block_sum_ = 0;
+        in_block_ = 0;
+    }
+}
+
+bool BlockingAnalysis::ready() const noexcept { return block_means_.size() >= 2; }
