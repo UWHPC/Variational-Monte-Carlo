@@ -4,7 +4,8 @@ Simulation::Simulation(Config config) noexcept
     : config_{std::move(config)}, particles_{config_.num_particles}, pbc_{config_.box_length}, jastrow_pade_{},
       slater_plane_wave_{particles_.num_particles_ptr(), pbc_.L_ptr()},
       wave_function_{jastrow_pade_, slater_plane_wave_}, rng_{config.seed},
-      proposal_{-config_.step_size, config_.step_size}, pick_particle_{0, config_.num_particles - 1} {}
+      proposal_{-config_.step_size, config_.step_size}, pick_particle_{0, config_.num_particles - 1}, proposed_{},
+      accepted_{}, log_psi_current_{} {}
 
 /// @brief Intializes Random Positions for each particle, making sure to not exceed box length
 void Simulation::initialize_positions() {
@@ -14,18 +15,17 @@ void Simulation::initialize_positions() {
     double* RESTRICT p_z{particles_.pos_z_ptr()};
 
     const std::size_t N{particles_.num_particles_ptr()};
-    std::mt19937_64 rng_local{rng()};
-    double length{pbc_.L_ptr()};
+    const double LENGTH{pbc_.L_ptr()};
 
     // Generate Random Starting Positions
     for (std::size_t i{}; i < N; i++) {
-        p_x[i] = uniform01_(rng_local) * length;
-        p_y[i] = uniform01_(rng_local) * length;
-        p_z[i] = uniform01_(rng_local) * length;
+        p_x[i] = rand_uniform_double() * LENGTH;
+        p_y[i] = rand_uniform_double() * LENGTH;
+        p_z[i] = rand_uniform_double() * LENGTH;
     }
 
-    wave_function_.evaluate_log_psi(particles(), pbc());
-    log_psi_current_ = *particles().log_psi_ptr();
+    wave_function().evaluate_log_psi(particles(), pbc());
+    log_psi_current() = particles().log_psi_ptr()[0];
 
     return;
 }
@@ -40,30 +40,33 @@ bool Simulation::metropolis_step() {
     double* RESTRICT p_z{particles_.pos_z_ptr()};
 
     // Local random vars:
-    const double RAND_PROPOSAL{proposal()(rng())};
-    const std::size_t RAND_PARTICLE{pick_particle()(rng())};
-
-    // Log psi for 1st element:
-    const double LOG_PSI{particles().log_psi_ptr()[0]};
+    const std::size_t RAND_PARTICLE{rand_particle()};
 
     // Old positions:
     const double OLD_X{p_x[RAND_PARTICLE]};
     const double OLD_Y{p_y[RAND_PARTICLE]};
     const double OLD_Z{p_z[RAND_PARTICLE]};
 
-    p_x[RAND_PARTICLE] += RAND_PROPOSAL;
-    p_y[RAND_PARTICLE] += RAND_PROPOSAL;
-    p_z[RAND_PARTICLE] += RAND_PROPOSAL;
+    // Add randomness:
+    p_x[RAND_PARTICLE] += rand_proposal_double();
+    p_y[RAND_PARTICLE] += rand_proposal_double();
+    p_z[RAND_PARTICLE] += rand_proposal_double();
 
-    wave_function_.evaluate_log_psi(particles(), pbc());
+    // Wrap to ensure particles dont drift outside [0,L):
+    pbc().wrap3(p_x[RAND_PARTICLE], p_y[RAND_PARTICLE], p_z[RAND_PARTICLE]);
 
-    const double DELTA_LOG_PSI{LOG_PSI - log_psi_current_};
+    wave_function().evaluate_log_psi(particles(), pbc());
 
-    const double LOG_U{log(uniform01()(rng()))};
+    // Log psi for 1st element:
+    const double NEW_LOG_PSI{particles().log_psi_ptr()[0]};
+
+    const double DELTA_LOG_PSI{NEW_LOG_PSI - log_psi_current_};
+
+    const double LOG_U{log(rand_uniform_double())};
     const double MIN_TERM{std::min(0.0, 2.0 * DELTA_LOG_PSI)};
 
     if (LOG_U < MIN_TERM) {
-        log_psi_current_ = LOG_PSI;
+        log_psi_current_ = NEW_LOG_PSI;
         return true;
     } else {
         p_x[RAND_PARTICLE] = OLD_X;
