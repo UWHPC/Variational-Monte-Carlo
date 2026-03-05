@@ -5,8 +5,8 @@
 
 class JastrowPade {
 private:
-    double a_{};
-    double b_{};
+    double a_;
+    double b_;
 
 public:
     // eqn (28) on paper
@@ -14,8 +14,8 @@ public:
     explicit JastrowPade(double a = 0.5, double b = 1) noexcept : a_{a}, b_{b} {}
 
     // Getters:
-    [[nodiscard]] double a_ptr() const { return a_; }
-    [[nodiscard]] double b_ptr() const { return b_; }
+    [[nodiscard]] double a_get() const { return a_; }
+    [[nodiscard]] double b_get() const { return b_; }
 
     // eqn (27) on paper
     // J(R) = sum_{i<j} u(r_ij)

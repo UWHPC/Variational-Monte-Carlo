@@ -27,18 +27,19 @@ private:
     std::uniform_real_distribution<double> proposal_;
     std::uniform_int_distribution<std::size_t> pick_particle_;
 
+    // Getters:
     [[nodiscard]] std::mt19937_64& rng() { return rng_; }
     [[nodiscard]] std::uniform_real_distribution<double>& uniform01() { return uniform01_; }
     [[nodiscard]] std::uniform_real_distribution<double>& proposal() { return proposal_; }
     [[nodiscard]] std::uniform_int_distribution<std::size_t>& pick_particle() { return pick_particle_; }
 
-public:
-    explicit Simulation(Config cfg) noexcept;
-
     // Randomly generated uniform, proposal, and particle:
     [[nodiscard]] double rand_uniform_double() { return uniform01()(rng()); }
     [[nodiscard]] double rand_proposal_double() { return proposal()(rng()); }
-    [[nodiscard]] std::size_t rand_particle() { return pick_particle()(rng()); }
+    [[nodiscard]] std::size_t rand_particle_get() { return pick_particle()(rng()); }
+
+public:
+    explicit Simulation(Config cfg) noexcept;
 
     // Getters for objects:
     [[nodiscard]] PeriodicBoundaryCondition& pbc() { return pbc_; }
