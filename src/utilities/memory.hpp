@@ -22,10 +22,7 @@ inline void alignedFree(void* ptr) { std::free(ptr); }
 
 // Deletion of memory for aligned_alloc:
 struct AlignedDeleter {
-    template<typename T>
-    void operator()(T* ptr) const {
-        alignedFree(ptr);
-    }
+    template <typename T> void operator()(T* ptr) const { alignedFree(ptr); }
 };
 
 // Detect SIMD width:

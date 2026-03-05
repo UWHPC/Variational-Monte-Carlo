@@ -7,18 +7,19 @@
 
 class WaveFunction {
 private:
-    const JastrowPade& jastrow_pade_;
-    SlaterPlaneWave& slater_plane_wave_; // holds a non-const reference because logsAbsDet catches LU/inv
+    JastrowPade jastrow_pade_;
+    SlaterPlaneWave slater_plane_wave_;
+
 public:
-    explicit WaveFunction(const JastrowPade& jastrow_pade, SlaterPlaneWave& slater_plane_wave) noexcept
-        : jastrow_pade_{jastrow_pade}, slater_plane_wave_{slater_plane_wave} {}
+    explicit WaveFunction(std::size_t num_particles, double box_length, double a = 0.5, double b = 1.0) noexcept
+        : jastrow_pade_{a, b}, slater_plane_wave_{num_particles, box_length} {}
 
-    void evaluate_log_psi(
-        Particles& particles,
-        const PeriodicBoundaryCondition& pbc); // not const noexcept because it calls slaterPlaneWave_.logAbsDet();
-
+    [[nodiscard]] JastrowPade& jastrow_pade_ptr() { return jastrow_pade_; }
     [[nodiscard]] const JastrowPade& jastrow_pade_ptr() const { return jastrow_pade_; }
-    [[nodiscard]] SlaterPlaneWave& slater_plane_wave_ptr() const { return slater_plane_wave_; }
 
-    void evaluateDerivatives(Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept;
+    [[nodiscard]] SlaterPlaneWave& slater_plane_wave_ptr() { return slater_plane_wave_; }
+    [[nodiscard]] const SlaterPlaneWave& slater_plane_wave_ptr() const { return slater_plane_wave_; }
+
+    void evaluate_derivatives(Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept;
+    void evaluate_log_psi(Particles& particles, const PeriodicBoundaryCondition& pbc);
 };

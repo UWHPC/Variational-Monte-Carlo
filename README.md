@@ -9,6 +9,7 @@
   - macOS: AppleClang that supports C++23 features you use, or Homebrew LLVM
 - Git
 - clang-format
+- clang-tidy
 
 ## Build
 

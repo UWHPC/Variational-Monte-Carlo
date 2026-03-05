@@ -5,15 +5,22 @@
 PeriodicBoundaryCondition::PeriodicBoundaryCondition(double L) noexcept : L_{L}, inv_L_{1.0 / L} {}
 
 double PeriodicBoundaryCondition::wrap(double x) const noexcept {
-    double k{std::floor(x * inv_L_ptr())}; // floor of x / L. done this way to avoid dividing by L
-    x = x - k * L_ptr();
+    const double L{L_ptr()};
+    const double INV_L{inv_L_ptr()};
+
+    // floor of x / L. done this way to avoid dividing by L
+    const double K{std::floor(x * INV_L)};
+
+    x -= K * L;
 
     // fix for rare float error putting x at L
     // avoids +/- epsilon issues with floating arithmatic
-    if (x >= L_ptr())
-        x -= L_ptr();
-    if (x < 0.0)
-        x += L_ptr();
+    if (x >= L) {
+        x -= L;
+    }
+    if (x < 0.0) {
+        x += L;
+    }
 
     return x;
 }
@@ -25,15 +32,21 @@ void PeriodicBoundaryCondition::wrap3(double& x, double& y, double& z) const noe
 }
 
 double PeriodicBoundaryCondition::min_image(double dx) const noexcept {
+    const double L{L_ptr()};
+    const double INV_L{inv_L_ptr()};
+
     // dx -= L * round(dx / L)
-    dx -= L_ptr() * std::round(dx * inv_L_ptr());
+    dx -= L * std::round(dx * INV_L);
 
     // handle edge cases, ensure (-L/2, L/2]
-    const double halfL{0.5 * L_ptr()};
-    if (dx > halfL)
-        dx -= L_ptr();
-    if (dx <= -halfL)
-        dx += L_ptr();
+    const double HALF_L{0.5 * L};
+
+    if (dx > HALF_L) {
+        dx -= L;
+    }
+    if (dx <= -HALF_L) {
+        dx += L;
+    }
 
     return dx;
 }

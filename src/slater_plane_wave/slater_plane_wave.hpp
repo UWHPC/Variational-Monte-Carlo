@@ -50,7 +50,7 @@ public:
 
     // Lower upper matrix
     [[nodiscard]] double* lower_upper_ptr() noexcept { return matrices_[LU_]; }
-    [[nodiscard]] double const* lower_ipper_ptr() const noexcept { return matrices_[LU_]; }
+    [[nodiscard]] double const* lower_upper_ptr() const noexcept { return matrices_[LU_]; }
 
     // Pivot matrix
     [[nodiscard]] std::size_t* pivot_ptr() noexcept { return pivot_[PIVOT_]; }

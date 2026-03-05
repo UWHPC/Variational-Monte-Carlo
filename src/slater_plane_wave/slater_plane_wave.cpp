@@ -105,27 +105,27 @@ void lowerUpperSolve(const double* LU, const std::size_t* pivot, const double* b
 double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     const std::size_t N{num_orbitals_ptr()};
 
-    const double* POS_X{particles.pos_x_ptr()};
-    const double* POS_Y{particles.pos_y_ptr()};
-    const double* POS_Z{particles.pos_z_ptr()};
+    const double* pos_x{particles.pos_x_ptr()};
+    const double* pos_y{particles.pos_y_ptr()};
+    const double* pos_z{particles.pos_z_ptr()};
 
-    double* det_matrix{determinant_ptr()};
-    double* lower_upper_matrix{lower_upper_ptr()};
-    double* inv_det_matrix{inv_determinant_ptr()};
-    std::size_t* pivot_vector{pivot_ptr()};
+    double* RESTRICT det_matrix{determinant_ptr()};
+    double* RESTRICT lower_upper_matrix{lower_upper_ptr()};
+    double* RESTRICT inv_det_matrix{inv_determinant_ptr()};
+    std::size_t* RESTRICT pivot_vector{pivot_ptr()};
 
-    const double* K_X_COMP{k_vector_x_ptr()};
-    const double* K_Y_COMP{k_vector_y_ptr()};
-    const double* K_Z_COMP{k_vector_z_ptr()};
+    const double* k_x_comp{k_vector_x_ptr()};
+    const double* k_y_comp{k_vector_y_ptr()};
+    const double* k_z_comp{k_vector_z_ptr()};
 
     // Build determinant matrix D
     for (std::size_t particle = 0; particle < N; ++particle) {
-        const double P_X{POS_X[particle]};
-        const double P_Y{POS_Y[particle]};
-        const double P_Z{POS_Z[particle]};
+        const double P_X{pos_x[particle]};
+        const double P_Y{pos_y[particle]};
+        const double P_Z{pos_z[particle]};
 
         for (std::size_t orbital = 0; orbital < N; ++orbital) {
-            const double K_DOT_R = K_X_COMP[orbital] * P_X + K_Y_COMP[orbital] * P_Y + K_Z_COMP[orbital] * P_Z;
+            const double K_DOT_R = k_x_comp[orbital] * P_X + k_y_comp[orbital] * P_Y + k_z_comp[orbital] * P_Z;
 
             det_matrix[index(particle, orbital, N)] = std::cos(K_DOT_R);
         }
@@ -173,9 +173,9 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
                                       double* RESTRICT grad_z, double* RESTRICT laplacian) const noexcept {
     const std::size_t N{num_orbitals_ptr()};
 
-    const double* RESTRICT POS_X{particles.pos_x_ptr()};
-    const double* RESTRICT POS_Y{particles.pos_y_ptr()};
-    const double* RESTRICT POS_Z{particles.pos_z_ptr()};
+    const double* RESTRICT pos_x{particles.pos_x_ptr()};
+    const double* RESTRICT pos_y{particles.pos_y_ptr()};
+    const double* RESTRICT pos_z{particles.pos_z_ptr()};
 
     const double* RESTRICT K_X{k_vector_x_ptr()};
     const double* RESTRICT K_Y{k_vector_y_ptr()};
@@ -184,9 +184,9 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
     const double* RESTRICT INV_DET{inv_determinant_ptr()};
 
     for (std::size_t particle = 0; particle < N; ++particle) {
-        const double P_X{POS_X[particle]};
-        const double P_Y{POS_Y[particle]};
-        const double P_Z{POS_Z[particle]};
+        const double P_X{pos_x[particle]};
+        const double P_Y{pos_y[particle]};
+        const double P_Z{pos_z[particle]};
 
         double d_Log_det_dx{}, d_Log_det_dy{}, d_Log_det_dz{};
 
