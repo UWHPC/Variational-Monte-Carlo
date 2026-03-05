@@ -53,6 +53,8 @@ bool Simulation::metropolis_step() {
     py[i] += proposal()(rng());
     pz[i] += proposal()(rng());
 
+    pbc().wrap3(px[i], py[i], pz[i]);
+
     wave_function_.evaluate_log_psi(particles(), pbc());
 
     double delta_log_psi{*particles().log_psi_ptr() - log_psi_current_};
