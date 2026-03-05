@@ -27,7 +27,7 @@ private:
     AlignedSoA<double> matrices_;
 
 public:
-    explicit SlaterPlaneWave(std::size_t N, double L);
+    explicit SlaterPlaneWave(std::size_t num_particles, double box_length);
 
     // Getters:
     // Num orbitals - N
