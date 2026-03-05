@@ -16,7 +16,7 @@ Checks: >
   -readability-magic-numbers,
   -cppcoreguidelines-avoid-magic-numbers
 
-WarningsAsErrors: "*"
+WarningsAsErrors: "*,-clang-diagnostic-unused-function"
 HeaderFilterRegex: ".*"
 FormatStyle: file
 

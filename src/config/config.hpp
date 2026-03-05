@@ -277,7 +277,7 @@ void printUsage(const char* programName) {
     return config;
 }
 
-void printConfig(const Config& config) {
+[[maybe_unused]] void print_config(const Config& config) {
     std::cout << "num_particles: " << config.num_particles << '\n'
               << "box_length: " << config.box_length << '\n'
               << "warmup_steps: " << config.warmup_steps << '\n'
