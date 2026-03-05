@@ -33,17 +33,17 @@ std::pair<double, double> BlockingAnalysis::mean_and_standard_error() const {
     return {overall_mean, standard_error};
 }
 
-void BlockingAnalysis::add(double x) {
-    block_sum_ += x;
-    in_block_++;
+void BlockingAnalysis::add(double local_energy) {
+    block_sum_set() += local_energy;
+    in_block_set()++;
 
     // When the block is full, calculate its average and save it
-    if (in_block_ == block_size_) {
-        block_means_.push_back(block_sum_ / block_size_); // Eq. 37
+    if (in_block_get() == block_means_get().size()) {
+        block_means_get().push_back(block_sum_get() / block_size_get()); // Eq. 37
 
         // Reset for the next block
-        block_sum_ = 0;
-        in_block_ = 0;
+        block_sum_set() = 0;
+        in_block_set() = 0;
     }
 }
 
