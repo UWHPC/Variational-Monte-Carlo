@@ -1,9 +1,8 @@
 #include "simulation.hpp"
 
 Simulation::Simulation(Config config) noexcept
-    : config_{std::move(config)}, particles_{config_.num_particles}, pbc_{config_.box_length}, jastrow_pade_{},
-      slater_plane_wave_{particles_.num_particles_ptr(), pbc_.L_ptr()},
-      wave_function_{jastrow_pade_, slater_plane_wave_}, rng_{config.seed},
+    : config_{std::move(config)}, particles_{config_.num_particles}, pbc_{config_.box_length},
+      wave_function_{config_.num_particles, config_.box_length}, rng_{config_.seed},
       proposal_{-config_.step_size, config_.step_size}, pick_particle_{0, config_.num_particles - 1}, proposed_{},
       accepted_{}, log_psi_current_{} {}
 
@@ -59,8 +58,7 @@ bool Simulation::metropolis_step() {
 
     // Log psi for 1st element:
     const double NEW_LOG_PSI{particles().log_psi_ptr()[0]};
-
-    const double DELTA_LOG_PSI{NEW_LOG_PSI - log_psi_current_};
+    const double DELTA_LOG_PSI{NEW_LOG_PSI - log_psi_current()};
 
     const double LOG_U{log(rand_uniform_double())};
     const double MIN_TERM{std::min(0.0, 2.0 * DELTA_LOG_PSI)};
@@ -79,9 +77,9 @@ bool Simulation::metropolis_step() {
 
 /// @brief Warmup the simulation by processing a small warmup sweep on particles
 void Simulation::warmup() {
-    const std::size_t warmup_steps{config_.warmup_steps};
+    const std::size_t WARMUP_STEPS{config_.warmup_steps};
 
-    for (std::size_t i{}; i < warmup_steps; i++) {
+    for (std::size_t i{}; i < WARMUP_STEPS; i++) {
         metropolis_step();
     }
 
@@ -89,9 +87,9 @@ void Simulation::warmup() {
 }
 
 void Simulation::measure() {
-    const std::size_t measure_steps{config_.measure_steps};
+    const std::size_t MEASURE_STEPS{config_.measure_steps};
 
-    for (std::size_t i{}; i < measure_steps; i++) {
+    for (std::size_t i{}; i < MEASURE_STEPS; i++) {
         metropolis_step();
     }
 
