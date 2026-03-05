@@ -72,7 +72,7 @@ bool Simulation::metropolis_step() {
         p_z[RAND_PARTICLE] = OLD_Z;
 
         // revert original log_psi in particles buffer
-        *particles().log_psi_ptr() = log_psi_current(); 
+        *particles().log_psi_get() = log_psi_current(); 
     }
 
     return false;
@@ -81,7 +81,7 @@ bool Simulation::metropolis_step() {
 /// @brief Warmup the simulation by processing a small warmup sweep on particles
 void Simulation::warmup() {
     const std::size_t WARMUP_STEPS{config_.warmup_steps};
-    const std::size_t WARMUP_BATCH_SIZE{particles().num_particles_ptr()}; 
+    const std::size_t WARMUP_BATCH_SIZE{particles().num_particles_get()}; 
 
     std::size_t window_proposed{};
     std::size_t window_accepted{};
