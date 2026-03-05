@@ -14,13 +14,13 @@ void Simulation::initialize_positions() {
     double* RESTRICT p_z{particles_.pos_z_get()};
 
     const std::size_t N{particles_.num_particles_get()};
-    const double LENGTH{pbc_.L_get()};
+    const double length{pbc_.L_get()};
 
     // Generate Random Starting Positions
     for (std::size_t i{}; i < N; i++) {
-        p_x[i] = rand_uniform_double() * LENGTH;
-        p_y[i] = rand_uniform_double() * LENGTH;
-        p_z[i] = rand_uniform_double() * LENGTH;
+        p_x[i] = rand_uniform_double() * length;
+        p_y[i] = rand_uniform_double() * length;
+        p_z[i] = rand_uniform_double() * length;
     }
 
     wave_function().evaluate_log_psi(particles(), pbc());
@@ -39,37 +39,37 @@ bool Simulation::metropolis_step() {
     double* RESTRICT p_z{particles_.pos_z_get()};
 
     // Local random vars:
-    const std::size_t RAND_PARTICLE{rand_particle()};
+    const std::size_t rand_particle{rand_particle_get()};
 
     // Old positions:
-    const double OLD_X{p_x[RAND_PARTICLE]};
-    const double OLD_Y{p_y[RAND_PARTICLE]};
-    const double OLD_Z{p_z[RAND_PARTICLE]};
+    const double old_X{p_x[rand_particle]};
+    const double old_y{p_y[rand_particle]};
+    const double old_z{p_z[rand_particle]};
 
     // Add randomness:
-    p_x[RAND_PARTICLE] += rand_proposal_double();
-    p_y[RAND_PARTICLE] += rand_proposal_double();
-    p_z[RAND_PARTICLE] += rand_proposal_double();
+    p_x[rand_particle] += rand_proposal_double();
+    p_y[rand_particle] += rand_proposal_double();
+    p_z[rand_particle] += rand_proposal_double();
 
     // Wrap to ensure particles dont drift outside [0,L):
-    pbc().wrap3(p_x[RAND_PARTICLE], p_y[RAND_PARTICLE], p_z[RAND_PARTICLE]);
+    pbc().wrap3(p_x[rand_particle], p_y[rand_particle], p_z[rand_particle]);
 
     wave_function().evaluate_log_psi(particles(), pbc());
 
     // Log psi for 1st element:
-    const double NEW_LOG_PSI{particles().log_psi_get()[0]};
-    const double DELTA_LOG_PSI{NEW_LOG_PSI - log_psi_current()};
+    const double new_log_psi{particles().log_psi_get()[0]};
+    const double delta_log_psi{new_log_psi - log_psi_current()};
 
-    const double LOG_U{log(rand_uniform_double())};
-    const double MIN_TERM{std::min(0.0, 2.0 * DELTA_LOG_PSI)};
+    const double log_u{log(rand_uniform_double())};
+    const double min_term{std::min(0.0, 2.0 * delta_log_psi)};
 
-    if (LOG_U < MIN_TERM) {
-        log_psi_current_ = NEW_LOG_PSI;
+    if (log_u < min_term) {
+        log_psi_current_ = new_log_psi;
         return true;
     } else {
-        p_x[RAND_PARTICLE] = OLD_X;
-        p_y[RAND_PARTICLE] = OLD_Y;
-        p_z[RAND_PARTICLE] = OLD_Z;
+        p_x[RAND_PARTICLE] = old_x;
+        p_y[RAND_PARTICLE] = old_y;
+        p_z[RAND_PARTICLE] = old_z;
 
         // revert original log_psi in particles buffer
         *particles().log_psi_get() = log_psi_current(); 
@@ -109,11 +109,13 @@ void Simulation::warmup() {
 }
 
 void Simulation::measure() {
-    const std::size_t MEASURE_STEPS{config_.measure_steps};
+    const std::size_t measure_steps{config_.measure_steps};
 
-    for (std::size_t i{}; i < MEASURE_STEPS; i++) {
+    for (std::size_t i{}; i < measure_steps; i++) {
         metropolis_step();
     }
 
     return;
 }
+
+void Simulation::run() { std::cout << "hi" << std::endl; }
