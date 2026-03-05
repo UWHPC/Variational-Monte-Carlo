@@ -20,5 +20,5 @@ public:
     [[nodiscard]] const JastrowPade& jastrow_pade_ptr() const { return jastrow_pade_; }
     [[nodiscard]] SlaterPlaneWave& slater_plane_wave_ptr() const { return slater_plane_wave_; }
 
-    void evaluateDerivatives(Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept;
+    void evaluate_derivatives(Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept;
 };

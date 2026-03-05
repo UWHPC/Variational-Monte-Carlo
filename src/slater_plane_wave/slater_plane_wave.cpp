@@ -109,10 +109,10 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     const double* POS_Y{particles.pos_y_ptr()};
     const double* POS_Z{particles.pos_z_ptr()};
 
-    double* det_matrix{determinant_ptr()};
-    double* lower_upper_matrix{lower_upper_ptr()};
-    double* inv_det_matrix{inv_determinant_ptr()};
-    std::size_t* pivot_vector{pivot_ptr()};
+    double* RESTRICT det_matrix{determinant_ptr()};
+    double* RESTRICT lower_upper_matrix{lower_upper_ptr()};
+    double* RESTRICT inv_det_matrix{inv_determinant_ptr()};
+    std::size_t* RESTRICT pivot_vector{pivot_ptr()};
 
     const double* K_X_COMP{k_vector_x_ptr()};
     const double* K_Y_COMP{k_vector_y_ptr()};

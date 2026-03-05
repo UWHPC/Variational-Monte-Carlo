@@ -30,7 +30,7 @@ private:
 
 public:
     explicit Particles(std::size_t num_particles)
-        : particle_data_{num_particles, NUM_SUB_ARRAYS_}, num_particles_{num_particles} {}
+        : num_particles_{num_particles}, particle_data_{num_particles, NUM_SUB_ARRAYS_} {}
 
     // Physical number of particles
     [[nodiscard]] std::size_t num_particles_ptr() const { return num_particles_; }

@@ -9,13 +9,13 @@ void WaveFunction::evaluate_log_psi(Particles& particles, const PeriodicBoundary
     particles.log_psi_ptr()[0] = log_det + jastrow_pade;
 }
 
-void WaveFunction::evaluateDerivatives(Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept {
-    const std::size_t paddedStride{particles.padding_stride_ptr()};
+void WaveFunction::evaluate_derivatives(Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept {
+    const std::size_t padded_stride{particles.padding_stride_ptr()};
 
-    std::fill_n(particles.grad_log_psi_x_ptr(), paddedStride, 0.0);
-    std::fill_n(particles.grad_log_psi_y_ptr(), paddedStride, 0.0);
-    std::fill_n(particles.grad_log_psi_z_ptr(), paddedStride, 0.0);
-    std::fill_n(particles.lap_log_psi_ptr(), paddedStride, 0.0);
+    std::fill_n(particles.grad_log_psi_x_ptr(), padded_stride, 0.0);
+    std::fill_n(particles.grad_log_psi_y_ptr(), padded_stride, 0.0);
+    std::fill_n(particles.grad_log_psi_z_ptr(), padded_stride, 0.0);
+    std::fill_n(particles.lap_log_psi_ptr(), padded_stride, 0.0);
 
     slater_plane_wave_.add_derivatives(particles, particles.grad_log_psi_x_ptr(), particles.grad_log_psi_y_ptr(),
                                        particles.grad_log_psi_z_ptr(), particles.lap_log_psi_ptr());

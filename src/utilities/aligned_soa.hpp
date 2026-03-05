@@ -20,13 +20,13 @@ private:
     std::unique_ptr<T[], AlignedDeleter> memory_block_;
 
     // Round up to nearest factor of SIMD bytes:
-    std::size_t roundUp(std::size_t unpadded) const {
+    std::size_t round_up(std::size_t unpadded) const {
         return (unpadded + ELEMENTS_PER_ALIGNMENTS - 1) & ~(ELEMENTS_PER_ALIGNMENTS - 1);
     }
 
 public:
     AlignedSoA(std::size_t num_elements, std::size_t num_arrays)
-        : num_elements_{num_elements}, stride_length_{roundUp(num_elements)}, num_arrays_{num_arrays} {
+        : num_elements_{num_elements}, stride_length_{round_up(num_elements)}, num_arrays_{num_arrays} {
         // Determine the total elements and bytes needed for padded memory block:
         std::size_t total_elements{num_arrays_ * stride_length_};
         std::size_t total_bytes{total_elements * sizeof(T)};
@@ -50,8 +50,8 @@ public:
 
     // Raw pointer accessors:
     // Mutable:
-    T* operator[](std::size_t arrayIndex) { return memory_block_.get() + arrayIndex * stride(); }
+    T* operator[](std::size_t array_index) { return memory_block_.get() + array_index * stride(); }
 
     // Immutable:
-    const T* operator[](std::size_t arrayIndex) const { return memory_block_.get() + arrayIndex * stride(); }
+    const T* operator[](std::size_t array_index) const { return memory_block_.get() + array_index * stride(); }
 };

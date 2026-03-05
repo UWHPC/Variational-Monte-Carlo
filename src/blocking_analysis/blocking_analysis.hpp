@@ -8,7 +8,7 @@ private:
     std::size_t K_;
 
 public:
-    explicit BlockingAnalysis(std::size_t blockSize);
+    explicit BlockingAnalysis(std::size_t block_size);
     void add(double x);
     bool ready() const noexcept;
 };

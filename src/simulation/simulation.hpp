@@ -45,5 +45,4 @@ private:
     bool metropolis_step();
     void warmup();
     void measure();
-   
 };
