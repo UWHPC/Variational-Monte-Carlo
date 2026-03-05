@@ -70,6 +70,9 @@ bool Simulation::metropolis_step() {
         p_x[RAND_PARTICLE] = OLD_X;
         p_y[RAND_PARTICLE] = OLD_Y;
         p_z[RAND_PARTICLE] = OLD_Z;
+
+        // revert original log_psi in particles buffer
+        *particles().log_psi_ptr() = log_psi_current(); 
     }
 
     return false;
@@ -78,9 +81,28 @@ bool Simulation::metropolis_step() {
 /// @brief Warmup the simulation by processing a small warmup sweep on particles
 void Simulation::warmup() {
     const std::size_t WARMUP_STEPS{config_.warmup_steps};
+    const std::size_t WARMUP_BATCH_SIZE{particles().num_particles_ptr()}; 
+
+    std::size_t window_proposed{};
+    std::size_t window_accepted{};
+
+    double acceptance_rate_window{};
+    const double acceptance_target{0.5}; // Currently targeting a 50% acceptance rate
+    const double gain{0.05}; // This limits making large changes to step size
 
     for (std::size_t i{}; i < WARMUP_STEPS; i++) {
-        metropolis_step();
+        window_proposed++;
+        if (metropolis_step()) window_accepted++;
+
+        if (window_proposed % WARMUP_BATCH_SIZE == 0) {
+            acceptance_rate_window = static_cast<double>(window_accepted)/static_cast<double>(window_proposed);
+            config_.step_size *= exp(gain*(acceptance_rate_window - acceptance_target));
+
+            proposal().param(std::uniform_real_distribution<double>::param_type(-config_.step_size, config_.step_size));
+
+            window_accepted = 0;
+            window_proposed = 0;
+        }
     }
 
     return;
