@@ -31,8 +31,8 @@ double EnergyTracker::potential_energy(const Particles& particles,
     double V_sum{};
     const std::size_t N{particles.num_particles_get()};
 
-    for (std::size_t i{}; i < N; i++) {
-        for (std::size_t j{i + 1}; j < N; j++) {
+    for (std::size_t i = 0; i < N; ++i) {
+        for (std::size_t j = i + 1; j < N; ++j) {
             const double r_ij{pbc.distance(px[i], py[i], pz[i], px[j], py[j], pz[j])};
             V_sum += 1.0 / r_ij;
         }
