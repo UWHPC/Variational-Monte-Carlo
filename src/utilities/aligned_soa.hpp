@@ -9,10 +9,10 @@
 template <typename T> class AlignedSoA {
 private:
     // SIMD byte alignment
-    static constexpr std::size_t ALIGNMENT_BYTES{SIMD_BYTES};
+    static constexpr std::size_t alignment_bytes{SIMD_BYTES};
 
     // Ensures sub-arrays are byte aligned
-    static constexpr std::size_t ELEMENTS_PER_ALIGNMENTS{SIMD_BYTES / sizeof(T)};
+    static constexpr std::size_t elements_per_alignment{SIMD_BYTES / sizeof(T)};
 
     std::size_t num_elements_;
     std::size_t stride_length_;
@@ -21,18 +21,18 @@ private:
 
     // Round up to nearest factor of SIMD bytes:
     std::size_t round_up(std::size_t unpadded) const {
-        return (unpadded + ELEMENTS_PER_ALIGNMENTS - 1) & ~(ELEMENTS_PER_ALIGNMENTS - 1);
+        return (unpadded + elements_per_alignment - 1) & ~(elements_per_alignment - 1);
     }
 
 public:
     AlignedSoA(std::size_t num_elements, std::size_t num_arrays)
         : num_elements_{num_elements}, stride_length_{round_up(num_elements)}, num_arrays_{num_arrays} {
         // Determine the total elements and bytes needed for padded memory block:
-        std::size_t total_elements{num_arrays_ * stride_length_};
-        std::size_t total_bytes{total_elements * sizeof(T)};
+        const std::size_t total_elements{num_arrays_ * stride_length_};
+        const std::size_t total_bytes{total_elements * sizeof(T)};
 
         // Allocate aligned bytes and check:
-        T* ptr{static_cast<T*>(alignedAlloc(ALIGNMENT_BYTES, total_bytes))};
+        T* ptr{static_cast<T*>(alignedAlloc(alignment_bytes, total_bytes))};
         if (!ptr)
             throw std::bad_alloc();
 

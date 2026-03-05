@@ -36,13 +36,13 @@ private:
 
 Config parseConfig(std::initializer_list<std::string_view> args) {
     ArgvBuilder argv{args};
-    return parseArgs(argv.argc(), argv.argv());
+    return parse_args(argv.argc(), argv.argv());
 }
 
 std::string invalidArgumentMessage(std::initializer_list<std::string_view> args) {
     ArgvBuilder argv{args};
     try {
-        (void)parseArgs(argv.argc(), argv.argv());
+        (void)parse_args(argv.argc(), argv.argv());
     } catch (const std::invalid_argument& ex) {
         return ex.what();
     }
@@ -142,12 +142,12 @@ TEST_CASE("parseArgs rejects unsupported short options", "[config]") {
 TEST_CASE("parseArgs throws HelpRequested for --help and -h", "[config]") {
     {
         ArgvBuilder argv{"vmc", "--help"};
-        REQUIRE_THROWS_AS(parseArgs(argv.argc(), argv.argv()), HelpRequested);
+        REQUIRE_THROWS_AS(parse_args(argv.argc(), argv.argv()), HelpRequested);
     }
 
     {
         ArgvBuilder argv{"vmc", "-h"};
-        REQUIRE_THROWS_AS(parseArgs(argv.argc(), argv.argv()), HelpRequested);
+        REQUIRE_THROWS_AS(parse_args(argv.argc(), argv.argv()), HelpRequested);
     }
 }
 
@@ -230,7 +230,7 @@ TEST_CASE("parseArgs enforces runtime numeric constraints", "[config]") {
 }
 
 TEST_CASE("printUsage and printConfig include all expected fields", "[config]") {
-    const std::string usage{captureStdout([] { printUsage("vmc-test"); })};
+    const std::string usage{captureStdout([] { print_usage("vmc-test"); })};
     REQUIRE(usage.find("Usage:") != std::string::npos);
     REQUIRE(usage.find("vmc-test") != std::string::npos);
     REQUIRE(usage.find("--num_particles") != std::string::npos);
@@ -244,7 +244,7 @@ TEST_CASE("printUsage and printConfig include all expected fields", "[config]") 
                      .step_size = 0.2,
                      .seed = 99U,
                      .block_size = 25U};
-    const std::string configText{captureStdout([&cfg] { printConfig(cfg); })};
+    const std::string configText{captureStdout([&cfg] { print_config(cfg); })};
     REQUIRE(configText.find("num_particles: 12") != std::string::npos);
     REQUIRE(configText.find("box_length: 9.5") != std::string::npos);
     REQUIRE(configText.find("warmup_steps: 30") != std::string::npos);
