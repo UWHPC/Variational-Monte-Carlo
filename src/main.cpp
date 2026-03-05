@@ -2,7 +2,7 @@
 
 int main(int argc, char** argv) {
     try {
-        const Config config{parseArgs(argc, argv)};
+        const Config config{parse_args(argc, argv)};
         print_config(config);
         return 0;
     } catch (const HelpRequested&) {
