@@ -103,20 +103,20 @@ void lowerUpperSolve(const double* LU, const std::size_t* pivot, const double* b
 } // namespace
 
 double SlaterPlaneWave::log_abs_det(const Particles& particles) {
-    const std::size_t N{num_orbitals_ptr()};
+    const std::size_t N{num_orbitals_get()};
 
-    const double* pos_x{particles.pos_x_ptr()};
-    const double* pos_y{particles.pos_y_ptr()};
-    const double* pos_z{particles.pos_z_ptr()};
+    const double* pos_x{particles.pos_x_get()};
+    const double* pos_y{particles.pos_y_get()};
+    const double* pos_z{particles.pos_z_get()};
 
-    double* RESTRICT det_matrix{determinant_ptr()};
-    double* RESTRICT lower_upper_matrix{lower_upper_ptr()};
-    double* RESTRICT inv_det_matrix{inv_determinant_ptr()};
-    std::size_t* RESTRICT pivot_vector{pivot_ptr()};
+    double* RESTRICT det_matrix{determinant_get()};
+    double* RESTRICT lower_upper_matrix{lower_upper_get()};
+    double* RESTRICT inv_det_matrix{inv_determinant_get()};
+    std::size_t* RESTRICT pivot_vector{pivot_get()};
 
-    const double* k_x_comp{k_vector_x_ptr()};
-    const double* k_y_comp{k_vector_y_ptr()};
-    const double* k_z_comp{k_vector_z_ptr()};
+    const double* k_x_comp{k_vector_x_get()};
+    const double* k_y_comp{k_vector_y_get()};
+    const double* k_z_comp{k_vector_z_get()};
 
     // Build determinant matrix D
     for (std::size_t particle = 0; particle < N; ++particle) {
@@ -171,17 +171,17 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
 
 void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRICT grad_x, double* RESTRICT grad_y,
                                       double* RESTRICT grad_z, double* RESTRICT laplacian) const noexcept {
-    const std::size_t N{num_orbitals_ptr()};
+    const std::size_t N{num_orbitals_get()};
 
-    const double* RESTRICT pos_x{particles.pos_x_ptr()};
-    const double* RESTRICT pos_y{particles.pos_y_ptr()};
-    const double* RESTRICT pos_z{particles.pos_z_ptr()};
+    const double* RESTRICT pos_x{particles.pos_x_get()};
+    const double* RESTRICT pos_y{particles.pos_y_get()};
+    const double* RESTRICT pos_z{particles.pos_z_get()};
 
-    const double* RESTRICT K_X{k_vector_x_ptr()};
-    const double* RESTRICT K_Y{k_vector_y_ptr()};
-    const double* RESTRICT K_Z{k_vector_z_ptr()};
+    const double* RESTRICT K_X{k_vector_x_get()};
+    const double* RESTRICT K_Y{k_vector_y_get()};
+    const double* RESTRICT K_Z{k_vector_z_get()};
 
-    const double* RESTRICT INV_DET{inv_determinant_ptr()};
+    const double* RESTRICT INV_DET{inv_determinant_get()};
 
     for (std::size_t particle = 0; particle < N; ++particle) {
         const double P_X{pos_x[particle]};

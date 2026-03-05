@@ -9,12 +9,12 @@ Simulation::Simulation(Config config) noexcept
 /// @brief Intializes Random Positions for each particle, making sure to not exceed box length
 void Simulation::initialize_positions() {
     // X, Y, Z Position Blocks of Memory
-    double* RESTRICT p_x{particles_.pos_x_ptr()};
-    double* RESTRICT p_y{particles_.pos_y_ptr()};
-    double* RESTRICT p_z{particles_.pos_z_ptr()};
+    double* RESTRICT p_x{particles_.pos_x_get()};
+    double* RESTRICT p_y{particles_.pos_y_get()};
+    double* RESTRICT p_z{particles_.pos_z_get()};
 
-    const std::size_t N{particles_.num_particles_ptr()};
-    const double LENGTH{pbc_.L_ptr()};
+    const std::size_t N{particles_.num_particles_get()};
+    const double LENGTH{pbc_.L_get()};
 
     // Generate Random Starting Positions
     for (std::size_t i{}; i < N; i++) {
@@ -24,7 +24,7 @@ void Simulation::initialize_positions() {
     }
 
     wave_function().evaluate_log_psi(particles(), pbc());
-    log_psi_current() = particles().log_psi_ptr()[0];
+    log_psi_current() = particles().log_psi_get()[0];
 
     return;
 }
@@ -34,9 +34,9 @@ void Simulation::initialize_positions() {
 /// @return bool - Whether the proposed change was accepted
 bool Simulation::metropolis_step() {
     // Position pointers:
-    double* RESTRICT p_x{particles_.pos_x_ptr()};
-    double* RESTRICT p_y{particles_.pos_y_ptr()};
-    double* RESTRICT p_z{particles_.pos_z_ptr()};
+    double* RESTRICT p_x{particles_.pos_x_get()};
+    double* RESTRICT p_y{particles_.pos_y_get()};
+    double* RESTRICT p_z{particles_.pos_z_get()};
 
     // Local random vars:
     const std::size_t RAND_PARTICLE{rand_particle()};
@@ -57,7 +57,7 @@ bool Simulation::metropolis_step() {
     wave_function().evaluate_log_psi(particles(), pbc());
 
     // Log psi for 1st element:
-    const double NEW_LOG_PSI{particles().log_psi_ptr()[0]};
+    const double NEW_LOG_PSI{particles().log_psi_get()[0]};
     const double DELTA_LOG_PSI{NEW_LOG_PSI - log_psi_current()};
 
     const double LOG_U{log(rand_uniform_double())};

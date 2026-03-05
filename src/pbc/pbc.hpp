@@ -9,8 +9,8 @@ public:
     explicit PeriodicBoundaryCondition(double L) noexcept;
 
     // Getters for L and invL
-    [[nodiscard]] double L_ptr() const noexcept { return L_; }
-    [[nodiscard]] double inv_L_ptr() const noexcept { return inv_L_; }
+    [[nodiscard]] double L_get() const noexcept { return L_; }
+    [[nodiscard]] double inv_L_get() const noexcept { return inv_L_; }
 
     // wrap coordinates into [0, L)
     [[nodiscard]] double wrap(double x) const noexcept;
