@@ -1,11 +1,14 @@
 #include "config/config.hpp"
+#include "simulation/simulation.hpp"
 
 int main(int argc, char** argv) {
     try {
         const Config config{parse_args(argc, argv)};
-        print_config(config);
+        Simulation sim{config};
+        sim.run();
         return 0;
     } catch (const HelpRequested&) {
+        // TODO: make the help section better (and different than usage)
         print_usage(argv[0]);
         return 0;
     } catch (const std::exception& ex) {
