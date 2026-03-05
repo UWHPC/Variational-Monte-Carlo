@@ -9,6 +9,7 @@
   - macOS: AppleClang that supports C++23 features you use, or Homebrew LLVM
 - Git
 - clang-format
+- clang-tidy
 
 ## Build
 
@@ -16,8 +17,8 @@ The easiest way to build is to execute: \
 `./scripts/build.sh` or `./scripts/build.ps1`
 
 Alternatively, a manual build involves: \
-`cmake -S . -B build` \
-`cmake --build build`
+`cmake -S . -B build -DBUILD_TESTING=OFF` \
+`cmake --build build --target vmc`
 
 ## Run Tests
 
@@ -25,4 +26,14 @@ The easiest way to run tests is to execute: \
 `./scripts/test.sh` or `./scripts/test.ps1`
 
 Alternatively, manually testing involves: \
-`ctest --test-dir build`
+`cmake -S . -B build-tests -DBUILD_TESTING=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON` \
+`cmake --build build-tests --target vmc_tests` \
+`ctest --test-dir build-tests`
+
+## LSP / clangd
+
+This repo includes a `.clangd` file that points clangd to the
+`build-tests` compilation database so test files can resolve Catch2 headers.
+
+Generate it once with:
+`cmake -S . -B build-tests -DBUILD_TESTING=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`
