@@ -14,21 +14,21 @@ void requireNearJastrow(double actual, double expected, double tolerance = 1e-12
 }
 
 Particles copyParticlePositions(const Particles& source) {
-    Particles copy{source.num_particles_ptr()};
-    const std::size_t numParticles{source.num_particles_ptr()};
-    std::copy_n(source.pos_x_ptr(), numParticles, copy.pos_x_ptr());
-    std::copy_n(source.pos_y_ptr(), numParticles, copy.pos_y_ptr());
-    std::copy_n(source.pos_z_ptr(), numParticles, copy.pos_z_ptr());
+    Particles copy{source.num_particles_get()};
+    const std::size_t numParticles{source.num_particles_get()};
+    std::copy_n(source.pos_x_get(), numParticles, copy.pos_x_get());
+    std::copy_n(source.pos_y_get(), numParticles, copy.pos_y_get());
+    std::copy_n(source.pos_z_get(), numParticles, copy.pos_z_get());
     return copy;
 }
 
 double valueAtOffset(const JastrowPade& jastrow, const Particles& reference, const PeriodicBoundaryCondition& pbc,
                      std::size_t particle, double dx, double dy, double dz) {
     Particles shifted{copyParticlePositions(reference)};
-    shifted.pos_x_ptr()[particle] += dx;
-    shifted.pos_y_ptr()[particle] += dy;
-    shifted.pos_z_ptr()[particle] += dz;
-    pbc.wrap3(shifted.pos_x_ptr()[particle], shifted.pos_y_ptr()[particle], shifted.pos_z_ptr()[particle]);
+    shifted.pos_x_get()[particle] += dx;
+    shifted.pos_y_get()[particle] += dy;
+    shifted.pos_z_get()[particle] += dz;
+    pbc.wrap3(shifted.pos_x_get()[particle], shifted.pos_y_get()[particle], shifted.pos_z_get()[particle]);
     return jastrow.value(shifted, pbc);
 }
 
@@ -39,13 +39,13 @@ TEST_CASE("Jastrow value uses minimum-image pair distances", "[jastrow]") {
     const PeriodicBoundaryCondition pbc{10.0};
     Particles particles{2U};
 
-    particles.pos_x_ptr()[0] = 0.1;
-    particles.pos_y_ptr()[0] = 0.0;
-    particles.pos_z_ptr()[0] = 0.0;
+    particles.pos_x_get()[0] = 0.1;
+    particles.pos_y_get()[0] = 0.0;
+    particles.pos_z_get()[0] = 0.0;
 
-    particles.pos_x_ptr()[1] = 9.9;
-    particles.pos_y_ptr()[1] = 0.0;
-    particles.pos_z_ptr()[1] = 0.0;
+    particles.pos_x_get()[1] = 9.9;
+    particles.pos_y_get()[1] = 0.0;
+    particles.pos_z_get()[1] = 0.0;
 
     const double r{0.2};
     const double expected{(0.5 * r) / (1.0 + r)};
@@ -57,13 +57,13 @@ TEST_CASE("Jastrow value skips degenerate pairs", "[jastrow]") {
     const PeriodicBoundaryCondition pbc{10.0};
     Particles particles{2U};
 
-    particles.pos_x_ptr()[0] = 1.0;
-    particles.pos_y_ptr()[0] = 2.0;
-    particles.pos_z_ptr()[0] = 3.0;
+    particles.pos_x_get()[0] = 1.0;
+    particles.pos_y_get()[0] = 2.0;
+    particles.pos_z_get()[0] = 3.0;
 
-    particles.pos_x_ptr()[1] = 1.0;
-    particles.pos_y_ptr()[1] = 2.0;
-    particles.pos_z_ptr()[1] = 3.0;
+    particles.pos_x_get()[1] = 1.0;
+    particles.pos_y_get()[1] = 2.0;
+    particles.pos_z_get()[1] = 3.0;
 
     requireNearJastrow(jastrow.value(particles, pbc), 0.0);
 }
@@ -73,15 +73,15 @@ TEST_CASE("Jastrow derivatives match the analytic two-particle result", "[jastro
     const PeriodicBoundaryCondition pbc{100.0};
     Particles particles{2U};
 
-    particles.pos_x_ptr()[0] = 0.0;
-    particles.pos_y_ptr()[0] = 0.0;
-    particles.pos_z_ptr()[0] = 0.0;
+    particles.pos_x_get()[0] = 0.0;
+    particles.pos_y_get()[0] = 0.0;
+    particles.pos_z_get()[0] = 0.0;
 
-    particles.pos_x_ptr()[1] = 1.0;
-    particles.pos_y_ptr()[1] = 0.0;
-    particles.pos_z_ptr()[1] = 0.0;
+    particles.pos_x_get()[1] = 1.0;
+    particles.pos_y_get()[1] = 0.0;
+    particles.pos_z_get()[1] = 0.0;
 
-    const std::size_t stride{particles.padding_stride_ptr()};
+    const std::size_t stride{particles.padding_stride_get()};
     std::vector<double> gradX(stride, 0.0);
     std::vector<double> gradY(stride, 0.0);
     std::vector<double> gradZ(stride, 0.0);
@@ -114,15 +114,15 @@ TEST_CASE("Jastrow derivatives are unchanged for degenerate pairs", "[jastrow]")
     const PeriodicBoundaryCondition pbc{10.0};
     Particles particles{2U};
 
-    particles.pos_x_ptr()[0] = 4.0;
-    particles.pos_y_ptr()[0] = 5.0;
-    particles.pos_z_ptr()[0] = 6.0;
+    particles.pos_x_get()[0] = 4.0;
+    particles.pos_y_get()[0] = 5.0;
+    particles.pos_z_get()[0] = 6.0;
 
-    particles.pos_x_ptr()[1] = 4.0;
-    particles.pos_y_ptr()[1] = 5.0;
-    particles.pos_z_ptr()[1] = 6.0;
+    particles.pos_x_get()[1] = 4.0;
+    particles.pos_y_get()[1] = 5.0;
+    particles.pos_z_get()[1] = 6.0;
 
-    const std::size_t stride{particles.padding_stride_ptr()};
+    const std::size_t stride{particles.padding_stride_get()};
     std::vector<double> gradX(stride, 3.0);
     std::vector<double> gradY(stride, -2.0);
     std::vector<double> gradZ(stride, 1.5);
@@ -143,19 +143,19 @@ TEST_CASE("Jastrow derivatives match finite-difference gradients and Laplacians"
     const PeriodicBoundaryCondition pbc{20.0};
     Particles particles{3U};
 
-    particles.pos_x_ptr()[0] = 1.1;
-    particles.pos_y_ptr()[0] = 2.2;
-    particles.pos_z_ptr()[0] = 0.7;
+    particles.pos_x_get()[0] = 1.1;
+    particles.pos_y_get()[0] = 2.2;
+    particles.pos_z_get()[0] = 0.7;
 
-    particles.pos_x_ptr()[1] = 3.8;
-    particles.pos_y_ptr()[1] = 1.4;
-    particles.pos_z_ptr()[1] = 2.5;
+    particles.pos_x_get()[1] = 3.8;
+    particles.pos_y_get()[1] = 1.4;
+    particles.pos_z_get()[1] = 2.5;
 
-    particles.pos_x_ptr()[2] = 0.2;
-    particles.pos_y_ptr()[2] = 4.1;
-    particles.pos_z_ptr()[2] = 3.3;
+    particles.pos_x_get()[2] = 0.2;
+    particles.pos_y_get()[2] = 4.1;
+    particles.pos_z_get()[2] = 3.3;
 
-    const std::size_t stride{particles.padding_stride_ptr()};
+    const std::size_t stride{particles.padding_stride_get()};
     std::vector<double> gradX(stride, 0.0);
     std::vector<double> gradY(stride, 0.0);
     std::vector<double> gradZ(stride, 0.0);

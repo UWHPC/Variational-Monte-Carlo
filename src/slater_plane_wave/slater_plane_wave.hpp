@@ -32,41 +32,41 @@ public:
 
     // Getters:
     // Num orbitals - N
-    [[nodiscard]] std::size_t num_orbitals_ptr() const noexcept { return num_orbitals_; }
+    [[nodiscard]] std::size_t num_orbitals_get() const noexcept { return num_orbitals_; }
 
     // Matrix size - N^2
-    [[nodiscard]] std::size_t matrix_size_ptr() const noexcept { return matrix_size_; }
+    [[nodiscard]] std::size_t matrix_size_get() const noexcept { return matrix_size_; }
 
     // Box length - L
-    [[nodiscard]] double box_length_ptr() const noexcept { return box_length_; }
+    [[nodiscard]] double box_length_get() const noexcept { return box_length_; }
 
     // Det. matrix
-    [[nodiscard]] double* determinant_ptr() noexcept { return matrices_[D_]; }
-    [[nodiscard]] double const* determinant_ptr() const noexcept { return matrices_[D_]; }
+    [[nodiscard]] double* determinant_get() noexcept { return matrices_[D_]; }
+    [[nodiscard]] double const* determinant_get() const noexcept { return matrices_[D_]; }
 
     // Inv. det. matrix
-    [[nodiscard]] double* inv_determinant_ptr() noexcept { return matrices_[INV_D_]; }
-    [[nodiscard]] double const* inv_determinant_ptr() const noexcept { return matrices_[INV_D_]; }
+    [[nodiscard]] double* inv_determinant_get() noexcept { return matrices_[INV_D_]; }
+    [[nodiscard]] double const* inv_determinant_get() const noexcept { return matrices_[INV_D_]; }
 
     // Lower upper matrix
-    [[nodiscard]] double* lower_upper_ptr() noexcept { return matrices_[LU_]; }
-    [[nodiscard]] double const* lower_upper_ptr() const noexcept { return matrices_[LU_]; }
+    [[nodiscard]] double* lower_upper_get() noexcept { return matrices_[LU_]; }
+    [[nodiscard]] double const* lower_upper_get() const noexcept { return matrices_[LU_]; }
 
     // Pivot matrix
-    [[nodiscard]] std::size_t* pivot_ptr() noexcept { return pivot_[PIVOT_]; }
-    [[nodiscard]] std::size_t const* pivot_ptr() const noexcept { return pivot_[PIVOT_]; }
+    [[nodiscard]] std::size_t* pivot_get() noexcept { return pivot_[PIVOT_]; }
+    [[nodiscard]] std::size_t const* pivot_get() const noexcept { return pivot_[PIVOT_]; }
 
     // X component of k
-    [[nodiscard]] double* k_vector_x_ptr() noexcept { return vectors_[K_X_]; }
-    [[nodiscard]] double const* k_vector_x_ptr() const noexcept { return vectors_[K_X_]; }
+    [[nodiscard]] double* k_vector_x_get() noexcept { return vectors_[K_X_]; }
+    [[nodiscard]] double const* k_vector_x_get() const noexcept { return vectors_[K_X_]; }
 
     // Y component of k
-    [[nodiscard]] double* k_vector_y_ptr() noexcept { return vectors_[K_Y_]; }
-    [[nodiscard]] double const* k_vector_y_ptr() const noexcept { return vectors_[K_Y_]; }
+    [[nodiscard]] double* k_vector_y_get() noexcept { return vectors_[K_Y_]; }
+    [[nodiscard]] double const* k_vector_y_get() const noexcept { return vectors_[K_Y_]; }
 
     // Z component of k
-    [[nodiscard]] double* k_vector_z_ptr() noexcept { return vectors_[K_Z_]; }
-    [[nodiscard]] double const* k_vector_z_ptr() const noexcept { return vectors_[K_Z_]; }
+    [[nodiscard]] double* k_vector_z_get() noexcept { return vectors_[K_Z_]; }
+    [[nodiscard]] double const* k_vector_z_get() const noexcept { return vectors_[K_Z_]; }
 
     // Computes log|det(D)| and updates internal cached inverse/LU.
     [[nodiscard]] double log_abs_det(const Particles& particles);

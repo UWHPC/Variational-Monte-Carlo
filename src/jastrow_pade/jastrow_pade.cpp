@@ -4,14 +4,14 @@
 #include <cstddef>
 
 double JastrowPade::value(const Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept {
-    const std::size_t num_particles{particles.num_particles_ptr()};
+    const std::size_t num_particles{particles.num_particles_get()};
 
-    const double* RESTRICT POS_X{particles.pos_x_ptr()};
-    const double* RESTRICT POS_Y{particles.pos_y_ptr()};
-    const double* RESTRICT POS_Z{particles.pos_z_ptr()};
+    const double* RESTRICT POS_X{particles.pos_x_get()};
+    const double* RESTRICT POS_Y{particles.pos_y_get()};
+    const double* RESTRICT POS_Z{particles.pos_z_get()};
 
-    const double A_LOCAL{a_ptr()};
-    const double B_LOCAL{b_ptr()};
+    const double A_LOCAL{a_get()};
+    const double B_LOCAL{b_get()};
 
     double jastrow_pade{0.0};
 
@@ -40,14 +40,14 @@ void JastrowPade::add_derivatives(const Particles& particles, const PeriodicBoun
                                   double* RESTRICT grad_x, double* RESTRICT grad_y, double* RESTRICT grad_z,
                                   double* RESTRICT laplacian) const noexcept {
     // NOTE: assumes gradX/gradY/gradZ/lap are zero-initialized by caller
-    const std::size_t num_particles{particles.num_particles_ptr()};
+    const std::size_t num_particles{particles.num_particles_get()};
 
-    const double* RESTRICT POS_X{particles.pos_x_ptr()};
-    const double* RESTRICT POS_Y{particles.pos_y_ptr()};
-    const double* RESTRICT POS_Z{particles.pos_z_ptr()};
+    const double* RESTRICT POS_X{particles.pos_x_get()};
+    const double* RESTRICT POS_Y{particles.pos_y_get()};
+    const double* RESTRICT POS_Z{particles.pos_z_get()};
 
-    const double A_LOCAL{a_ptr()};
-    const double B_LOCAL{b_ptr()};
+    const double A_LOCAL{a_get()};
+    const double B_LOCAL{b_get()};
 
     for (std::size_t i = 0; i < num_particles; ++i) {
         for (std::size_t j = i + 1; j < num_particles; ++j) {

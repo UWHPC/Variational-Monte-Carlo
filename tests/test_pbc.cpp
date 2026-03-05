@@ -65,7 +65,7 @@ TEST_CASE("displacement and distance use minimum-image coordinates", "[pbc]") {
 
 TEST_CASE("wrap and min_image are invariant under full-box translations", "[pbc]") {
     const PeriodicBoundaryCondition pbc{10.0};
-    const double L{pbc.L_ptr()};
+    const double L{pbc.L_get()};
 
     const double samples[]{-23.75, -10.1, -0.01, 0.0, 0.01, 4.9, 9.99, 10.01, 31.5};
     for (const double x : samples) {
