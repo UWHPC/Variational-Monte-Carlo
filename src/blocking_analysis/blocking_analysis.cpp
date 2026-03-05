@@ -17,7 +17,7 @@ std::pair<double, double> BlockingAnalysis::mean_and_standard_error() const {
 
     // 2. Calculate the variance between the blocks (Eq. 39)
     double variance_sum{};
-    for (double i = 0; i < K; i++) {
+    for (std::size_t i = 0; i < block_means_get().size(); ++i) {
         variance_sum += (block_means_get()[i] - overall_mean) * (block_means_get()[i] - overall_mean);
     }
     double s_sq = variance_sum / (K - 1.0);
