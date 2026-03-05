@@ -33,8 +33,13 @@ double EnergyTracker::potential_energy(const Particles& particles,
 
     for (std::size_t i = 0; i < N; ++i) {
         for (std::size_t j = i + 1; j < N; ++j) {
-            const double r_ij{pbc.distance(px[i], py[i], pz[i], px[j], py[j], pz[j])};
-            V_sum += 1.0 / r_ij;
+            // To get around if else statement for branching,
+            // ensures does not run if i == j
+            const bool degenerate{i == j};
+            const double mask{degenerate ? 0.0 : 1.0};
+            const double r_ij{degenerate ? 1.0 : pbc.distance(px[i], py[i], pz[i], px[j], py[j], pz[j])};
+
+            V_sum += mask / r_ij;
         }
     }
 

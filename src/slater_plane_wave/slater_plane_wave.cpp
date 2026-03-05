@@ -19,12 +19,12 @@ In-Place LU with partial pivoting in LU (size N*N, row-major)
 pivot is length >= N storing row permutation indices
 return numbers of row swaps (parity info, if you need det sign).
 */
-int lowerUpperDecompose(double* lowerUpper, std::size_t* pivot, std::size_t N) {
+int lowerUpperDecompose(double* lowerUpper, int* pivot, std::size_t N) {
     // Track row swaps
     int swapCount{};
 
     for (std::size_t row = 0; row < N; ++row)
-        pivot[row] = row;
+        pivot[row] = static_cast<int>(row);
 
     for (std::size_t col = 0; col < N; ++col) {
         // Pivot selection
@@ -72,11 +72,11 @@ solve (P^-1)LU x = b. given combined LU and pivot permutation piv.
 piv encodes the row permutation applied during LU so that
 we first permute b: y = P b, then solve L z = y, then U x = z.
 */
-void lowerUpperSolve(const double* LU, const std::size_t* pivot, const double* b, double* x, std::size_t N) {
+void lowerUpperSolve(const double* LU, const int* pivot, const double* b, double* x, std::size_t N) {
     // Apply permutation: x = Pb
     // store y in x temporarily
     for (std::size_t row = 0; row < N; ++row) {
-        const std::size_t permRow{pivot[row]};
+        const std::size_t permRow{static_cast<std::size_t>(pivot[row])};
         x[row] = b[permRow];
     }
 
@@ -112,7 +112,7 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     double* RESTRICT det_matrix{determinant_get()};
     double* RESTRICT lower_upper_matrix{lower_upper_get()};
     double* RESTRICT inv_det_matrix{inv_determinant_get()};
-    std::size_t* RESTRICT pivot_vector{pivot_get()};
+    int* RESTRICT pivot_vector{pivot_get()};
 
     const double* k_x_comp{k_vector_x_get()};
     const double* k_y_comp{k_vector_y_get()};

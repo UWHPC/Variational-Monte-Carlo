@@ -39,7 +39,7 @@ TEST_CASE("Particles exposes non-overlapping slices for each component", "[parti
     REQUIRE(particles.grad_log_psi_x_get() - particles.pos_z_get() == stride);
     REQUIRE(particles.grad_log_psi_y_get() - particles.grad_log_psi_x_get() == stride);
     REQUIRE(particles.grad_log_psi_z_get() - particles.grad_log_psi_y_get() == stride);
-    REQUIRE(particles.lap_log_psi_get() - particles.log_psi_get() == stride);
+    REQUIRE(particles.lap_log_psi_get() - particles.grad_log_psi_z_get() == stride);
 
     particles.pos_x_get()[0] = 1.0;
     particles.pos_y_get()[0] = 2.0;

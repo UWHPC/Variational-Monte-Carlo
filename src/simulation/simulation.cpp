@@ -111,4 +111,8 @@ void Simulation::measure() {
     return;
 }
 
-void Simulation::run() { std::cout << "hi" << std::endl; }
+void Simulation::run() {
+    initialize_positions();
+    warmup();
+    measure();
+}

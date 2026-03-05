@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-double WaveFunction::evaluate_log_psi(Particles& particles, const PeriodicBoundaryCondition& pbc) {
+double WaveFunction::evaluate_log_psi(const Particles& particles, const PeriodicBoundaryCondition& pbc) {
     const double log_det{slater_plane_wave_ptr().log_abs_det(particles)};
     const double jastrow_pade{jastrow_pade_ptr().value(particles, pbc)};
 
