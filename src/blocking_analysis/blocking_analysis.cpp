@@ -13,7 +13,7 @@ std::pair<double, double> BlockingAnalysis::mean_and_standard_error() const {
     double overall_mean{};
 
     // calculating average
-    overall_mean = std::accumulate(block_means_get().begin(), block_means_get().end(), 0.0) / K;
+    overall_mean = std::reduce(block_means_get().begin(), block_means_get().end(), 0.0) / K;
 
     // 2. Calculate the variance between the blocks (Eq. 39)
     double variance_sum{};
