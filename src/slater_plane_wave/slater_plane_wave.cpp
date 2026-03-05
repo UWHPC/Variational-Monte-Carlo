@@ -6,101 +6,37 @@
 #include <limits>
 #include <vector>
 
-namespace {
+SlaterPlaneWave::SlaterPlaneWave(std::size_t N, double L)
+    : num_orbitals_{N}, matrix_size_{N * N}, box_length_{L}, int_vectors_{N, NUM_INT_VECTORS_},
+      k_vector_{N, NUM_K_VECTORS_}, matrices_{N * N, NUM_MATRIX_} {
 
-// @brief helper function to convert i-jth indices -> n
-// @param stride is the difference between the row and the column.
-// @return the appropriate i-th row j-th column as a size_t.
-inline std::size_t index(std::size_t row, std::size_t col, std::size_t stride) noexcept { return row * stride + col; }
+    const std::size_t N{num_orbitals_get()};
 
-/*
-see https://www.geeksforgeeks.org/dsa/doolittle-algorithm-lu-decomposition/
-In-Place LU with partial pivoting in LU (size N*N, row-major)
-pivot is length >= N storing row permutation indices
-return numbers of row swaps (parity info, if you need det sign).
-*/
-int lowerUpperDecompose(double* lowerUpper, int* pivot, std::size_t N) {
-    // Track row swaps
-    int swapCount{};
+    int* RESTRICT n_x{n_vector_x_get()};
+    int* RESTRICT n_y{n_vector_y_get()};
+    int* RESTRICT n_z{n_vector_z_get()};
 
-    for (std::size_t row = 0; row < N; ++row)
-        pivot[row] = static_cast<int>(row);
-
-    for (std::size_t col = 0; col < N; ++col) {
-        // Pivot selection
-        // Find row >= col maximizing |LU(row, col)|
-        std::size_t pivotRow{col};
-        double maxAbs{std::abs(lowerUpper[index(col, col, N)])};
-
-        for (std::size_t row = col + 1; row < N; ++row) {
-            const double value = std::abs(lowerUpper[index(row, col, N)]);
-            if (value > maxAbs) {
-                maxAbs = value;
-                pivotRow = row;
-            };
-        }
-
-        // max abs = 0.0 implies the pivot column is 0 & det = 0.
-        if (maxAbs == 0.0)
-            continue;
-
-        if (pivotRow != col) {
-            for (std::size_t col2 = 0; col2 < N; ++col2) {
-                std::swap(lowerUpper[index(col, col2, N)], lowerUpper[index(pivotRow, col2, N)]);
-            }
-            std::swap(pivot[col], pivot[pivotRow]);
-            ++swapCount;
-        }
-
-        // eliminate
-        const double pivotValue{lowerUpper[index(col, col, N)]};
-        for (std::size_t row = col + 1; row < N; ++row) {
-            lowerUpper[index(row, col, N)] /= pivotValue; // L (i,k)
-            const double multiplier{lowerUpper[index(row, col, N)]};
-            for (std::size_t col2 = col + 1; col2 < N; ++col2) {
-                lowerUpper[index(row, col2, N)] -= multiplier * lowerUpper[index(col, col2, N)];
-            }
-        }
+    // Start at 1 since n[0] = (0,0,0):
+    // TODO: implement the algorithm to determine n
+    for (std::size_t i = 1; i < N; ++i) {
+        n_x[i] = 0;
+        n_y[i] = 0;
+        n_z[i] = 0;
     }
 
-    return swapCount;
-}
+    double* RESTRICT k_x{k_vector_x_get()};
+    double* RESTRICT k_y{k_vector_y_get()};
+    double* RESTRICT k_z{k_vector_z_get()};
 
-/*
-see https://www.geeksforgeeks.org/dsa/doolittle-algorithm-lu-decomposition/
-solve (P^-1)LU x = b. given combined LU and pivot permutation piv.
-piv encodes the row permutation applied during LU so that
-we first permute b: y = P b, then solve L z = y, then U x = z.
-*/
-void lowerUpperSolve(const double* LU, const int* pivot, const double* b, double* x, std::size_t N) {
-    // Apply permutation: x = Pb
-    // store y in x temporarily
-    for (std::size_t row = 0; row < N; ++row) {
-        const std::size_t permRow{static_cast<std::size_t>(pivot[row])};
-        x[row] = b[permRow];
+    const double inv_L{1 / box_length_get()};
+
+    // Follows the calculation: K = (2pi/L) * n;
+    for (std::size_t i = 0; i < N; ++i) {
+        k_x[i] = 2 * std::numbers::pi * inv_L * static_cast<double>(n_x[i]);
+        k_y[i] = 2 * std::numbers::pi * inv_L * static_cast<double>(n_y[i]);
+        k_z[i] = 2 * std::numbers::pi * inv_L * static_cast<double>(n_z[i]);
     }
-
-    // forward solve: ly = Pb (L has implicit on diagonal)
-    for (std::size_t row = 0; row < N; ++row) {
-        double sum = x[row];
-        for (std::size_t col = 0; col < row; ++col) {
-            sum -= LU[index(row, col, N)] * x[col];
-        }
-        x[row] = sum;
-    }
-
-    // backward solve: Ux = y
-    for (std::size_t rev = 0; rev < N; ++rev) {
-        const std::size_t row = N - 1 - rev;
-        double sum = x[row];
-        for (std::size_t col = row + 1; col < N; ++col) {
-            sum -= LU[index(row, col, N)] * x[col];
-        }
-        x[row] = sum / LU[index(row, row, N)];
-    }
-}
-
-} // namespace
+};
 
 double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     const std::size_t N{num_orbitals_get()};
@@ -231,3 +167,99 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
         laplacian[particle] += lap_log_det;
     }
 }
+
+namespace {
+
+// @brief helper function to convert i-jth indices -> n
+// @param stride is the difference between the row and the column.
+// @return the appropriate i-th row j-th column as a size_t.
+inline std::size_t index(std::size_t row, std::size_t col, std::size_t stride) noexcept { return row * stride + col; }
+
+/*
+see https://www.geeksforgeeks.org/dsa/doolittle-algorithm-lu-decomposition/
+In-Place LU with partial pivoting in LU (size N*N, row-major)
+pivot is length >= N storing row permutation indices
+return numbers of row swaps (parity info, if you need det sign).
+*/
+int lowerUpperDecompose(double* lowerUpper, int* pivot, std::size_t N) {
+    // Track row swaps
+    int swapCount{};
+
+    for (std::size_t row = 0; row < N; ++row)
+        pivot[row] = static_cast<int>(row);
+
+    for (std::size_t col = 0; col < N; ++col) {
+        // Pivot selection
+        // Find row >= col maximizing |LU(row, col)|
+        std::size_t pivotRow{col};
+        double maxAbs{std::abs(lowerUpper[index(col, col, N)])};
+
+        for (std::size_t row = col + 1; row < N; ++row) {
+            const double value = std::abs(lowerUpper[index(row, col, N)]);
+            if (value > maxAbs) {
+                maxAbs = value;
+                pivotRow = row;
+            };
+        }
+
+        // max abs = 0.0 implies the pivot column is 0 & det = 0.
+        if (maxAbs == 0.0)
+            continue;
+
+        if (pivotRow != col) {
+            for (std::size_t col2 = 0; col2 < N; ++col2) {
+                std::swap(lowerUpper[index(col, col2, N)], lowerUpper[index(pivotRow, col2, N)]);
+            }
+            std::swap(pivot[col], pivot[pivotRow]);
+            ++swapCount;
+        }
+
+        // eliminate
+        const double pivotValue{lowerUpper[index(col, col, N)]};
+        for (std::size_t row = col + 1; row < N; ++row) {
+            lowerUpper[index(row, col, N)] /= pivotValue; // L (i,k)
+            const double multiplier{lowerUpper[index(row, col, N)]};
+            for (std::size_t col2 = col + 1; col2 < N; ++col2) {
+                lowerUpper[index(row, col2, N)] -= multiplier * lowerUpper[index(col, col2, N)];
+            }
+        }
+    }
+
+    return swapCount;
+}
+
+/*
+see https://www.geeksforgeeks.org/dsa/doolittle-algorithm-lu-decomposition/
+solve (P^-1)LU x = b. given combined LU and pivot permutation piv.
+piv encodes the row permutation applied during LU so that
+we first permute b: y = P b, then solve L z = y, then U x = z.
+*/
+void lowerUpperSolve(const double* LU, const int* pivot, const double* b, double* x, std::size_t N) {
+    // Apply permutation: x = Pb
+    // store y in x temporarily
+    for (std::size_t row = 0; row < N; ++row) {
+        const std::size_t permRow{static_cast<std::size_t>(pivot[row])};
+        x[row] = b[permRow];
+    }
+
+    // forward solve: ly = Pb (L has implicit on diagonal)
+    for (std::size_t row = 0; row < N; ++row) {
+        double sum = x[row];
+        for (std::size_t col = 0; col < row; ++col) {
+            sum -= LU[index(row, col, N)] * x[col];
+        }
+        x[row] = sum;
+    }
+
+    // backward solve: Ux = y
+    for (std::size_t rev = 0; rev < N; ++rev) {
+        const std::size_t row = N - 1 - rev;
+        double sum = x[row];
+        for (std::size_t col = row + 1; col < N; ++col) {
+            sum -= LU[index(row, col, N)] * x[col];
+        }
+        x[row] = sum / LU[index(row, row, N)];
+    }
+}
+
+} // namespace

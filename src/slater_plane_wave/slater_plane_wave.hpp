@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdlib>
+#include <numbers>
 
 class SlaterPlaneWave {
 private:
@@ -13,22 +14,20 @@ private:
     std::size_t matrix_size_;
     double box_length_;
 
-    // All vectors:
-    enum VectorIndex : std::size_t { K_X_, K_Y_, K_Z_, NUM_K_VECTORS_ };
-    AlignedSoA<double> k_vector_;
-
-    // Pivot:
+    // n-vectors and pivot:
     enum PivotIndex : std::size_t { N_X_, N_Y_, N_Z_, PIVOT_, NUM_INT_VECTORS_ };
     AlignedSoA<int> int_vectors_;
+
+    // k vectors:
+    enum VectorIndex : std::size_t { K_X_, K_Y_, K_Z_, NUM_K_VECTORS_ };
+    AlignedSoA<double> k_vector_;
 
     // All matrices:
     enum MatrixIndex : std::size_t { D_, INV_D_, LU_, NUM_MATRIX_ };
     AlignedSoA<double> matrices_;
 
 public:
-    explicit SlaterPlaneWave(std::size_t N, double L)
-        : num_orbitals_{N}, matrix_size_{N * N}, box_length_{L}, k_vector_{N, NUM_K_VECTORS_},
-          int_vectors_{N, NUM_INT_VECTORS_}, matrices_{N * N, NUM_MATRIX_} {};
+    explicit SlaterPlaneWave(std::size_t N, double L);
 
     // Getters:
     // Num orbitals - N

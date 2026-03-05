@@ -13,12 +13,13 @@ private:
     // Configuration of sim:
     Config config_;
 
-    // Physical properties of sim:
+    // Objects and physical handlers of sim:
     Particles particles_;
     PeriodicBoundaryCondition pbc_;
     WaveFunction wave_function_;
     EnergyTracker energy_tracker_;
 
+    // Physical quantities of sim:
     std::size_t proposed_;
     std::size_t accepted_;
     double log_psi_current_;
