@@ -38,8 +38,8 @@ void BlockingAnalysis::add(double local_energy) {
     in_block_set()++;
 
     // When the block is full, calculate its average and save it
-    if (in_block_get() == block_means_get().size()) {
-        block_means_get().push_back(block_sum_get() / block_means_get().size()); // Eq. 37
+    if (in_block_get() == block_size_get()) {
+        block_means_get().push_back(block_sum_get() / block_size_get()); // Eq. 37
 
         // Reset for the next block
         block_sum_set() = 0;

@@ -6,31 +6,31 @@
 double JastrowPade::value(const Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept {
     const std::size_t num_particles{particles.num_particles_get()};
 
-    const double* RESTRICT POS_X{particles.pos_x_get()};
-    const double* RESTRICT POS_Y{particles.pos_y_get()};
-    const double* RESTRICT POS_Z{particles.pos_z_get()};
+    const double* RESTRICT pos_x{particles.pos_x_get()};
+    const double* RESTRICT pos_y{particles.pos_y_get()};
+    const double* RESTRICT pos_z{particles.pos_z_get()};
 
-    const double A_LOCAL{a_get()};
-    const double B_LOCAL{b_get()};
+    const double a_local{a_get()};
+    const double b_local{b_get()};
 
-    double jastrow_pade{0.0};
+    double jastrow_pade{};
 
     for (std::size_t i = 0; i < num_particles; ++i) {
         for (std::size_t j = i + 1; j < num_particles; ++j) {
             double displ_x{}, displ_y{}, displ_z{};
 
-            pbc.displacement(POS_X[i], POS_Y[i], POS_Z[i], POS_X[j], POS_Y[j], POS_Z[j], displ_x, displ_y, displ_z);
-            const double DIST_SQ{displ_x * displ_x + displ_y * displ_y + displ_z * displ_z};
-            const double DIST{std::sqrt(DIST_SQ)};
+            pbc.displacement(pos_x[i], pos_y[i], pos_z[i], pos_x[j], pos_y[j], pos_z[j], displ_x, displ_y, displ_z);
+            const double dist_sq{displ_x * displ_x + displ_y * displ_y + displ_z * displ_z};
+            const double dist{std::sqrt(dist_sq)};
 
-            // MASK to get around if statement
-            const bool DEGENERATE{DIST < 1e-12};
-            const double MASK{DEGENERATE ? 0.0 : 1.0};
+            // mask to get around if statement
+            const bool degenerate{dist < 1e-12};
+            const double mask{degenerate ? 0.0 : 1.0};
 
             // u(r) = a*r / (1 + b*r)
-            const double DENOM{1.0 + B_LOCAL * DIST};
+            const double denom{1.0 + b_local * dist};
 
-            jastrow_pade += MASK * (A_LOCAL * DIST) / DENOM;
+            jastrow_pade += mask * (a_local * dist) / denom;
         }
     }
     return jastrow_pade;
@@ -42,55 +42,55 @@ void JastrowPade::add_derivatives(const Particles& particles, const PeriodicBoun
     // NOTE: assumes gradX/gradY/gradZ/lap are zero-initialized by caller
     const std::size_t num_particles{particles.num_particles_get()};
 
-    const double* RESTRICT POS_X{particles.pos_x_get()};
-    const double* RESTRICT POS_Y{particles.pos_y_get()};
-    const double* RESTRICT POS_Z{particles.pos_z_get()};
+    const double* RESTRICT pos_x{particles.pos_x_get()};
+    const double* RESTRICT pos_y{particles.pos_y_get()};
+    const double* RESTRICT pos_z{particles.pos_z_get()};
 
-    const double A_LOCAL{a_get()};
-    const double B_LOCAL{b_get()};
+    const double a_local{a_get()};
+    const double b_local{b_get()};
 
     for (std::size_t i = 0; i < num_particles; ++i) {
         for (std::size_t j = i + 1; j < num_particles; ++j) {
             double displ_x{}, displ_y{}, displ_z{};
 
-            pbc.displacement(POS_X[i], POS_Y[i], POS_Z[i], POS_X[j], POS_Y[j], POS_Z[j], displ_x, displ_y, displ_z);
-            const double DIST_SQ{displ_x * displ_x + displ_y * displ_y + displ_z * displ_z};
-            const double DIST{std::sqrt(DIST_SQ)};
+            pbc.displacement(pos_x[i], pos_y[i], pos_z[i], pos_x[j], pos_y[j], pos_z[j], displ_x, displ_y, displ_z);
+            const double dist_sq{displ_x * displ_x + displ_y * displ_y + displ_z * displ_z};
+            const double dist{std::sqrt(dist_sq)};
 
-            // MASK to get around if statement:
-            const bool DEGENERATE{DIST < 1e-12};
-            const double INV_DIST{DEGENERATE ? 1.0 : 1.0 / DIST};
-            const double MASK{DEGENERATE ? 0.0 : 1.0};
+            // mask to get around if statement:
+            const bool degenerate{dist < 1e-12};
+            const double inv_dist{degenerate ? 1.0 : 1.0 / dist};
+            const double mask{degenerate ? 0.0 : 1.0};
 
             // u(r) = a*r / (1 + b*r)
             // u'(r) = a / (1 + b*r)^2
             // u''(r) = -2ab / (1 + b*r)^3
-            const double DENOM{1.0 + B_LOCAL * DIST};
-            const double DENOM_SQ{DENOM * DENOM};
-            const double DENOM_CB{DENOM_SQ * DENOM};
+            const double denom{1.0 + b_local * dist};
+            const double denom_sq{denom * denom};
+            const double denom_cb{denom_sq * denom};
 
-            const double FIRST_DERIV{A_LOCAL / DENOM_SQ};
-            const double SECOND_DERIV{-2.0 * A_LOCAL * B_LOCAL / DENOM_CB};
+            const double first_deriv{a_local / denom_sq};
+            const double second_deriv{-2.0 * a_local * b_local / denom_cb};
 
             // ∇_i u(r_ij) = u'(r) * (r_vec / r)
-            const double GRAD_FACTOR{FIRST_DERIV * INV_DIST};
-            const double GRAD_CONTRIBUTION_X{GRAD_FACTOR * displ_x};
-            const double GRAD_CONTRIBUTION_Y{GRAD_FACTOR * displ_y};
-            const double GRAD_CONTRIBUTION_Z{GRAD_FACTOR * displ_z};
+            const double grad_factor{first_deriv * inv_dist};
+            const double grad_contribution_x{grad_factor * displ_x};
+            const double grad_contribution_y{grad_factor * displ_y};
+            const double grad_contribution_z{grad_factor * displ_z};
 
-            grad_x[i] += MASK * GRAD_CONTRIBUTION_X;
-            grad_y[i] += MASK * GRAD_CONTRIBUTION_Y;
-            grad_z[i] += MASK * GRAD_CONTRIBUTION_Z;
+            grad_x[i] += mask * grad_contribution_x;
+            grad_y[i] += mask * grad_contribution_y;
+            grad_z[i] += mask * grad_contribution_z;
 
-            grad_x[j] -= MASK * GRAD_CONTRIBUTION_X;
-            grad_y[j] -= MASK * GRAD_CONTRIBUTION_Y;
-            grad_z[j] -= MASK * GRAD_CONTRIBUTION_Z;
+            grad_x[j] -= mask * grad_contribution_x;
+            grad_y[j] -= mask * grad_contribution_y;
+            grad_z[j] -= mask * grad_contribution_z;
 
             // ∇^2 u(r) = u''(r) + (2/r) u'(r)
-            const double LAPLACIAN_PAIR{SECOND_DERIV + 2.0 * FIRST_DERIV * INV_DIST};
+            const double laplacian_pair{second_deriv + 2.0 * first_deriv * inv_dist};
 
-            laplacian[i] += MASK * LAPLACIAN_PAIR;
-            laplacian[j] += MASK * LAPLACIAN_PAIR;
+            laplacian[i] += mask * laplacian_pair;
+            laplacian[j] += mask * laplacian_pair;
         }
     }
 }

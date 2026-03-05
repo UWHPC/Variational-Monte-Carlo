@@ -21,5 +21,5 @@ public:
     [[nodiscard]] const SlaterPlaneWave& slater_plane_wave_ptr() const { return slater_plane_wave_; }
 
     void evaluate_derivatives(Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept;
-    void evaluate_log_psi(Particles& particles, const PeriodicBoundaryCondition& pbc);
+    double evaluate_log_psi(Particles& particles, const PeriodicBoundaryCondition& pbc);
 };

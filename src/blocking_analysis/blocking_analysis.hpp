@@ -15,11 +15,10 @@ private:
 
     [[nodiscard]] std::size_t in_block_get() const { return in_block_; }
     [[nodiscard]] double block_sum_get() const { return block_sum_; }
+    [[nodiscard]] std::size_t block_size_get() const { return block_size_; }
 
     [[nodiscard]] std::vector<double>& block_means_get() { return block_means_; }
     [[nodiscard]] const std::vector<double>& block_means_get() const { return block_means_; }
-
-    // setters because he has push perms
 
     [[nodiscard]] double& block_sum_set() { return block_sum_; }
     [[nodiscard]] std::size_t& in_block_set() { return in_block_; }

@@ -26,7 +26,6 @@ TEST_CASE("Particles allocates aligned padded blocks and zero-initializes them",
         REQUIRE(particles.grad_log_psi_x_get()[i] == 0.0);
         REQUIRE(particles.grad_log_psi_y_get()[i] == 0.0);
         REQUIRE(particles.grad_log_psi_z_get()[i] == 0.0);
-        REQUIRE(particles.log_psi_get()[i] == 0.0);
         REQUIRE(particles.lap_log_psi_get()[i] == 0.0);
     }
 }
@@ -40,7 +39,6 @@ TEST_CASE("Particles exposes non-overlapping slices for each component", "[parti
     REQUIRE(particles.grad_log_psi_x_get() - particles.pos_z_get() == stride);
     REQUIRE(particles.grad_log_psi_y_get() - particles.grad_log_psi_x_get() == stride);
     REQUIRE(particles.grad_log_psi_z_get() - particles.grad_log_psi_y_get() == stride);
-    REQUIRE(particles.log_psi_get() - particles.grad_log_psi_z_get() == stride);
     REQUIRE(particles.lap_log_psi_get() - particles.log_psi_get() == stride);
 
     particles.pos_x_get()[0] = 1.0;

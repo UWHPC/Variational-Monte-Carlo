@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../config/config.hpp"
+#include "../energy/local_energy.hpp"
 #include "../particles/particles.hpp"
 #include "../pbc/pbc.hpp"
 #include "../wavefunction/wavefunction.hpp"
@@ -16,6 +17,7 @@ private:
     Particles particles_;
     PeriodicBoundaryCondition pbc_;
     WaveFunction wave_function_;
+    EnergyTracker energy_tracker_;
 
     std::size_t proposed_;
     std::size_t accepted_;
@@ -47,7 +49,8 @@ public:
     [[nodiscard]] WaveFunction& wave_function() { return wave_function_; }
 
     // Getters:
-    [[nodiscard]] double& log_psi_current() { return log_psi_current_; }
+    [[nodiscard]] double& log_psi_set() { return log_psi_current_; }
+    [[nodiscard]] double log_psi_get() const { return log_psi_current_; }
 
     void run();
 

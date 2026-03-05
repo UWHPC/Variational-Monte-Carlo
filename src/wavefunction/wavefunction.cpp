@@ -2,11 +2,11 @@
 
 #include <algorithm>
 
-void WaveFunction::evaluate_log_psi(Particles& particles, const PeriodicBoundaryCondition& pbc) {
+double WaveFunction::evaluate_log_psi(Particles& particles, const PeriodicBoundaryCondition& pbc) {
     const double log_det{slater_plane_wave_ptr().log_abs_det(particles)};
     const double jastrow_pade{jastrow_pade_ptr().value(particles, pbc)};
 
-    particles.log_psi_get()[0] = log_det + jastrow_pade;
+    return log_det + jastrow_pade;
 }
 
 void WaveFunction::evaluate_derivatives(Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept {

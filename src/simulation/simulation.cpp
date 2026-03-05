@@ -22,9 +22,7 @@ void Simulation::initialize_positions() {
         p_y[i] = rand_uniform_double() * length;
         p_z[i] = rand_uniform_double() * length;
     }
-
-    wave_function().evaluate_log_psi(particles(), pbc());
-    log_psi_current() = particles().log_psi_get()[0];
+    log_psi_set() = wave_function().evaluate_log_psi(particles(), pbc());
 
     return;
 }
@@ -54,25 +52,19 @@ bool Simulation::metropolis_step() {
     // Wrap to ensure particles dont drift outside [0,L):
     pbc().wrap3(p_x[rand_particle], p_y[rand_particle], p_z[rand_particle]);
 
-    wave_function().evaluate_log_psi(particles(), pbc());
-
-    // Log psi for 1st element:
-    const double new_log_psi{particles().log_psi_get()[0]};
-    const double delta_log_psi{new_log_psi - log_psi_current()};
+    const double new_log_psi{wave_function().evaluate_log_psi(particles(), pbc())};
+    const double delta_log_psi{new_log_psi - log_psi_get()};
 
     const double log_u{log(rand_uniform_double())};
     const double min_term{std::min(0.0, 2.0 * delta_log_psi)};
 
     if (log_u < min_term) {
-        log_psi_current_ = new_log_psi;
+        log_psi_set() = new_log_psi;
         return true;
     } else {
         p_x[rand_particle] = old_x;
         p_y[rand_particle] = old_y;
         p_z[rand_particle] = old_z;
-
-        // revert original log_psi in particles buffer
-        *particles().log_psi_get() = log_psi_current();
     }
 
     return false;
@@ -80,8 +72,8 @@ bool Simulation::metropolis_step() {
 
 /// @brief Warmup the simulation by processing a small warmup sweep on particles
 void Simulation::warmup() {
-    const std::size_t WARMUP_STEPS{config_.warmup_steps};
-    const std::size_t WARMUP_BATCH_SIZE{particles().num_particles_get()};
+    const std::size_t warmup_steps{config_.warmup_steps};
+    const std::size_t warmup_batch_size{particles().num_particles_get()};
 
     std::size_t window_proposed{};
     std::size_t window_accepted{};
@@ -90,12 +82,12 @@ void Simulation::warmup() {
     const double acceptance_target{0.5}; // Currently targeting a 50% acceptance rate
     const double gain{0.05};             // This limits making large changes to step size
 
-    for (std::size_t i{}; i < WARMUP_STEPS; i++) {
+    for (std::size_t i{}; i < warmup_steps; i++) {
         window_proposed++;
         if (metropolis_step())
             window_accepted++;
 
-        if (window_proposed % WARMUP_BATCH_SIZE == 0) {
+        if (window_proposed % warmup_batch_size == 0) {
             acceptance_rate_window = static_cast<double>(window_accepted) / static_cast<double>(window_proposed);
             config_.step_size *= exp(gain * (acceptance_rate_window - acceptance_target));
 
