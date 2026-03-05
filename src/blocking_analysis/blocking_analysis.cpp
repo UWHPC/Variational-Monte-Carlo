@@ -8,22 +8,27 @@ std::pair<double, double> BlockingAnalysis::mean_and_standard_error() const {
         // The document says if K < 2, report mean only or flag it [cite: 35]
         throw std::runtime_error("Not enough blocks to calculate Standard Error.");
     }
+    const std::size_t block_size{block_means_get().size()};
+    const double K{static_cast<double>(block_size)};
 
-    const double K{static_cast<double>(block_means_get().size())};
     double overall_mean{};
+    auto& block_means{block_means_get()};
 
     // calculating average
-    overall_mean = std::reduce(block_means_get().begin(), block_means_get().end(), 0.0) / K;
+    const double inv_K{1.0 / K};
+    overall_mean = std::reduce(block_means.begin(), block_means.end(), 0.0) * inv_K;
 
     // 2. Calculate the variance between the blocks (Eq. 39)
     double variance_sum{};
-    for (std::size_t i = 0; i < block_means_get().size(); ++i) {
-        variance_sum += (block_means_get()[i] - overall_mean) * (block_means_get()[i] - overall_mean);
+
+    for (std::size_t i = 0; i < block_size; ++i) {
+        variance_sum += (block_means[i] - overall_mean) * (block_means[i] - overall_mean);
     }
-    double s_sq = variance_sum / (K - 1.0);
+    const double denom{1.0 / (K - 1.0)};
+    const double s_sq{variance_sum * denom};
 
     // 3. Calculate the Standard Error (Eq. 40)
-    double standard_error{std::sqrt(s_sq / K)};
+    const double standard_error{std::sqrt(s_sq * inv_K)};
 
     return {overall_mean, standard_error};
 }
