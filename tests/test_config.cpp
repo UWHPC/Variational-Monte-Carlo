@@ -67,8 +67,9 @@ template <typename Fn> std::string captureStdout(Fn&& fn) {
 } // namespace
 
 TEST_CASE("parseArgs parses canonical options with mixed token styles", "[config]") {
-    const Config cfg{parseConfig({"vmc", "--num_particles", "16", "--box_length=4.5", "--warmup_steps", "50",
-                                  "--measure_steps=200", "--step_size", "0.25", "--seed", "12345", "--block_size", "20"})};
+    const Config cfg{
+        parseConfig({"vmc", "--num_particles", "16", "--box_length=4.5", "--warmup_steps", "50", "--measure_steps=200",
+                     "--step_size", "0.25", "--seed", "12345", "--block_size", "20"})};
 
     REQUIRE(cfg.num_particles == 16U);
     REQUIRE(cfg.box_length == 4.5);
@@ -103,9 +104,9 @@ TEST_CASE("parseArgs rejects missing required options", "[config]") {
 }
 
 TEST_CASE("parseArgs rejects duplicate aliases for the same option", "[config]") {
-    const std::string message{invalidArgumentMessage({"vmc", "--num_particles", "16", "--num-particles", "16",
-                                                      "--box_length", "4", "--warmup_steps", "10", "--measure_steps",
-                                                      "100", "--step_size", "0.25", "--seed", "1", "--block_size", "4"})};
+    const std::string message{invalidArgumentMessage(
+        {"vmc", "--num_particles", "16", "--num-particles", "16", "--box_length", "4", "--warmup_steps", "10",
+         "--measure_steps", "100", "--step_size", "0.25", "--seed", "1", "--block_size", "4"})};
 
     REQUIRE(message.find("Duplicate option") != std::string::npos);
     REQUIRE(message.find("--num_particles") != std::string::npos);
@@ -131,8 +132,8 @@ TEST_CASE("parseArgs rejects invalid numeric values", "[config]") {
 
 TEST_CASE("parseArgs rejects unsupported short options", "[config]") {
     const std::string message{
-        invalidArgumentMessage({"vmc", "-n", "16", "--box_length", "4", "--warmup_steps", "10", "--measure_steps", "100",
-                                "--step_size", "0.25", "--seed", "1", "--block_size", "4"})};
+        invalidArgumentMessage({"vmc", "-n", "16", "--box_length", "4", "--warmup_steps", "10", "--measure_steps",
+                                "100", "--step_size", "0.25", "--seed", "1", "--block_size", "4"})};
 
     REQUIRE(message.find("Unsupported short option") != std::string::npos);
     REQUIRE(message.find("-n") != std::string::npos);
@@ -164,8 +165,8 @@ TEST_CASE("parseArgs rejects missing option values", "[config]") {
 
 TEST_CASE("parseArgs rejects unexpected positional arguments and empty option names", "[config]") {
     {
-        const std::string message{
-            invalidArgumentMessage({"vmc", "--num_particles", "16", "oops", "--box_length", "4", "--warmup_steps", "10"})};
+        const std::string message{invalidArgumentMessage(
+            {"vmc", "--num_particles", "16", "oops", "--box_length", "4", "--warmup_steps", "10"})};
         REQUIRE(message.find("Unexpected positional argument") != std::string::npos);
         REQUIRE(message.find("oops") != std::string::npos);
     }
@@ -183,15 +184,9 @@ TEST_CASE("parseArgs rejects empty invocation and invalid integer values", "[con
     }
 
     {
-        const std::string message{
-            invalidArgumentMessage({"vmc",
-                                    "--num_particles", "1.5",
-                                    "--box_length", "4",
-                                    "--warmup_steps", "10",
-                                    "--measure_steps", "100",
-                                    "--step_size", "0.25",
-                                    "--seed", "1",
-                                    "--block_size", "4"})};
+        const std::string message{invalidArgumentMessage({"vmc", "--num_particles", "1.5", "--box_length", "4",
+                                                          "--warmup_steps", "10", "--measure_steps", "100",
+                                                          "--step_size", "0.25", "--seed", "1", "--block_size", "4"})};
         REQUIRE(message.find("Invalid integer value") != std::string::npos);
         REQUIRE(message.find("--num_particles") != std::string::npos);
     }
@@ -199,67 +194,37 @@ TEST_CASE("parseArgs rejects empty invocation and invalid integer values", "[con
 
 TEST_CASE("parseArgs enforces runtime numeric constraints", "[config]") {
     {
-        const std::string message{
-            invalidArgumentMessage({"vmc",
-                                    "--num_particles", "0",
-                                    "--box_length", "4",
-                                    "--warmup_steps", "10",
-                                    "--measure_steps", "100",
-                                    "--step_size", "0.25",
-                                    "--seed", "1",
-                                    "--block_size", "4"})};
+        const std::string message{invalidArgumentMessage({"vmc", "--num_particles", "0", "--box_length", "4",
+                                                          "--warmup_steps", "10", "--measure_steps", "100",
+                                                          "--step_size", "0.25", "--seed", "1", "--block_size", "4"})};
         REQUIRE(message.find("--num_particles must be >= 1") != std::string::npos);
     }
 
     {
-        const std::string message{
-            invalidArgumentMessage({"vmc",
-                                    "--num_particles", "4",
-                                    "--box_length", "0",
-                                    "--warmup_steps", "10",
-                                    "--measure_steps", "100",
-                                    "--step_size", "0.25",
-                                    "--seed", "1",
-                                    "--block_size", "4"})};
+        const std::string message{invalidArgumentMessage({"vmc", "--num_particles", "4", "--box_length", "0",
+                                                          "--warmup_steps", "10", "--measure_steps", "100",
+                                                          "--step_size", "0.25", "--seed", "1", "--block_size", "4"})};
         REQUIRE(message.find("--box_length must be finite and > 0") != std::string::npos);
     }
 
     {
-        const std::string message{
-            invalidArgumentMessage({"vmc",
-                                    "--num_particles", "4",
-                                    "--box_length", "4",
-                                    "--warmup_steps", "10",
-                                    "--measure_steps", "0",
-                                    "--step_size", "0.25",
-                                    "--seed", "1",
-                                    "--block_size", "4"})};
+        const std::string message{invalidArgumentMessage({"vmc", "--num_particles", "4", "--box_length", "4",
+                                                          "--warmup_steps", "10", "--measure_steps", "0", "--step_size",
+                                                          "0.25", "--seed", "1", "--block_size", "4"})};
         REQUIRE(message.find("--measure_steps must be >= 1") != std::string::npos);
     }
 
     {
         const std::string message{
-            invalidArgumentMessage({"vmc",
-                                    "--num_particles", "4",
-                                    "--box_length", "4",
-                                    "--warmup_steps", "10",
-                                    "--measure_steps", "100",
-                                    "--step_size", "0",
-                                    "--seed", "1",
-                                    "--block_size", "4"})};
+            invalidArgumentMessage({"vmc", "--num_particles", "4", "--box_length", "4", "--warmup_steps", "10",
+                                    "--measure_steps", "100", "--step_size", "0", "--seed", "1", "--block_size", "4"})};
         REQUIRE(message.find("--step_size must be finite and > 0") != std::string::npos);
     }
 
     {
-        const std::string message{
-            invalidArgumentMessage({"vmc",
-                                    "--num_particles", "4",
-                                    "--box_length", "4",
-                                    "--warmup_steps", "10",
-                                    "--measure_steps", "100",
-                                    "--step_size", "0.25",
-                                    "--seed", "1",
-                                    "--block_size", "0"})};
+        const std::string message{invalidArgumentMessage({"vmc", "--num_particles", "4", "--box_length", "4",
+                                                          "--warmup_steps", "10", "--measure_steps", "100",
+                                                          "--step_size", "0.25", "--seed", "1", "--block_size", "0"})};
         REQUIRE(message.find("--block_size must be >= 1") != std::string::npos);
     }
 }
@@ -272,8 +237,13 @@ TEST_CASE("printUsage and printConfig include all expected fields", "[config]") 
     REQUIRE(usage.find("--block_size") != std::string::npos);
     REQUIRE(usage.find("Aliases:") != std::string::npos);
 
-    const Config cfg{
-        .num_particles = 12U, .box_length = 9.5, .warmup_steps = 30U, .measure_steps = 500U, .step_size = 0.2, .seed = 99U, .block_size = 25U};
+    const Config cfg{.num_particles = 12U,
+                     .box_length = 9.5,
+                     .warmup_steps = 30U,
+                     .measure_steps = 500U,
+                     .step_size = 0.2,
+                     .seed = 99U,
+                     .block_size = 25U};
     const std::string configText{captureStdout([&cfg] { printConfig(cfg); })};
     REQUIRE(configText.find("num_particles: 12") != std::string::npos);
     REQUIRE(configText.find("box_length: 9.5") != std::string::npos);

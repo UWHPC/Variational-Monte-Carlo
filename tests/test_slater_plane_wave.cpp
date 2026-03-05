@@ -173,16 +173,14 @@ TEST_CASE("Slater derivatives match analytic N=1 formulas", "[slater]") {
 
     slater.add_derivatives(particles, gradX.data(), gradY.data(), gradZ.data(), lap.data());
 
-    const double kdotr{
-        slater.k_vector_x_ptr()[0] * particles.pos_x_ptr()[0] +
-        slater.k_vector_y_ptr()[0] * particles.pos_y_ptr()[0] +
-        slater.k_vector_z_ptr()[0] * particles.pos_z_ptr()[0]};
+    const double kdotr{slater.k_vector_x_ptr()[0] * particles.pos_x_ptr()[0] +
+                       slater.k_vector_y_ptr()[0] * particles.pos_y_ptr()[0] +
+                       slater.k_vector_z_ptr()[0] * particles.pos_z_ptr()[0]};
 
     const double tangent{std::tan(kdotr)};
-    const double kSquared{
-        slater.k_vector_x_ptr()[0] * slater.k_vector_x_ptr()[0] +
-        slater.k_vector_y_ptr()[0] * slater.k_vector_y_ptr()[0] +
-        slater.k_vector_z_ptr()[0] * slater.k_vector_z_ptr()[0]};
+    const double kSquared{slater.k_vector_x_ptr()[0] * slater.k_vector_x_ptr()[0] +
+                          slater.k_vector_y_ptr()[0] * slater.k_vector_y_ptr()[0] +
+                          slater.k_vector_z_ptr()[0] * slater.k_vector_z_ptr()[0]};
 
     const double cosine{std::cos(kdotr)};
 
