@@ -165,22 +165,25 @@ TEST_CASE("Jastrow derivatives match finite-difference gradients and Laplacians"
     const double h{1e-5};
     const double valueCenter{jastrow.value(particles, pbc)};
 
-    const double dJdx{
-        (valueAtOffset(jastrow, particles, pbc, 0U, h, 0.0, 0.0) - valueAtOffset(jastrow, particles, pbc, 0U, -h, 0.0, 0.0)) / (2.0 * h)};
-    const double dJdy{
-        (valueAtOffset(jastrow, particles, pbc, 0U, 0.0, h, 0.0) - valueAtOffset(jastrow, particles, pbc, 0U, 0.0, -h, 0.0)) / (2.0 * h)};
-    const double dJdz{
-        (valueAtOffset(jastrow, particles, pbc, 0U, 0.0, 0.0, h) - valueAtOffset(jastrow, particles, pbc, 0U, 0.0, 0.0, -h)) / (2.0 * h)};
+    const double dJdx{(valueAtOffset(jastrow, particles, pbc, 0U, h, 0.0, 0.0) -
+                       valueAtOffset(jastrow, particles, pbc, 0U, -h, 0.0, 0.0)) /
+                      (2.0 * h)};
+    const double dJdy{(valueAtOffset(jastrow, particles, pbc, 0U, 0.0, h, 0.0) -
+                       valueAtOffset(jastrow, particles, pbc, 0U, 0.0, -h, 0.0)) /
+                      (2.0 * h)};
+    const double dJdz{(valueAtOffset(jastrow, particles, pbc, 0U, 0.0, 0.0, h) -
+                       valueAtOffset(jastrow, particles, pbc, 0U, 0.0, 0.0, -h)) /
+                      (2.0 * h)};
 
-    const double d2Jdx2{
-        (valueAtOffset(jastrow, particles, pbc, 0U, h, 0.0, 0.0) - 2.0 * valueCenter +
-         valueAtOffset(jastrow, particles, pbc, 0U, -h, 0.0, 0.0)) / (h * h)};
-    const double d2Jdy2{
-        (valueAtOffset(jastrow, particles, pbc, 0U, 0.0, h, 0.0) - 2.0 * valueCenter +
-         valueAtOffset(jastrow, particles, pbc, 0U, 0.0, -h, 0.0)) / (h * h)};
-    const double d2Jdz2{
-        (valueAtOffset(jastrow, particles, pbc, 0U, 0.0, 0.0, h) - 2.0 * valueCenter +
-         valueAtOffset(jastrow, particles, pbc, 0U, 0.0, 0.0, -h)) / (h * h)};
+    const double d2Jdx2{(valueAtOffset(jastrow, particles, pbc, 0U, h, 0.0, 0.0) - 2.0 * valueCenter +
+                         valueAtOffset(jastrow, particles, pbc, 0U, -h, 0.0, 0.0)) /
+                        (h * h)};
+    const double d2Jdy2{(valueAtOffset(jastrow, particles, pbc, 0U, 0.0, h, 0.0) - 2.0 * valueCenter +
+                         valueAtOffset(jastrow, particles, pbc, 0U, 0.0, -h, 0.0)) /
+                        (h * h)};
+    const double d2Jdz2{(valueAtOffset(jastrow, particles, pbc, 0U, 0.0, 0.0, h) - 2.0 * valueCenter +
+                         valueAtOffset(jastrow, particles, pbc, 0U, 0.0, 0.0, -h)) /
+                        (h * h)};
 
     requireNearJastrow(gradX[0], dJdx, 1e-7);
     requireNearJastrow(gradY[0], dJdy, 1e-7);
