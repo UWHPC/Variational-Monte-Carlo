@@ -2,9 +2,9 @@
 
 Simulation::Simulation(Config config) noexcept
     : config_{std::move(config)}, particles_{config_.num_particles}, pbc_{config_.box_length},
-      wave_function_{config_.num_particles, config_.box_length}, rng_{config_.seed},
-      proposal_{-config_.step_size, config_.step_size}, pick_particle_{0, config_.num_particles - 1}, proposed_{},
-      accepted_{}, log_psi_current_{} {}
+      wave_function_{config_.num_particles, config_.box_length}, proposed_{}, accepted_{}, log_psi_current_{},
+      rng_{config_.seed}, proposal_{-config_.step_size, config_.step_size},
+      pick_particle_{0, config_.num_particles - 1} {}
 
 /// @brief Intializes Random Positions for each particle, making sure to not exceed box length
 void Simulation::initialize_positions() {
