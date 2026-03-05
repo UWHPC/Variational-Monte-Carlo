@@ -120,14 +120,14 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
 
     // Build determinant matrix D
     for (std::size_t particle = 0; particle < N; ++particle) {
-        const double P_X{pos_x[particle]};
-        const double P_Y{pos_y[particle]};
-        const double P_Z{pos_z[particle]};
+        const double p_x{pos_x[particle]};
+        const double p_y{pos_y[particle]};
+        const double p_z{pos_z[particle]};
 
         for (std::size_t orbital = 0; orbital < N; ++orbital) {
-            const double K_DOT_R = k_x_comp[orbital] * P_X + k_y_comp[orbital] * P_Y + k_z_comp[orbital] * P_Z;
+            const double k_dot_r = k_x_comp[orbital] * p_x + k_y_comp[orbital] * p_y + k_z_comp[orbital] * p_z;
 
-            det_matrix[index(particle, orbital, N)] = std::cos(K_DOT_R);
+            det_matrix[index(particle, orbital, N)] = std::cos(k_dot_r);
         }
     }
 
@@ -177,16 +177,16 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
     const double* RESTRICT pos_y{particles.pos_y_get()};
     const double* RESTRICT pos_z{particles.pos_z_get()};
 
-    const double* RESTRICT K_X{k_vector_x_get()};
-    const double* RESTRICT K_Y{k_vector_y_get()};
-    const double* RESTRICT K_Z{k_vector_z_get()};
+    const double* RESTRICT k_x{k_vector_x_get()};
+    const double* RESTRICT k_y{k_vector_y_get()};
+    const double* RESTRICT k_z{k_vector_z_get()};
 
-    const double* RESTRICT INV_DET{inv_determinant_get()};
+    const double* RESTRICT inv_det{inv_determinant_get()};
 
     for (std::size_t particle = 0; particle < N; ++particle) {
-        const double P_X{pos_x[particle]};
-        const double P_Y{pos_y[particle]};
-        const double P_Z{pos_z[particle]};
+        const double p_x{pos_x[particle]};
+        const double p_y{pos_y[particle]};
+        const double p_z{pos_z[particle]};
 
         double d_Log_det_dx{}, d_Log_det_dy{}, d_Log_det_dz{};
 
@@ -194,39 +194,40 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
         double laplace_det_term{};
 
         for (std::size_t orbital = 0; orbital < N; ++orbital) {
-            const double K_X_ORBITAL{K_X[orbital]};
-            const double K_Y_ORBITAL{K_Y[orbital]};
-            const double K_Z_ORBITAL{K_Z[orbital]};
+            const double k_x_orbital{k_x[orbital]};
+            const double k_y_orbital{k_y[orbital]};
+            const double k_z_orbital{k_z[orbital]};
 
-            const double K_DOT_R{K_X_ORBITAL * P_X + K_Y_ORBITAL * P_Y + K_Z_ORBITAL * P_Z};
-            const double COS_TERM{std::cos(K_DOT_R)};
-            const double SIN_TERM{std::sin(K_DOT_R)};
+            const double k_dot_R{k_x_orbital * p_x + k_y_orbital * p_y + k_z_orbital * p_z};
+            const double cos_term{std::cos(k_dot_R)};
+            const double sin_term{std::sin(k_dot_R)};
             // D(particle,orbital) = cos(k·r)
             // ∇_particle D = -sin(k·r) * k
-            const double dD_dx{-SIN_TERM * K_X_ORBITAL};
-            const double dD_dy{-SIN_TERM * K_Y_ORBITAL};
-            const double dD_dz{-SIN_TERM * K_Z_ORBITAL};
+            const double dD_dx{-sin_term * k_x_orbital};
+            const double dD_dy{-sin_term * k_y_orbital};
+            const double dD_dz{-sin_term * k_z_orbital};
 
             // ∇^2 D = -cos(k·r) * |k|^2
-            const double K_SQ{K_X_ORBITAL * K_X_ORBITAL + K_Y_ORBITAL * K_Y_ORBITAL + K_Z_ORBITAL * K_Z_ORBITAL};
-            const double LAP_D{-COS_TERM * K_SQ};
-            // WEIGHT = (D^{-1})_{orbital,particle}
+            const double k_sq{k_x_orbital * k_x_orbital + k_y_orbital * k_y_orbital + k_z_orbital * k_z_orbital};
+            const double lap_D{-cos_term * k_sq};
+            // weight = (D^{-1})_{orbital,particle}
             // invD_ is row-major, so entry (row=orbital, col=particle):
-            const double WEIGHT{INV_DET[index(orbital, particle, N)]};
+            const double weight{inv_det[index(orbital, particle, N)]};
 
-            d_Log_det_dx += WEIGHT * dD_dx;
-            d_Log_det_dy += WEIGHT * dD_dy;
-            d_Log_det_dz += WEIGHT * dD_dz;
+            d_Log_det_dx += weight * dD_dx;
+            d_Log_det_dy += weight * dD_dy;
+            d_Log_det_dz += weight * dD_dz;
 
-            laplace_det_term += WEIGHT * LAP_D;
+            laplace_det_term += weight * lap_D;
         }
         // ∇^2 log det D = Σ_j (D^{-1})_{j,i} ∇^2 D_{i,j}  -  ||∇ log det D||^2
-        const double GRAD_SQ{d_Log_det_dx * d_Log_det_dx + d_Log_det_dy * d_Log_det_dy + d_Log_det_dz * d_Log_det_dz};
-        const double LAP_LOG_DET{laplace_det_term - GRAD_SQ};
+        const double grad_sq{d_Log_det_dx * d_Log_det_dx + d_Log_det_dy * d_Log_det_dy + d_Log_det_dz * d_Log_det_dz};
+        const double lap_log_det{laplace_det_term - grad_sq};
 
         grad_x[particle] += d_Log_det_dx;
         grad_y[particle] += d_Log_det_dy;
         grad_z[particle] += d_Log_det_dz;
-        laplacian[particle] += LAP_LOG_DET;
+
+        laplacian[particle] += lap_log_det;
     }
 }

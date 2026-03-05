@@ -3,7 +3,7 @@
 
 class EnergyTracker {
 private:
-  double kinetic_energy(const Particles& particles) const noexcept;
-  double potential_energy(const Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept;
-  double eval_total_energy(const Particles& p, const PeriodicBoundaryCondition& pbc) const noexcept;
+    double kinetic_energy(const Particles& particles) const noexcept;
+    double potential_energy(const Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept;
+    double eval_total_energy(const Particles& p, const PeriodicBoundaryCondition& pbc) const noexcept;
 };
