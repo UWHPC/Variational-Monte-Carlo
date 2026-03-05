@@ -182,7 +182,7 @@ void validate_config(const Config& config) {
     }
 }
 
-void print_usage(const char* program_name) {
+[[maybe_unused]] void print_usage(const char* program_name) {
     std::cout << "Usage:\n"
               << "  " << program_name
               << " --num_particles N --box_length L --warmup_steps W --measure_steps M --step_size S --seed R "
@@ -191,7 +191,7 @@ void print_usage(const char* program_name) {
               << "  --num-particles, --box-length, --warmup-steps, --measure-steps, --step-size, --block-size\n";
 }
 
-[[nodiscard]] Config parse_args(int argc, char** argv) {
+[[maybe_unused]] [[nodiscard]] Config parse_args(int argc, char** argv) {
     if (argc <= 1) {
         throw std::invalid_argument{"No arguments provided"};
     }
