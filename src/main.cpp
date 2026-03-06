@@ -1,7 +1,10 @@
 #include "config/config.hpp"
+#include "output_writer/output_writer.hpp"
 #include "simulation/simulation.hpp"
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
+    // auto writer = make_output_writer(OutputFormat::JSON, out_file);
+
     // Temporary local config while CLI parsing is disabled.
     const Config config{.num_particles = 16U,
                         .box_length = 4.5,
