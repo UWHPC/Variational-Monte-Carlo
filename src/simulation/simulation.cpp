@@ -111,8 +111,9 @@ void Simulation::warmup() {
 void Simulation::measure() {
     const std::size_t measure_steps{config_.measure_steps};
 
-    for (std::size_t i{}; i < measure_steps; i++) {
-        metropolis_step();
+    for (std::size_t i{}; i < measure_steps; ++i) {
+      proposed_++;
+      if (metropolis_step()) accepted_++;
     }
 
     return;
