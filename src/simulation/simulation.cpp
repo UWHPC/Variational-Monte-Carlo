@@ -1,10 +1,31 @@
 #include "simulation.hpp"
 
-Simulation::Simulation(Config config) noexcept
+#include <optional>
+#include <string>
+#include <utility>
+
+Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_writer) noexcept
     : config_{std::move(config)}, particles_{config_.num_particles}, pbc_{config_.box_length},
-      wave_function_{config_.num_particles, config_.box_length}, blocking_analysis_{config_.block_size}, proposed_{},
-      accepted_{}, log_psi_current_{}, rng_{config_.seed}, proposal_{-config_.step_size, config_.step_size},
-      pick_particle_{0, config_.num_particles - 1} {}
+      wave_function_{config_.num_particles, config_.box_length}, blocking_analysis_{config_.block_size},
+      output_writer_{std::move(output_writer)}, proposed_{}, accepted_{}, log_psi_current_{}, rng_{config_.seed},
+      proposal_{-config_.step_size, config_.step_size}, pick_particle_{0, config_.num_particles - 1} {}
+
+std::vector<double> Simulation::positions_snapshot() const {
+    const std::size_t N{particles_.num_particles_get()};
+    const double* RESTRICT p_x{particles_.pos_x_get()};
+    const double* RESTRICT p_y{particles_.pos_y_get()};
+    const double* RESTRICT p_z{particles_.pos_z_get()};
+
+    std::vector<double> positions{};
+    positions.reserve(N * 3U);
+
+    for (std::size_t i{}; i < N; ++i) {
+        positions.push_back(p_x[i]);
+        positions.push_back(p_y[i]);
+        positions.push_back(p_z[i]);
+    }
+    return positions;
+}
 
 double Simulation::kinetic_energy(const Particles& particles) const noexcept {
     const double* RESTRICT grad_x{particles.grad_log_psi_x_get()};
@@ -152,33 +173,90 @@ void Simulation::warmup() {
     }
 }
 
-void Simulation::measure() {
+Simulation::MeasurementSummary Simulation::measure() {
     const std::size_t measure_steps{config_.measure_steps};
 
     auto& wavefunction{wave_function_get()};
     auto& particles{particles_get()};
     auto& pbc{pbc_get()};
     auto& blocking_analysis{blocking_analysis_get()};
+    proposed_ = 0U;
+    accepted_ = 0U;
+
+    double running_energy_sum{};
+    double final_mean_energy{};
+    std::optional<double> final_standard_error{};
 
     for (std::size_t i = 0; i < measure_steps; ++i) {
-        metropolis_step();
+        ++proposed_;
+        if (metropolis_step()) {
+            ++accepted_;
+        }
+
         wavefunction.evaluate_derivatives(particles, pbc);
 
         const double E_local{eval_total_energy(particles, pbc)};
+        running_energy_sum += E_local;
         blocking_analysis.add(E_local);
+
+        const double running_mean{running_energy_sum / static_cast<double>(i + 1U)};
+        final_mean_energy = running_mean;
+
+        std::optional<double> frame_standard_error{};
+        if (blocking_analysis.ready()) {
+            const auto [blocked_mean, standard_error]{blocking_analysis.mean_and_standard_error()};
+            final_mean_energy = blocked_mean;
+            final_standard_error = standard_error;
+            frame_standard_error = standard_error;
+        }
+
+        if (output_writer_) {
+            output_writer_->write_frame(FrameData{.step = i + 1U,
+                                                  .accepted = accepted_,
+                                                  .proposed = proposed_,
+                                                  .acceptance_rate = acceptance_rate(),
+                                                  .local_energy = E_local,
+                                                  .mean_energy = running_mean,
+                                                  .standard_error = frame_standard_error,
+                                                  .positions = positions_snapshot()});
+        }
     }
 
-    if (blocking_analysis.ready()) {
+    if (!output_writer_ && blocking_analysis.ready()) {
         // Pair of the mean and standard deviation:
         const auto [mean, stand_error]{blocking_analysis.mean_and_standard_error()};
         std::cout << "Energy: " << mean << " +/- " << stand_error << std::endl;
     }
 
-    std::cout << "Acceptance Rate: " << acceptance_rate() << std::endl;
+    if (!output_writer_) {
+        std::cout << "Acceptance Rate: " << acceptance_rate() << std::endl;
+    }
+
+    return MeasurementSummary{.mean_energy = final_mean_energy, .standard_error = final_standard_error};
 }
 
 void Simulation::run() {
     initialize_positions();
+
+    if (output_writer_) {
+        output_writer_->write_init(InitData{.run_id = "vmc-seed-" + std::to_string(config_.seed),
+                                            .num_particles = config_.num_particles,
+                                            .box_length = config_.box_length,
+                                            .warmup_steps = config_.warmup_steps,
+                                            .measure_steps = config_.measure_steps,
+                                            .step_size = config_.step_size,
+                                            .seed = config_.seed,
+                                            .block_size = config_.block_size});
+    }
+
     warmup();
-    measure();
+    const MeasurementSummary summary{measure()};
+
+    if (output_writer_) {
+        output_writer_->write_done(DoneData{.total_accepted = accepted_,
+                                            .total_proposed = proposed_,
+                                            .final_acceptance_rate = acceptance_rate(),
+                                            .final_mean_energy = summary.mean_energy,
+                                            .final_standard_error = summary.standard_error});
+    }
 }

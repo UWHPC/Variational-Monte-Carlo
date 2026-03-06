@@ -2,11 +2,15 @@
 
 #include "../blocking_analysis/blocking_analysis.hpp"
 #include "../config/config.hpp"
+#include "../output_writer/output_writer.hpp"
 #include "../particles/particles.hpp"
 #include "../pbc/pbc.hpp"
 #include "../wavefunction/wavefunction.hpp"
 
+#include <memory>
+#include <optional>
 #include <random>
+#include <vector>
 
 class Simulation {
 private:
@@ -18,6 +22,7 @@ private:
     PeriodicBoundaryCondition pbc_;
     WaveFunction wave_function_;
     BlockingAnalysis blocking_analysis_;
+    std::unique_ptr<OutputWriter> output_writer_;
 
     // Physical quantities of sim:
     std::size_t proposed_;
@@ -50,11 +55,21 @@ private:
     [[nodiscard]] double log_psi_get() const { return log_psi_current_; }
 
     [[nodiscard]] double acceptance_rate() const {
+        if (proposed_ == 0U) {
+            return 0.0;
+        }
         return static_cast<double>(accepted_) / static_cast<double>(proposed_);
     }
 
+    struct MeasurementSummary {
+        double mean_energy;
+        std::optional<double> standard_error;
+    };
+
+    [[nodiscard]] std::vector<double> positions_snapshot() const;
+
 public:
-    explicit Simulation(Config cfg) noexcept;
+    explicit Simulation(Config cfg, std::unique_ptr<OutputWriter> output_writer = nullptr) noexcept;
     void run();
 
 private:
@@ -65,5 +80,5 @@ private:
     void initialize_positions();
     bool metropolis_step();
     void warmup();
-    void measure();
+    MeasurementSummary measure();
 };
