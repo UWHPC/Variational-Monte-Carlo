@@ -117,7 +117,7 @@ SlaterPlaneWave::SlaterPlaneWave(std::size_t num_particles, double box_lengthL)
     };
 
     // Increase vector size to be safe
-    const int N_MAX{static_cast<int>(N) + SIMD_BYTES};
+    const int N_MAX{static_cast<int>(N + SIMD_BYTES)};
     const std::size_t side{static_cast<std::size_t>((2 * N_MAX + 1))};
 
     // Vector for all possible n-vector candidates
