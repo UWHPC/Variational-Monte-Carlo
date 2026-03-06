@@ -1,0 +1,258 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg-0: #060a11;
+  --bg-1: #0d1522;
+  --panel: rgba(15, 24, 36, 0.9);
+  --panel-border: #25374d;
+  --text: #e2ebf9;
+  --text-muted: #95a7c2;
+  --accent: #58b8ff;
+  --accent-soft: #273d58;
+  --danger: #ff8585;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  color: var(--text);
+  font-family: 'Space Grotesk', 'Trebuchet MS', sans-serif;
+  background:
+    radial-gradient(circle at 8% 8%, rgba(36, 59, 86, 0.32), transparent 40%),
+    radial-gradient(circle at 84% 12%, rgba(25, 54, 82, 0.24), transparent 44%),
+    var(--bg-0);
+}
+
+button,
+input,
+select {
+  color: inherit;
+  font: inherit;
+}
+
+.app-root {
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+}
+
+.app-layout {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 14px;
+}
+
+.scene-panel {
+  min-height: 340px;
+  border-radius: 14px;
+  border: 1px solid var(--panel-border);
+  overflow: hidden;
+  background: linear-gradient(150deg, #0d1829, #0a121f 70%);
+}
+
+.canvas-shell {
+  width: 100%;
+  height: 100%;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.panel-card {
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: var(--panel);
+  backdrop-filter: blur(8px);
+  padding: 12px 14px;
+}
+
+.panel-title {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.metric-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.metric-label {
+  color: var(--text-muted);
+  font-size: 0.87rem;
+}
+
+.metric-value {
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.panel-divider {
+  height: 1px;
+  background: #233449;
+  margin: 12px 0;
+}
+
+.controls-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.control-btn {
+  border: 1px solid #31465f;
+  border-radius: 8px;
+  background: #142132;
+  padding: 7px 6px;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.control-btn:hover:not(:disabled) {
+  background: #1b2c42;
+  border-color: #40638f;
+}
+
+.control-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.slider-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.range-labels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.speed-row {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.label-muted {
+  color: var(--text-muted);
+  font-size: 0.87rem;
+}
+
+.speed-row select {
+  background: #142132;
+  border: 1px solid #31465f;
+  border-radius: 8px;
+  padding: 5px 10px;
+}
+
+.chart-panel {
+  min-height: 270px;
+}
+
+.chart-shell {
+  height: 230px;
+  width: 100%;
+}
+
+.loading-state,
+.error-state {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.state-card {
+  width: min(540px, 100%);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  padding: 20px;
+  background: var(--panel);
+  text-align: center;
+}
+
+.state-card-error {
+  border-color: #5f2d2d;
+}
+
+.state-title {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+}
+
+.state-text {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.action-btn {
+  margin-top: 14px;
+  border: 1px solid #3a5477;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.action-btn:hover {
+  border-color: #4d79ad;
+}
+
+@media (max-width: 1100px) {
+  .app-root {
+    padding: 10px;
+  }
+
+  .app-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(320px, 58vh) auto;
+    gap: 10px;
+  }
+
+  .sidebar {
+    overflow-y: visible;
+  }
+}
