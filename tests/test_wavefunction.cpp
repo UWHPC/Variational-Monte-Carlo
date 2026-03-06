@@ -71,5 +71,6 @@ TEST_CASE("WaveFunction evaluate_log_psi updates particle log_psi", "[wavefuncti
 
     const double expectedLogPsi{std::log(std::abs(std::cos(k_dot_r)))};
 
-    requireNearWave(particles.log_psi_get()[0], expectedLogPsi);
+    const double logPsi{waveFunction.evaluate_log_psi(particles, pbc)};
+    requireNearWave(logPsi, expectedLogPsi);
 }

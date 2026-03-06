@@ -19,12 +19,12 @@ In-Place LU with partial pivoting in LU (size N*N, row-major)
 pivot is length >= N storing row permutation indices
 return numbers of row swaps (parity info, if you need det sign).
 */
-int lowerUpperDecompose(double* lowerUpper, std::size_t* pivot, std::size_t N) {
+int lower_upper_decomp(double* lowerUpper, int* pivot, std::size_t N) {
     // Track row swaps
     int swapCount{};
 
     for (std::size_t row = 0; row < N; ++row)
-        pivot[row] = row;
+        pivot[row] = static_cast<int>(row);
 
     for (std::size_t col = 0; col < N; ++col) {
         // Pivot selection
@@ -72,11 +72,11 @@ solve (P^-1)LU x = b. given combined LU and pivot permutation piv.
 piv encodes the row permutation applied during LU so that
 we first permute b: y = P b, then solve L z = y, then U x = z.
 */
-void lowerUpperSolve(const double* LU, const std::size_t* pivot, const double* b, double* x, std::size_t N) {
+void solve_lower_upper(const double* LU, const int* pivot, const double* b, double* x, std::size_t N) {
     // Apply permutation: x = Pb
     // store y in x temporarily
     for (std::size_t row = 0; row < N; ++row) {
-        const std::size_t permRow{pivot[row]};
+        const std::size_t permRow{static_cast<std::size_t>(pivot[row])};
         x[row] = b[permRow];
     }
 
@@ -102,32 +102,70 @@ void lowerUpperSolve(const double* LU, const std::size_t* pivot, const double* b
 
 } // namespace
 
+SlaterPlaneWave::SlaterPlaneWave(std::size_t num_particles, double box_lengthL)
+    : num_orbitals_{num_particles}, matrix_size_{num_particles * num_particles}, box_length_{box_lengthL},
+      int_vectors_{num_particles, NUM_INT_VECTORS_}, double_vectors_{num_particles, NUM_DOUBLE_VECTORS_},
+      matrices_{num_particles * num_particles, NUM_MATRIX_} {
+
+    const std::size_t N{num_orbitals_get()};
+
+    int* RESTRICT n_x{n_vector_x_get()};
+    int* RESTRICT n_y{n_vector_y_get()};
+    int* RESTRICT n_z{n_vector_z_get()};
+
+    // Start at 1 since n[0] = (0,0,0):
+    // TODO: implement the algorithm to determine n
+    for (std::size_t i = 1; i < N; ++i) {
+        n_x[i] = 0;
+        n_y[i] = 0;
+        n_z[i] = 0;
+    }
+
+    double* RESTRICT k_x{k_vector_x_get()};
+    double* RESTRICT k_y{k_vector_y_get()};
+    double* RESTRICT k_z{k_vector_z_get()};
+
+    const double inv_L{1 / box_length_get()};
+
+    // Follows the calculation: K = (2pi/L) * n;
+    for (std::size_t i = 0; i < N; ++i) {
+        k_x[i] = 2 * std::numbers::pi * inv_L * static_cast<double>(n_x[i]);
+        k_y[i] = 2 * std::numbers::pi * inv_L * static_cast<double>(n_y[i]);
+        k_z[i] = 2 * std::numbers::pi * inv_L * static_cast<double>(n_z[i]);
+    }
+};
+
 double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     const std::size_t N{num_orbitals_get()};
+    const std::size_t padded_N{particles.padding_stride_get()};
 
     const double* pos_x{particles.pos_x_get()};
     const double* pos_y{particles.pos_y_get()};
     const double* pos_z{particles.pos_z_get()};
 
-    double* RESTRICT det_matrix{determinant_get()};
-    double* RESTRICT lower_upper_matrix{lower_upper_get()};
-    double* RESTRICT inv_det_matrix{inv_determinant_get()};
-    std::size_t* RESTRICT pivot_vector{pivot_get()};
-
     const double* k_x_comp{k_vector_x_get()};
     const double* k_y_comp{k_vector_y_get()};
     const double* k_z_comp{k_vector_z_get()};
 
+    double* RESTRICT det_matrix{determinant_get()};
+    double* RESTRICT lower_upper_matrix{lower_upper_get()};
+    double* RESTRICT inv_det_matrix{inv_determinant_get()};
+
+    int* RESTRICT pivot_vector{pivot_get()};
+
+    double* RESTRICT rhs{rhs_get()};
+    double* RESTRICT solution{solution_get()};
+
     // Build determinant matrix D
     for (std::size_t particle = 0; particle < N; ++particle) {
-        const double P_X{pos_x[particle]};
-        const double P_Y{pos_y[particle]};
-        const double P_Z{pos_z[particle]};
+        const double p_x{pos_x[particle]};
+        const double p_y{pos_y[particle]};
+        const double p_z{pos_z[particle]};
 
         for (std::size_t orbital = 0; orbital < N; ++orbital) {
-            const double K_DOT_R = k_x_comp[orbital] * P_X + k_y_comp[orbital] * P_Y + k_z_comp[orbital] * P_Z;
+            const double k_dot_r = k_x_comp[orbital] * p_x + k_y_comp[orbital] * p_y + k_z_comp[orbital] * p_z;
 
-            det_matrix[index(particle, orbital, N)] = std::cos(K_DOT_R);
+            det_matrix[index(particle, orbital, N)] = std::cos(k_dot_r);
         }
     }
 
@@ -135,38 +173,38 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     std::copy_n(det_matrix, N * N, lower_upper_matrix);
 
     // Perform LU decomposition
-    (void)lowerUpperDecompose(lower_upper_matrix, pivot_vector, N);
+    (void)lower_upper_decomp(lower_upper_matrix, pivot_vector, N);
 
     // Compute log|det(D)| = Σ log|U_ii|
-    double logAbsoluteDeterminant = 0.0;
+    double log_abs_det = 0.0;
 
     for (std::size_t diag = 0; diag < N; ++diag) {
-        const double Uii = lower_upper_matrix[index(diag, diag, N)];
+        const double U_ii = lower_upper_matrix[index(diag, diag, N)];
 
-        const double absUii = std::abs(Uii);
+        const double abs_U_ii = std::abs(U_ii);
 
-        if (absUii == 0.0 || !std::isfinite(absUii)) {
+        if (abs_U_ii == 0.0 || !std::isfinite(abs_U_ii)) {
             return -std::numeric_limits<double>::infinity();
         }
 
-        logAbsoluteDeterminant += std::log(absUii);
+        log_abs_det += std::log(abs_U_ii);
     }
 
-    std::vector<double> rhs(N);
-    std::vector<double> solution(N);
-
     for (std::size_t column = 0; column < N; ++column) {
-        std::fill(rhs.begin(), rhs.end(), 0.0);
+        // Using pointer arithmetic to start at rhs[start]
+        // and jump to rhs[end] - used padded_N since
+        // SIMD alignment might mess up pointer math
+        std::fill(rhs, rhs + padded_N, 0.0);
         rhs[column] = 1.0;
 
-        lowerUpperSolve(lower_upper_matrix, pivot_vector, rhs.data(), solution.data(), N);
+        solve_lower_upper(lower_upper_matrix, pivot_vector, rhs, solution, N);
 
         for (std::size_t row = 0; row < N; ++row) {
             inv_det_matrix[index(row, column, N)] = solution[row];
         }
     }
 
-    return logAbsoluteDeterminant;
+    return log_abs_det;
 }
 
 void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRICT grad_x, double* RESTRICT grad_y,
@@ -177,16 +215,16 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
     const double* RESTRICT pos_y{particles.pos_y_get()};
     const double* RESTRICT pos_z{particles.pos_z_get()};
 
-    const double* RESTRICT K_X{k_vector_x_get()};
-    const double* RESTRICT K_Y{k_vector_y_get()};
-    const double* RESTRICT K_Z{k_vector_z_get()};
+    const double* RESTRICT k_x{k_vector_x_get()};
+    const double* RESTRICT k_y{k_vector_y_get()};
+    const double* RESTRICT k_z{k_vector_z_get()};
 
-    const double* RESTRICT INV_DET{inv_determinant_get()};
+    const double* RESTRICT inv_det{inv_determinant_get()};
 
     for (std::size_t particle = 0; particle < N; ++particle) {
-        const double P_X{pos_x[particle]};
-        const double P_Y{pos_y[particle]};
-        const double P_Z{pos_z[particle]};
+        const double p_x{pos_x[particle]};
+        const double p_y{pos_y[particle]};
+        const double p_z{pos_z[particle]};
 
         double d_Log_det_dx{}, d_Log_det_dy{}, d_Log_det_dz{};
 
@@ -194,39 +232,40 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
         double laplace_det_term{};
 
         for (std::size_t orbital = 0; orbital < N; ++orbital) {
-            const double K_X_ORBITAL{K_X[orbital]};
-            const double K_Y_ORBITAL{K_Y[orbital]};
-            const double K_Z_ORBITAL{K_Z[orbital]};
+            const double k_x_orbital{k_x[orbital]};
+            const double k_y_orbital{k_y[orbital]};
+            const double k_z_orbital{k_z[orbital]};
 
-            const double K_DOT_R{K_X_ORBITAL * P_X + K_Y_ORBITAL * P_Y + K_Z_ORBITAL * P_Z};
-            const double COS_TERM{std::cos(K_DOT_R)};
-            const double SIN_TERM{std::sin(K_DOT_R)};
+            const double k_dot_R{k_x_orbital * p_x + k_y_orbital * p_y + k_z_orbital * p_z};
+            const double cos_term{std::cos(k_dot_R)};
+            const double sin_term{std::sin(k_dot_R)};
             // D(particle,orbital) = cos(k·r)
             // ∇_particle D = -sin(k·r) * k
-            const double dD_dx{-SIN_TERM * K_X_ORBITAL};
-            const double dD_dy{-SIN_TERM * K_Y_ORBITAL};
-            const double dD_dz{-SIN_TERM * K_Z_ORBITAL};
+            const double dD_dx{-sin_term * k_x_orbital};
+            const double dD_dy{-sin_term * k_y_orbital};
+            const double dD_dz{-sin_term * k_z_orbital};
 
             // ∇^2 D = -cos(k·r) * |k|^2
-            const double K_SQ{K_X_ORBITAL * K_X_ORBITAL + K_Y_ORBITAL * K_Y_ORBITAL + K_Z_ORBITAL * K_Z_ORBITAL};
-            const double LAP_D{-COS_TERM * K_SQ};
-            // WEIGHT = (D^{-1})_{orbital,particle}
+            const double k_sq{k_x_orbital * k_x_orbital + k_y_orbital * k_y_orbital + k_z_orbital * k_z_orbital};
+            const double lap_D{-cos_term * k_sq};
+            // weight = (D^{-1})_{orbital,particle}
             // invD_ is row-major, so entry (row=orbital, col=particle):
-            const double WEIGHT{INV_DET[index(orbital, particle, N)]};
+            const double weight{inv_det[index(orbital, particle, N)]};
 
-            d_Log_det_dx += WEIGHT * dD_dx;
-            d_Log_det_dy += WEIGHT * dD_dy;
-            d_Log_det_dz += WEIGHT * dD_dz;
+            d_Log_det_dx += weight * dD_dx;
+            d_Log_det_dy += weight * dD_dy;
+            d_Log_det_dz += weight * dD_dz;
 
-            laplace_det_term += WEIGHT * LAP_D;
+            laplace_det_term += weight * lap_D;
         }
         // ∇^2 log det D = Σ_j (D^{-1})_{j,i} ∇^2 D_{i,j}  -  ||∇ log det D||^2
-        const double GRAD_SQ{d_Log_det_dx * d_Log_det_dx + d_Log_det_dy * d_Log_det_dy + d_Log_det_dz * d_Log_det_dz};
-        const double LAP_LOG_DET{laplace_det_term - GRAD_SQ};
+        const double grad_sq{d_Log_det_dx * d_Log_det_dx + d_Log_det_dy * d_Log_det_dy + d_Log_det_dz * d_Log_det_dz};
+        const double lap_log_det{laplace_det_term - grad_sq};
 
         grad_x[particle] += d_Log_det_dx;
         grad_y[particle] += d_Log_det_dy;
         grad_z[particle] += d_Log_det_dz;
-        laplacian[particle] += LAP_LOG_DET;
+
+        laplacian[particle] += lap_log_det;
     }
 }

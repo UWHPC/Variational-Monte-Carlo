@@ -6,10 +6,10 @@ PeriodicBoundaryCondition::PeriodicBoundaryCondition(double L) noexcept : L_{L},
 
 double PeriodicBoundaryCondition::wrap(double x) const noexcept {
     const double L{L_get()};
-    const double INV_L{inv_L_get()};
+    const double inv_L{inv_L_get()};
 
     // floor of x / L. done this way to avoid dividing by L
-    const double K{std::floor(x * INV_L)};
+    const double K{std::floor(x * inv_L)};
 
     x -= K * L;
 
@@ -33,10 +33,10 @@ void PeriodicBoundaryCondition::wrap3(double& x, double& y, double& z) const noe
 
 double PeriodicBoundaryCondition::min_image(double dx) const noexcept {
     const double L{L_get()};
-    const double INV_L{inv_L_get()};
+    const double inv_L{inv_L_get()};
 
     // dx -= L * round(dx / L)
-    dx -= L * std::round(dx * INV_L);
+    dx -= L * std::round(dx * inv_L);
 
     // handle edge cases, ensure (-L/2, L/2]
     const double HALF_L{0.5 * L};

@@ -1,19 +1,18 @@
 #include "config/config.hpp"
 #include "simulation/simulation.hpp"
 
-int main(int argc, char** argv) {
-    try {
-        const Config config{parse_args(argc, argv)};
-        Simulation sim{config};
-        sim.run();
-        return 0;
-    } catch (const HelpRequested&) {
-        // TODO: make the help section better (and different than usage)
-        print_usage(argv[0]);
-        return 0;
-    } catch (const std::exception& ex) {
-        std::cerr << "Argument parsing error: " << ex.what() << '\n';
-        print_usage(argv[0]);
-        return 1;
-    }
+int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
+    // Temporary local config while CLI parsing is disabled.
+    const Config config{.num_particles = 16U,
+                        .box_length = 4.5,
+                        .warmup_steps = 50U,
+                        .measure_steps = 200U,
+                        .step_size = 0.25,
+                        .seed = 12345U,
+                        .block_size = 20U};
+
+    // const Config config{parse_args(argc, argv)};
+    Simulation sim{config};
+    sim.run();
+    return 0;
 }

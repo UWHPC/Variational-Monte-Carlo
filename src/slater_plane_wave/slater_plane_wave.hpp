@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdlib>
+#include <numbers>
 
 class SlaterPlaneWave {
 private:
@@ -13,22 +14,20 @@ private:
     std::size_t matrix_size_;
     double box_length_;
 
-    // All vectors:
-    enum VectorIndex : std::size_t { K_X_, K_Y_, K_Z_, NUM_VECTORS_ };
-    AlignedSoA<double> vectors_;
+    // Int vectors:
+    enum PivotIndex : std::size_t { N_X_, N_Y_, N_Z_, PIVOT_, NUM_INT_VECTORS_ };
+    AlignedSoA<int> int_vectors_;
 
-    // Pivot:
-    enum PivotIndex : std::size_t { PIVOT_, NUM_PIVOT_ };
-    AlignedSoA<std::size_t> pivot_;
+    // Double vectors:
+    enum VectorIndex : std::size_t { K_X_, K_Y_, K_Z_, RHS_, SOLUTION_, NUM_DOUBLE_VECTORS_ };
+    AlignedSoA<double> double_vectors_;
 
     // All matrices:
     enum MatrixIndex : std::size_t { D_, INV_D_, LU_, NUM_MATRIX_ };
     AlignedSoA<double> matrices_;
 
 public:
-    explicit SlaterPlaneWave(std::size_t N, double L)
-        : num_orbitals_{N}, matrix_size_{N * N}, box_length_{L}, vectors_{N, NUM_VECTORS_}, pivot_{N, NUM_PIVOT_},
-          matrices_{N * N, NUM_MATRIX_} {};
+    explicit SlaterPlaneWave(std::size_t num_particles, double box_length);
 
     // Getters:
     // Num orbitals - N
@@ -53,20 +52,40 @@ public:
     [[nodiscard]] double const* lower_upper_get() const noexcept { return matrices_[LU_]; }
 
     // Pivot matrix
-    [[nodiscard]] std::size_t* pivot_get() noexcept { return pivot_[PIVOT_]; }
-    [[nodiscard]] std::size_t const* pivot_get() const noexcept { return pivot_[PIVOT_]; }
+    [[nodiscard]] int* pivot_get() noexcept { return int_vectors_[PIVOT_]; }
+    [[nodiscard]] int const* pivot_get() const noexcept { return int_vectors_[PIVOT_]; }
+
+    // X component of n
+    [[nodiscard]] int* n_vector_x_get() noexcept { return int_vectors_[N_X_]; }
+    [[nodiscard]] int const* n_vector_x_get() const noexcept { return int_vectors_[N_X_]; }
+
+    // Y component of n
+    [[nodiscard]] int* n_vector_y_get() noexcept { return int_vectors_[N_Y_]; }
+    [[nodiscard]] int const* n_vector_y_get() const noexcept { return int_vectors_[N_Y_]; }
+
+    // Z component of n
+    [[nodiscard]] int* n_vector_z_get() noexcept { return int_vectors_[N_Z_]; }
+    [[nodiscard]] int const* n_vector_z_get() const noexcept { return int_vectors_[N_Z_]; }
+
+    // Solution vector:
+    [[nodiscard]] double* solution_get() noexcept { return double_vectors_[SOLUTION_]; }
+    [[nodiscard]] double const* solution_get() const noexcept { return double_vectors_[SOLUTION_]; }
+
+    // RHS vector:
+    [[nodiscard]] double* rhs_get() noexcept { return double_vectors_[RHS_]; }
+    [[nodiscard]] double const* rhs_get() const noexcept { return double_vectors_[RHS_]; }
 
     // X component of k
-    [[nodiscard]] double* k_vector_x_get() noexcept { return vectors_[K_X_]; }
-    [[nodiscard]] double const* k_vector_x_get() const noexcept { return vectors_[K_X_]; }
+    [[nodiscard]] double* k_vector_x_get() noexcept { return double_vectors_[K_X_]; }
+    [[nodiscard]] double const* k_vector_x_get() const noexcept { return double_vectors_[K_X_]; }
 
     // Y component of k
-    [[nodiscard]] double* k_vector_y_get() noexcept { return vectors_[K_Y_]; }
-    [[nodiscard]] double const* k_vector_y_get() const noexcept { return vectors_[K_Y_]; }
+    [[nodiscard]] double* k_vector_y_get() noexcept { return double_vectors_[K_Y_]; }
+    [[nodiscard]] double const* k_vector_y_get() const noexcept { return double_vectors_[K_Y_]; }
 
     // Z component of k
-    [[nodiscard]] double* k_vector_z_get() noexcept { return vectors_[K_Z_]; }
-    [[nodiscard]] double const* k_vector_z_get() const noexcept { return vectors_[K_Z_]; }
+    [[nodiscard]] double* k_vector_z_get() noexcept { return double_vectors_[K_Z_]; }
+    [[nodiscard]] double const* k_vector_z_get() const noexcept { return double_vectors_[K_Z_]; }
 
     // Computes log|det(D)| and updates internal cached inverse/LU.
     [[nodiscard]] double log_abs_det(const Particles& particles);

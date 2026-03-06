@@ -32,7 +32,7 @@ public:
         const std::size_t total_bytes{total_elements * sizeof(T)};
 
         // Allocate aligned bytes and check:
-        T* ptr{static_cast<T*>(alignedAlloc(alignment_bytes, total_bytes))};
+        T* ptr{static_cast<T*>(AlignedAlloc(alignment_bytes, total_bytes))};
         if (!ptr)
             throw std::bad_alloc();
 
