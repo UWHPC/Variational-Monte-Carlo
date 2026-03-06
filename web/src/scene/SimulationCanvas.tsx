@@ -37,7 +37,7 @@ export function SimulationCanvas({
         }}
         gl={{ antialias: true }}
       >
-        <color attach="background" args={['#090e16']} />
+        <color attach="background" args={['#0b0d11']} />
         <ambientLight intensity={0.46} />
         <directionalLight
           position={[boxLength * 1.2, boxLength * 1.8, boxLength * 0.9]}

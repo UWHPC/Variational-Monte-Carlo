@@ -1,10 +1,9 @@
 import { useMemo } from 'react';
 import {
-  Area,
   CartesianGrid,
-  ComposedChart,
   Legend,
   Line,
+  LineChart,
   ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
@@ -45,48 +44,26 @@ export function EnergyChart({ frames, currentFrameIndex }: EnergyChartProps) {
       <h2 className="panel-title">Energy History</h2>
       <div className="chart-shell">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart
-            data={data}
-            margin={{ top: 8, right: 12, left: 8, bottom: 8 }}
-          >
-            <defs>
-              <linearGradient id="localStrokeGradient" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#2db9ff" />
-                <stop offset="100%" stopColor="#8ed6ff" />
-              </linearGradient>
-              <linearGradient id="meanStrokeGradient" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#59e6b0" />
-                <stop offset="100%" stopColor="#b8f7de" />
-              </linearGradient>
-              <linearGradient id="localAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#57b8ff" stopOpacity={0.24} />
-                <stop offset="100%" stopColor="#57b8ff" stopOpacity={0.02} />
-              </linearGradient>
-              <linearGradient id="meanAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#7de0b2" stopOpacity={0.18} />
-                <stop offset="100%" stopColor="#7de0b2" stopOpacity={0.01} />
-              </linearGradient>
-            </defs>
-
-            <CartesianGrid strokeDasharray="2 4" stroke="#253749" />
+          <LineChart data={data} margin={{ top: 8, right: 12, left: 8, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1b222c" />
             <XAxis
               dataKey="step"
-              tick={{ fill: '#93a4bd', fontSize: 11 }}
-              axisLine={{ stroke: '#334861' }}
-              tickLine={{ stroke: '#334861' }}
+              tick={{ fill: '#858c99', fontSize: 11 }}
+              axisLine={{ stroke: '#252d39' }}
+              tickLine={{ stroke: '#252d39' }}
             />
             <YAxis
-              tick={{ fill: '#93a4bd', fontSize: 11 }}
-              axisLine={{ stroke: '#334861' }}
-              tickLine={{ stroke: '#334861' }}
+              tick={{ fill: '#858c99', fontSize: 11 }}
+              axisLine={{ stroke: '#252d39' }}
+              tickLine={{ stroke: '#252d39' }}
               domain={['auto', 'auto']}
             />
             <Tooltip
-              cursor={{ stroke: '#9fb5d8', strokeOpacity: 0.45, strokeWidth: 1 }}
+              cursor={{ stroke: '#5d6674', strokeOpacity: 0.6, strokeWidth: 1 }}
               contentStyle={{
-                backgroundColor: '#0f1725',
-                border: '1px solid #355070',
-                borderRadius: 8,
+                backgroundColor: '#0b0d11',
+                border: '1px solid #252d39',
+                borderRadius: 6,
               }}
               formatter={(value: unknown, name: string) => {
                 const numericValue =
@@ -101,14 +78,14 @@ export function EnergyChart({ frames, currentFrameIndex }: EnergyChartProps) {
               formatter={(value: string) =>
                 value === 'localEnergy' ? 'Local Energy' : 'Running Mean'
               }
-              wrapperStyle={{ color: '#d3deed', fontSize: 12 }}
+              wrapperStyle={{ color: '#bfc6d1', fontSize: 11 }}
             />
             {Number.isFinite(currentStep) ? (
               <ReferenceLine
                 x={currentStep}
-                stroke="#ffd56a"
-                strokeWidth={2}
-                strokeDasharray="6 4"
+                stroke="#b8a368"
+                strokeWidth={1.5}
+                strokeDasharray="4 4"
               />
             ) : null}
             {currentPoint ? (
@@ -116,54 +93,36 @@ export function EnergyChart({ frames, currentFrameIndex }: EnergyChartProps) {
                 <ReferenceDot
                   x={currentPoint.step}
                   y={currentPoint.localEnergy}
-                  r={4}
-                  fill="#56b5ff"
-                  stroke="#d6ebff"
-                  strokeWidth={1.5}
+                  r={3}
+                  fill="#57b8ff"
+                  stroke="none"
                 />
                 <ReferenceDot
                   x={currentPoint.step}
                   y={currentPoint.meanEnergy}
-                  r={4}
-                  fill="#7de0b2"
-                  stroke="#d8ffec"
-                  strokeWidth={1.5}
+                  r={3}
+                  fill="#74d1a7"
+                  stroke="none"
                 />
               </>
             ) : null}
-            <Area
-              type="monotone"
-              dataKey="localEnergy"
-              fill="url(#localAreaGradient)"
-              stroke="none"
-              isAnimationActive={false}
-            />
-            <Area
-              type="monotone"
-              dataKey="meanEnergy"
-              fill="url(#meanAreaGradient)"
-              stroke="none"
-              isAnimationActive={false}
-            />
             <Line
               type="monotone"
               dataKey="localEnergy"
-              stroke="url(#localStrokeGradient)"
-              strokeWidth={2}
+              stroke="#57b8ff"
+              strokeWidth={1.9}
               dot={false}
-              activeDot={{ r: 3, strokeWidth: 0, fill: '#8ed6ff' }}
               isAnimationActive={false}
             />
             <Line
               type="monotone"
               dataKey="meanEnergy"
-              stroke="url(#meanStrokeGradient)"
-              strokeWidth={2}
+              stroke="#74d1a7"
+              strokeWidth={1.9}
               dot={false}
-              activeDot={{ r: 3, strokeWidth: 0, fill: '#b8f7de' }}
               isAnimationActive={false}
             />
-          </ComposedChart>
+          </LineChart>
         </ResponsiveContainer>
       </div>
     </section>
