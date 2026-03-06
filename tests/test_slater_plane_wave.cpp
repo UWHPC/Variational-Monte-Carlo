@@ -6,6 +6,7 @@
 
 #include <cmath>
 #include <numbers>
+#include <tuple>
 #include <vector>
 
 namespace {
@@ -200,4 +201,81 @@ TEST_CASE("Slater derivatives match analytic N=1 formulas", "[slater]") {
         requireNearSlater(gradZ[i], 2.0);
         requireNearSlater(lap[i], -3.0);
     }
+}
+
+// ── Shell-filling tests ──
+
+TEST_CASE("Shell filling produces (0,0,0) as the first n-vector", "[slater]") {
+    SlaterPlaneWave slater{1U, 5.0};
+
+    REQUIRE(slater.n_vector_x_get()[0] == 0);
+    REQUIRE(slater.n_vector_y_get()[0] == 0);
+    REQUIRE(slater.n_vector_z_get()[0] == 0);
+}
+
+TEST_CASE("Shell filling for N=7 produces the correct closed shell", "[slater]") {
+    SlaterPlaneWave slater{7U, 10.0};
+
+    const int* n_x{slater.n_vector_x_get()};
+    const int* n_y{slater.n_vector_y_get()};
+    const int* n_z{slater.n_vector_z_get()};
+
+    REQUIRE(n_x[0] == 0);
+    REQUIRE(n_y[0] == 0);
+    REQUIRE(n_z[0] == 0);
+
+    for (std::size_t i = 1; i < 7; ++i) {
+        const int mag_sq{n_x[i] * n_x[i] + n_y[i] * n_y[i] + n_z[i] * n_z[i]};
+        REQUIRE(mag_sq == 1);
+    }
+}
+
+TEST_CASE("Shell filling sorts by magnitude then lexicographically", "[slater]") {
+    SlaterPlaneWave slater{7U, 10.0};
+
+    const int* n_x{slater.n_vector_x_get()};
+    const int* n_y{slater.n_vector_y_get()};
+    const int* n_z{slater.n_vector_z_get()};
+
+    for (std::size_t i = 0; i + 1 < 7; ++i) {
+        const int mag_sq_a{n_x[i] * n_x[i] + n_y[i] * n_y[i] + n_z[i] * n_z[i]};
+        const int mag_sq_b{n_x[i + 1] * n_x[i + 1] + n_y[i + 1] * n_y[i + 1] + n_z[i + 1] * n_z[i + 1]};
+
+        const bool magnitude_ok{mag_sq_a <= mag_sq_b};
+        REQUIRE(magnitude_ok);
+
+        if (mag_sq_a == mag_sq_b) {
+            const bool lex_ok{std::tie(n_x[i], n_y[i], n_z[i]) <= std::tie(n_x[i + 1], n_y[i + 1], n_z[i + 1])};
+            REQUIRE(lex_ok);
+        }
+    }
+}
+
+TEST_CASE("Shell filling k-vectors match 2pi/L times n-vectors", "[slater]") {
+    constexpr std::size_t N{7U};
+    constexpr double L{8.0};
+    SlaterPlaneWave slater{N, L};
+
+    const double TWO_PI_OVER_L{2.0 * std::numbers::pi / L};
+
+    for (std::size_t i = 0; i < N; ++i) {
+        requireNearSlater(slater.k_vector_x_get()[i], TWO_PI_OVER_L * static_cast<double>(slater.n_vector_x_get()[i]));
+        requireNearSlater(slater.k_vector_y_get()[i], TWO_PI_OVER_L * static_cast<double>(slater.n_vector_y_get()[i]));
+        requireNearSlater(slater.k_vector_z_get()[i], TWO_PI_OVER_L * static_cast<double>(slater.n_vector_z_get()[i]));
+    }
+}
+
+TEST_CASE("Shell filling for N=7 gives a non-singular Slater determinant", "[slater]") {
+    constexpr std::size_t N{7U};
+    SlaterPlaneWave slater{N, 10.0};
+    Particles particles{N};
+
+    for (std::size_t i = 0; i < N; ++i) {
+        particles.pos_x_get()[i] = static_cast<double>(i) * 1.3;
+        particles.pos_y_get()[i] = static_cast<double>(i) * 0.7;
+        particles.pos_z_get()[i] = static_cast<double>(i) * 0.9;
+    }
+
+    const double logDet{slater.log_abs_det(particles)};
+    REQUIRE(std::isfinite(logDet));
 }

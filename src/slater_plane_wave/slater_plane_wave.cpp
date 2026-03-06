@@ -109,16 +109,54 @@ SlaterPlaneWave::SlaterPlaneWave(std::size_t num_particles, double box_lengthL)
 
     const std::size_t N{num_orbitals_get()};
 
+    struct nVectorCandidate {
+        int n_cand_x;
+        int n_cand_y;
+        int n_cand_z;
+        int n_mag_sq;
+    };
+
+    // Increase vector size to be safe
+    const int N_MAX{static_cast<int>(N) + SIMD_BYTES};
+    const std::size_t side{static_cast<std::size_t>((2 * N_MAX + 1))};
+
+    // Vector for all possible n-vector candidates
+    std::vector<nVectorCandidate> n_candidates{};
+    n_candidates.reserve(side * side * side);
+
+    // Fill candidate vector with all possible states from [-N, N]
+    for (int new_x = -N_MAX; new_x <= N_MAX; ++new_x) {
+        for (int new_y = -N_MAX; new_y <= N_MAX; ++new_y) {
+            for (int new_z = -N_MAX; new_z <= N_MAX; ++new_z) {
+                const int new_mag_sq{new_x * new_x + new_y * new_y + new_z * new_z};
+                n_candidates.emplace_back(new_x, new_y, new_z, new_mag_sq);
+            }
+        }
+    }
+
+    // Sort n-vector states to go from smallest magnitude to largest
+    std::sort(n_candidates.begin(), n_candidates.end(), [](const nVectorCandidate& a, const nVectorCandidate& b) {
+        if (a.n_mag_sq != b.n_mag_sq) {
+            return a.n_mag_sq < b.n_mag_sq;
+        }
+        if (a.n_cand_x != b.n_cand_x) {
+            return a.n_cand_x < b.n_cand_x;
+        }
+        if (a.n_cand_y != b.n_cand_y) {
+            return a.n_cand_y < b.n_cand_y;
+        }
+        return a.n_cand_z < b.n_cand_z;
+    });
+
     int* RESTRICT n_x{n_vector_x_get()};
     int* RESTRICT n_y{n_vector_y_get()};
     int* RESTRICT n_z{n_vector_z_get()};
 
-    // Start at 1 since n[0] = (0,0,0):
-    // TODO: implement the algorithm to determine n
-    for (std::size_t i = 1; i < N; ++i) {
-        n_x[i] = 0;
-        n_y[i] = 0;
-        n_z[i] = 0;
+    // Fill n-vector with smallest magnitude states
+    for (std::size_t i = 0; i < N; ++i) {
+        n_x[i] = n_candidates[i].n_cand_x;
+        n_y[i] = n_candidates[i].n_cand_y;
+        n_z[i] = n_candidates[i].n_cand_z;
     }
 
     double* RESTRICT k_x{k_vector_x_get()};
