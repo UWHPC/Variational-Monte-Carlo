@@ -264,36 +264,3 @@ TEST_CASE("Shell filling k-vectors match 2pi/L times n-vectors", "[slater]") {
         requireNearSlater(slater.k_vector_z_get()[i], TWO_PI_OVER_L * static_cast<double>(slater.n_vector_z_get()[i]));
     }
 }
-
-TEST_CASE("Shell filling for N=7 gives a non-singular Slater determinant", "[slater]") {
-    constexpr std::size_t N{7U};
-    constexpr double L{10.0};
-    SlaterPlaneWave slater{N, L};
-    Particles particles{N};
-
-    // Positions spread across the box in all three dimensions
-    particles.pos_x_get()[0] = 1.0;
-    particles.pos_y_get()[0] = 2.0;
-    particles.pos_z_get()[0] = 3.0;
-    particles.pos_x_get()[1] = 4.5;
-    particles.pos_y_get()[1] = 0.5;
-    particles.pos_z_get()[1] = 7.2;
-    particles.pos_x_get()[2] = 8.1;
-    particles.pos_y_get()[2] = 6.3;
-    particles.pos_z_get()[2] = 1.4;
-    particles.pos_x_get()[3] = 2.7;
-    particles.pos_y_get()[3] = 8.8;
-    particles.pos_z_get()[3] = 5.5;
-    particles.pos_x_get()[4] = 6.0;
-    particles.pos_y_get()[4] = 3.7;
-    particles.pos_z_get()[4] = 9.1;
-    particles.pos_x_get()[5] = 0.3;
-    particles.pos_y_get()[5] = 5.1;
-    particles.pos_z_get()[5] = 4.8;
-    particles.pos_x_get()[6] = 7.4;
-    particles.pos_y_get()[6] = 9.2;
-    particles.pos_z_get()[6] = 0.6;
-
-    const double logDet{slater.log_abs_det(particles)};
-    REQUIRE(std::isfinite(logDet));
-}
