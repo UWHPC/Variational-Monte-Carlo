@@ -19,7 +19,7 @@ In-Place LU with partial pivoting in LU (size N*N, row-major)
 pivot is length >= N storing row permutation indices
 return numbers of row swaps (parity info, if you need det sign).
 */
-int lowerUpperDecompose(double* lowerUpper, int* pivot, std::size_t N) {
+int lower_upper_decomp(double* lowerUpper, int* pivot, std::size_t N) {
     // Track row swaps
     int swapCount{};
 
@@ -72,7 +72,7 @@ solve (P^-1)LU x = b. given combined LU and pivot permutation piv.
 piv encodes the row permutation applied during LU so that
 we first permute b: y = P b, then solve L z = y, then U x = z.
 */
-void lowerUpperSolve(const double* LU, const int* pivot, const double* b, double* x, std::size_t N) {
+void solve_lower_upper(const double* LU, const int* pivot, const double* b, double* x, std::size_t N) {
     // Apply permutation: x = Pb
     // store y in x temporarily
     for (std::size_t row = 0; row < N; ++row) {
@@ -104,7 +104,7 @@ void lowerUpperSolve(const double* LU, const int* pivot, const double* b, double
 
 SlaterPlaneWave::SlaterPlaneWave(std::size_t num_particles, double box_lengthL)
     : num_orbitals_{num_particles}, matrix_size_{num_particles * num_particles}, box_length_{box_lengthL},
-      int_vectors_{num_particles, NUM_INT_VECTORS_}, k_vector_{num_particles, NUM_K_VECTORS_},
+      int_vectors_{num_particles, NUM_INT_VECTORS_}, double_vectors_{num_particles, NUM_DOUBLE_VECTORS_},
       matrices_{num_particles * num_particles, NUM_MATRIX_} {
 
     const std::size_t N{num_orbitals_get()};
@@ -137,19 +137,24 @@ SlaterPlaneWave::SlaterPlaneWave(std::size_t num_particles, double box_lengthL)
 
 double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     const std::size_t N{num_orbitals_get()};
+    const std::size_t padded_N{particles.padding_stride_get()};
 
     const double* pos_x{particles.pos_x_get()};
     const double* pos_y{particles.pos_y_get()};
     const double* pos_z{particles.pos_z_get()};
 
-    double* RESTRICT det_matrix{determinant_get()};
-    double* RESTRICT lower_upper_matrix{lower_upper_get()};
-    double* RESTRICT inv_det_matrix{inv_determinant_get()};
-    int* RESTRICT pivot_vector{pivot_get()};
-
     const double* k_x_comp{k_vector_x_get()};
     const double* k_y_comp{k_vector_y_get()};
     const double* k_z_comp{k_vector_z_get()};
+
+    double* RESTRICT det_matrix{determinant_get()};
+    double* RESTRICT lower_upper_matrix{lower_upper_get()};
+    double* RESTRICT inv_det_matrix{inv_determinant_get()};
+
+    int* RESTRICT pivot_vector{pivot_get()};
+
+    double* RESTRICT rhs{rhs_get()};
+    double* RESTRICT solution{solution_get()};
 
     // Build determinant matrix D
     for (std::size_t particle = 0; particle < N; ++particle) {
@@ -168,38 +173,38 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     std::copy_n(det_matrix, N * N, lower_upper_matrix);
 
     // Perform LU decomposition
-    (void)lowerUpperDecompose(lower_upper_matrix, pivot_vector, N);
+    (void)lower_upper_decomp(lower_upper_matrix, pivot_vector, N);
 
     // Compute log|det(D)| = Σ log|U_ii|
-    double logAbsoluteDeterminant = 0.0;
+    double log_abs_det = 0.0;
 
     for (std::size_t diag = 0; diag < N; ++diag) {
-        const double Uii = lower_upper_matrix[index(diag, diag, N)];
+        const double U_ii = lower_upper_matrix[index(diag, diag, N)];
 
-        const double absUii = std::abs(Uii);
+        const double abs_U_ii = std::abs(U_ii);
 
-        if (absUii == 0.0 || !std::isfinite(absUii)) {
+        if (abs_U_ii == 0.0 || !std::isfinite(abs_U_ii)) {
             return -std::numeric_limits<double>::infinity();
         }
 
-        logAbsoluteDeterminant += std::log(absUii);
+        log_abs_det += std::log(abs_U_ii);
     }
 
-    std::vector<double> rhs(N);
-    std::vector<double> solution(N);
-
     for (std::size_t column = 0; column < N; ++column) {
-        std::fill(rhs.begin(), rhs.end(), 0.0);
+        // Using pointer arithmetic to start at rhs[start]
+        // and jump to rhs[end] - used padded_N since
+        // SIMD alignment might mess up pointer math
+        std::fill(rhs, rhs + padded_N, 0.0);
         rhs[column] = 1.0;
 
-        lowerUpperSolve(lower_upper_matrix, pivot_vector, rhs.data(), solution.data(), N);
+        solve_lower_upper(lower_upper_matrix, pivot_vector, rhs, solution, N);
 
         for (std::size_t row = 0; row < N; ++row) {
             inv_det_matrix[index(row, column, N)] = solution[row];
         }
     }
 
-    return logAbsoluteDeterminant;
+    return log_abs_det;
 }
 
 void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRICT grad_x, double* RESTRICT grad_y,
