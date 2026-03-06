@@ -38,6 +38,7 @@ add_library(vmc_lib STATIC
     src/slater_plane_wave/slater_plane_wave.cpp
     src/simulation/simulation.cpp
     src/blocking_analysis/blocking_analysis.cpp
+    src/output_writer/output_writer.cpp
 )
 
 target_include_directories(vmc_lib PUBLIC src)
