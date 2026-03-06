@@ -46,6 +46,68 @@ export default function App() {
     void loadReplay();
   }, [loadReplay]);
 
+  useEffect(() => {
+    const isTypingTarget = (target: EventTarget | null): boolean => {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+
+      if (target.isContentEditable) {
+        return true;
+      }
+
+      const tagName = target.tagName;
+      return (
+        tagName === 'INPUT' ||
+        tagName === 'TEXTAREA' ||
+        tagName === 'SELECT' ||
+        tagName === 'BUTTON'
+      );
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (isTypingTarget(event.target)) {
+        return;
+      }
+
+      if (event.code === 'Space') {
+        event.preventDefault();
+        if (event.repeat) {
+          return;
+        }
+
+        if (playback.isPlaying) {
+          playback.pause();
+        } else {
+          playback.play();
+        }
+        return;
+      }
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        playback.previous();
+        return;
+      }
+
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        playback.next();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [
+    playback.isPlaying,
+    playback.next,
+    playback.pause,
+    playback.play,
+    playback.previous,
+  ]);
+
   if (loadStatus.state === 'loading') {
     return <LoadingState />;
   }
