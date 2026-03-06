@@ -42,14 +42,73 @@ select {
   width: 100%;
   height: 100%;
   padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .app-layout {
   width: 100%;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 12px;
+}
+
+.state-host {
+  flex: 1;
+  min-height: 0;
+}
+
+.state-host .loading-state,
+.state-host .error-state {
+  height: 100%;
+}
+
+.replay-toolbar {
+  padding: 9px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.replay-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar-btn {
+  border: 1px solid #28303b;
+  border-radius: 7px;
+  background: #10141b;
+  padding: 7px 12px;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.toolbar-btn:hover:not(:disabled) {
+  border-color: #353f4c;
+  background: #141922;
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.replay-upload-input {
+  display: none;
+}
+
+.replay-source-label {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-family: var(--mono-font);
 }
 
 .scene-panel {
