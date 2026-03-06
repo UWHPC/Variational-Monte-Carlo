@@ -16,7 +16,7 @@ double Simulation::kinetic_energy(const Particles& particles) const noexcept {
     double T_sum{};
     const std::size_t N{particles.num_particles_get()};
 
-    for (std::size_t i = 0; i < N; i++) {
+    for (std::size_t i = 0; i < N; ++i) {
         // Computes ||Grad(logPsi)||^2
         const double grad_sq{grad_x[i] * grad_x[i] + grad_y[i] * grad_y[i] + grad_z[i] * grad_z[i]};
 
@@ -160,7 +160,7 @@ void Simulation::measure() {
     auto& pbc{pbc_get()};
     auto& blocking_analysis{blocking_analysis_get()};
 
-    for (std::size_t i = 0; i < measure_steps; i++) {
+    for (std::size_t i = 0; i < measure_steps; ++i) {
         metropolis_step();
         wavefunction.evaluate_derivatives(particles, pbc);
 
@@ -170,9 +170,11 @@ void Simulation::measure() {
 
     if (blocking_analysis.ready()) {
         // Pair of the mean and standard deviation:
-        const auto [mean, se]{blocking_analysis.mean_and_standard_error()};
-        std::cout << "Energy: " << mean << " +/- " << se << '\n';
+        const auto [mean, stand_error]{blocking_analysis.mean_and_standard_error()};
+        std::cout << "Energy: " << mean << " +/- " << stand_error << std::endl;
     }
+
+    std::cout << "Acceptance Rate: " << acceptance_rate() << std::endl;
 }
 
 void Simulation::run() {

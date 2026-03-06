@@ -139,13 +139,13 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     const std::size_t N{num_orbitals_get()};
     const std::size_t padded_N{particles.padding_stride_get()};
 
-    const double* pos_x{particles.pos_x_get()};
-    const double* pos_y{particles.pos_y_get()};
-    const double* pos_z{particles.pos_z_get()};
+    const double* RESTRICT pos_x{particles.pos_x_get()};
+    const double* RESTRICT pos_y{particles.pos_y_get()};
+    const double* RESTRICT pos_z{particles.pos_z_get()};
 
-    const double* k_x_comp{k_vector_x_get()};
-    const double* k_y_comp{k_vector_y_get()};
-    const double* k_z_comp{k_vector_z_get()};
+    const double* RESTRICT k_x_comp{k_vector_x_get()};
+    const double* RESTRICT k_y_comp{k_vector_y_get()};
+    const double* RESTRICT k_z_comp{k_vector_z_get()};
 
     double* RESTRICT det_matrix{determinant_get()};
     double* RESTRICT lower_upper_matrix{lower_upper_get()};

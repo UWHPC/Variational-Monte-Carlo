@@ -49,6 +49,10 @@ private:
     [[nodiscard]] double& log_psi_set() { return log_psi_current_; }
     [[nodiscard]] double log_psi_get() const { return log_psi_current_; }
 
+    [[nodiscard]] double acceptance_rate() const {
+        return static_cast<double>(accepted_) / static_cast<double>(proposed_);
+    }
+
 public:
     explicit Simulation(Config cfg) noexcept;
     void run();
