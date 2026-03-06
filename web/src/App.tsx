@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ErrorState } from './components/ErrorState';
 import { LoadingState } from './components/LoadingState';
+import { PlaybackControls } from './components/PlaybackControls';
 import { Sidebar } from './components/Sidebar';
 import { usePlayback } from './hooks/usePlayback';
 import { loadFrames } from './lib/loadFrames';
@@ -72,6 +73,20 @@ export default function App() {
             boxLength={replay.init.boxLength}
             numParticles={replay.init.numParticles}
             positions={currentFrame.positions}
+          />
+          <PlaybackControls
+            className="scene-playback-floating"
+            compact
+            totalFrames={replay.frames.length}
+            currentFrameIndex={playback.currentFrameIndex}
+            isPlaying={playback.isPlaying}
+            speed={playback.speed}
+            onPlay={playback.play}
+            onPause={playback.pause}
+            onPrevious={playback.previous}
+            onNext={playback.next}
+            onSeek={playback.seek}
+            onSpeedChange={playback.setSpeed}
           />
         </section>
         <Sidebar replay={replay} currentFrame={currentFrame} playback={playback} />

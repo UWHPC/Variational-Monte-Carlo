@@ -5,7 +5,6 @@ import type {
 import type { PlaybackState } from '../hooks/usePlayback';
 import { formatInteger } from '../lib/format';
 import { EnergyChart } from './EnergyChart';
-import { PlaybackControls } from './PlaybackControls';
 import { StatsPanel } from './StatsPanel';
 
 interface SidebarProps {
@@ -50,18 +49,6 @@ export function Sidebar({ replay, currentFrame, playback }: SidebarProps) {
         currentFrameIndex={playback.currentFrameIndex}
         totalFrames={totalFrames}
         done={replay.done}
-      />
-      <PlaybackControls
-        totalFrames={totalFrames}
-        currentFrameIndex={playback.currentFrameIndex}
-        isPlaying={playback.isPlaying}
-        speed={playback.speed}
-        onPlay={playback.play}
-        onPause={playback.pause}
-        onPrevious={playback.previous}
-        onNext={playback.next}
-        onSeek={playback.seek}
-        onSpeedChange={playback.setSpeed}
       />
       <EnergyChart
         frames={replay.frames}
