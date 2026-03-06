@@ -5,7 +5,6 @@
 #include "../particles/particles.hpp"
 #include "../pbc/pbc.hpp"
 #include "../wavefunction/wavefunction.hpp"
-#include "../energy/local_energy.hpp"
 
 #include <random>
 
@@ -32,7 +31,6 @@ private:
     std::uniform_int_distribution<std::size_t> pick_particle_;
 
     // Getters:
-    [[nodiscard]] EnergyTracker energy() { return energy_; }
     [[nodiscard]] std::mt19937_64& rng() { return rng_; }
     [[nodiscard]] std::uniform_real_distribution<double>& uniform01() { return uniform01_; }
     [[nodiscard]] std::uniform_real_distribution<double>& proposal() { return proposal_; }
