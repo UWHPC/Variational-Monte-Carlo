@@ -40,13 +40,17 @@ function readNumber(record: JsonRecord, key: string, line: number): number {
   return value;
 }
 
-function readNumberArray(record: JsonRecord, key: string, line: number): number[] {
+function readNumberArray(
+  record: JsonRecord,
+  key: string,
+  line: number,
+): Float32Array {
   const value = record[key];
   if (!Array.isArray(value)) {
     throw new Error(`Line ${line}: "${key}" must be an array.`);
   }
 
-  const parsed: number[] = [];
+  const parsed = new Float32Array(value.length);
   for (let i = 0; i < value.length; i += 1) {
     const element = value[i];
     if (!isFiniteNumber(element)) {
@@ -54,7 +58,7 @@ function readNumberArray(record: JsonRecord, key: string, line: number): number[
         `Line ${line}: "${key}[${i}]" must be a finite number.`,
       );
     }
-    parsed.push(element);
+    parsed[i] = element;
   }
 
   return parsed;
@@ -160,114 +164,118 @@ function parseDone(record: JsonRecord, line: number): SimulationDone {
 }
 
 export function parseReplayJsonl(rawText: string): LoaderResult {
-  const lines = rawText.split(/\r?\n/);
-
   let init: SimulationInit | undefined;
   const frames: SimulationFrame[] = [];
   let done: SimulationDone | undefined;
 
-  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
-    const line = lines[lineIndex].trim();
-    const lineNumber = lineIndex + 1;
+  let cursor = 0;
+  let lineNumber = 1;
 
-    if (!line) {
-      continue;
+  while (true) {
+    const nextLineBreak = rawText.indexOf('\n', cursor);
+    const lineEnd = nextLineBreak === -1 ? rawText.length : nextLineBreak;
+    let line = rawText.slice(cursor, lineEnd);
+    if (line.endsWith('\r')) {
+      line = line.slice(0, -1);
     }
+    line = line.trim();
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      return {
-        ok: false,
-        error: `Line ${lineNumber}: invalid JSON.`,
-      };
-    }
-
-    if (!isRecord(parsed)) {
-      return {
-        ok: false,
-        error: `Line ${lineNumber}: each message must be a JSON object.`,
-      };
-    }
-
-    const type = parsed.type;
-    if (type === 'init') {
-      if (init) {
-        return {
-          ok: false,
-          error: `Line ${lineNumber}: multiple init messages found; exactly one is required.`,
-        };
-      }
-
+    if (line.length > 0) {
+      let parsed: unknown;
       try {
-        init = parseInit(parsed, lineNumber);
-      } catch (error) {
+        parsed = JSON.parse(line);
+      } catch {
         return {
           ok: false,
-          error:
-            error instanceof Error
-              ? error.message
-              : `Line ${lineNumber}: invalid init message.`,
+          error: `Line ${lineNumber}: invalid JSON.`,
         };
       }
-      continue;
+
+      if (!isRecord(parsed)) {
+        return {
+          ok: false,
+          error: `Line ${lineNumber}: each message must be a JSON object.`,
+        };
+      }
+
+      const type = parsed.type;
+      if (type === 'init') {
+        if (init) {
+          return {
+            ok: false,
+            error: `Line ${lineNumber}: multiple init messages found; exactly one is required.`,
+          };
+        }
+
+        try {
+          init = parseInit(parsed, lineNumber);
+        } catch (error) {
+          return {
+            ok: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : `Line ${lineNumber}: invalid init message.`,
+          };
+        }
+      } else if (type === 'frame') {
+        if (!init) {
+          return {
+            ok: false,
+            error: `Line ${lineNumber}: frame message encountered before init.`,
+          };
+        }
+
+        try {
+          frames.push(parseFrame(parsed, lineNumber, init));
+        } catch (error) {
+          return {
+            ok: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : `Line ${lineNumber}: invalid frame message.`,
+          };
+        }
+      } else if (type === 'done') {
+        if (!init) {
+          return {
+            ok: false,
+            error: `Line ${lineNumber}: done message encountered before init.`,
+          };
+        }
+        if (done) {
+          return {
+            ok: false,
+            error: `Line ${lineNumber}: multiple done messages found; at most one is allowed.`,
+          };
+        }
+
+        try {
+          done = parseDone(parsed, lineNumber);
+        } catch (error) {
+          return {
+            ok: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : `Line ${lineNumber}: invalid done message.`,
+          };
+        }
+      } else {
+        return {
+          ok: false,
+          error: `Line ${lineNumber}: unknown message type "${String(type)}".`,
+        };
+      }
     }
 
-    if (type === 'frame') {
-      if (!init) {
-        return {
-          ok: false,
-          error: `Line ${lineNumber}: frame message encountered before init.`,
-        };
-      }
-
-      try {
-        frames.push(parseFrame(parsed, lineNumber, init));
-      } catch (error) {
-        return {
-          ok: false,
-          error:
-            error instanceof Error
-              ? error.message
-              : `Line ${lineNumber}: invalid frame message.`,
-        };
-      }
-      continue;
+    if (nextLineBreak === -1) {
+      break;
     }
 
-    if (type === 'done') {
-      if (!init) {
-        return {
-          ok: false,
-          error: `Line ${lineNumber}: done message encountered before init.`,
-        };
-      }
-      if (done) {
-        return {
-          ok: false,
-          error: `Line ${lineNumber}: multiple done messages found; at most one is allowed.`,
-        };
-      }
-
-      try {
-        done = parseDone(parsed, lineNumber);
-      } catch (error) {
-        return {
-          ok: false,
-          error:
-            error instanceof Error
-              ? error.message
-              : `Line ${lineNumber}: invalid done message.`,
-        };
-      }
-      continue;
-    }
-
-    return {
-      ok: false,
-      error: `Line ${lineNumber}: unknown message type "${String(type)}".`,
-    };
+    cursor = lineEnd + 1;
+    lineNumber += 1;
   }
 
   if (!init) {

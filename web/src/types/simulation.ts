@@ -1,3 +1,5 @@
+export type PositionBuffer = Float32Array;
+
 export interface SimulationInit {
   type: 'init';
   runId: string;
@@ -20,7 +22,7 @@ export interface SimulationFrame {
   meanEnergy: number;
   standardErrorAvailable: boolean;
   standardError: number;
-  positions: number[];
+  positions: PositionBuffer;
 }
 
 export interface SimulationDone {

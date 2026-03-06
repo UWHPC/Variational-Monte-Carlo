@@ -8,13 +8,13 @@
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     // Temporary local config while CLI parsing is disabled.
-    const Config config{.num_particles = 16U,
-                        .box_length = 4.5,
-                        .warmup_steps = 50U,
-                        .measure_steps = 200U,
-                        .step_size = 0.25,
+    const Config config{.num_particles = 50U,
+                        .box_length = 6.75,
+                        .warmup_steps = 5000U,
+                        .measure_steps = 50000U,
+                        .step_size = 0.20,
                         .seed = 12345U,
-                        .block_size = 20U};
+                        .block_size = 200U};
 
     // const Config config{parse_args(argc, argv)};
     std::ofstream out_file{"data/run.jsonl"};

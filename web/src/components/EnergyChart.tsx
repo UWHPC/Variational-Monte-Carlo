@@ -25,16 +25,38 @@ interface ChartPoint {
   meanEnergy: number;
 }
 
+const MAX_CHART_POINTS = 2500;
+
+function toChartPoint(frame: SimulationFrame): ChartPoint {
+  return {
+    step: frame.step,
+    localEnergy: frame.localEnergy,
+    meanEnergy: frame.meanEnergy,
+  };
+}
+
+function buildChartData(frames: SimulationFrame[]): ChartPoint[] {
+  if (frames.length <= MAX_CHART_POINTS) {
+    return frames.map(toChartPoint);
+  }
+
+  const stride = Math.ceil(frames.length / MAX_CHART_POINTS);
+  const sampled: ChartPoint[] = [];
+
+  for (let i = 0; i < frames.length; i += stride) {
+    sampled.push(toChartPoint(frames[i]));
+  }
+
+  const lastFrame = frames[frames.length - 1];
+  if (sampled[sampled.length - 1]?.step !== lastFrame.step) {
+    sampled.push(toChartPoint(lastFrame));
+  }
+
+  return sampled;
+}
+
 export function EnergyChart({ frames, currentFrameIndex }: EnergyChartProps) {
-  const data = useMemo<ChartPoint[]>(
-    () =>
-      frames.map((frame) => ({
-        step: frame.step,
-        localEnergy: frame.localEnergy,
-        meanEnergy: frame.meanEnergy,
-      })),
-    [frames],
-  );
+  const data = useMemo<ChartPoint[]>(() => buildChartData(frames), [frames]);
 
   const currentPoint = frames[currentFrameIndex];
   const currentStep = currentPoint?.step;

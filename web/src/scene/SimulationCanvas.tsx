@@ -7,7 +7,7 @@ import { ParticlesInstanced } from './ParticlesInstanced';
 interface SimulationCanvasProps {
   boxLength: number;
   numParticles: number;
-  positions: number[];
+  positions: ArrayLike<number>;
 }
 
 function getDefaultCameraPosition(boxLength: number): [number, number, number] {
