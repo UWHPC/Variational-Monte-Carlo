@@ -1,9 +1,11 @@
 import { useMemo } from 'react';
 import {
+  Area,
   CartesianGrid,
+  ComposedChart,
   Legend,
   Line,
-  LineChart,
+  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -35,15 +37,38 @@ export function EnergyChart({ frames, currentFrameIndex }: EnergyChartProps) {
     [frames],
   );
 
-  const currentStep = frames[currentFrameIndex]?.step;
+  const currentPoint = frames[currentFrameIndex];
+  const currentStep = currentPoint?.step;
 
   return (
     <section className="panel-card chart-panel">
       <h2 className="panel-title">Energy History</h2>
       <div className="chart-shell">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 8, right: 12, left: 8, bottom: 8 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#26344a" />
+          <ComposedChart
+            data={data}
+            margin={{ top: 8, right: 12, left: 8, bottom: 8 }}
+          >
+            <defs>
+              <linearGradient id="localStrokeGradient" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#2db9ff" />
+                <stop offset="100%" stopColor="#8ed6ff" />
+              </linearGradient>
+              <linearGradient id="meanStrokeGradient" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#59e6b0" />
+                <stop offset="100%" stopColor="#b8f7de" />
+              </linearGradient>
+              <linearGradient id="localAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#57b8ff" stopOpacity={0.24} />
+                <stop offset="100%" stopColor="#57b8ff" stopOpacity={0.02} />
+              </linearGradient>
+              <linearGradient id="meanAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#7de0b2" stopOpacity={0.18} />
+                <stop offset="100%" stopColor="#7de0b2" stopOpacity={0.01} />
+              </linearGradient>
+            </defs>
+
+            <CartesianGrid strokeDasharray="2 4" stroke="#253749" />
             <XAxis
               dataKey="step"
               tick={{ fill: '#93a4bd', fontSize: 11 }}
@@ -57,9 +82,10 @@ export function EnergyChart({ frames, currentFrameIndex }: EnergyChartProps) {
               domain={['auto', 'auto']}
             />
             <Tooltip
+              cursor={{ stroke: '#9fb5d8', strokeOpacity: 0.45, strokeWidth: 1 }}
               contentStyle={{
-                backgroundColor: '#111a26',
-                border: '1px solid #2b3f59',
+                backgroundColor: '#0f1725',
+                border: '1px solid #355070',
                 borderRadius: 8,
               }}
               formatter={(value: unknown, name: string) => {
@@ -80,27 +106,64 @@ export function EnergyChart({ frames, currentFrameIndex }: EnergyChartProps) {
             {Number.isFinite(currentStep) ? (
               <ReferenceLine
                 x={currentStep}
-                stroke="#ffcc66"
-                strokeDasharray="4 3"
+                stroke="#ffd56a"
+                strokeWidth={2}
+                strokeDasharray="6 4"
               />
             ) : null}
+            {currentPoint ? (
+              <>
+                <ReferenceDot
+                  x={currentPoint.step}
+                  y={currentPoint.localEnergy}
+                  r={4}
+                  fill="#56b5ff"
+                  stroke="#d6ebff"
+                  strokeWidth={1.5}
+                />
+                <ReferenceDot
+                  x={currentPoint.step}
+                  y={currentPoint.meanEnergy}
+                  r={4}
+                  fill="#7de0b2"
+                  stroke="#d8ffec"
+                  strokeWidth={1.5}
+                />
+              </>
+            ) : null}
+            <Area
+              type="monotone"
+              dataKey="localEnergy"
+              fill="url(#localAreaGradient)"
+              stroke="none"
+              isAnimationActive={false}
+            />
+            <Area
+              type="monotone"
+              dataKey="meanEnergy"
+              fill="url(#meanAreaGradient)"
+              stroke="none"
+              isAnimationActive={false}
+            />
             <Line
               type="monotone"
               dataKey="localEnergy"
-              stroke="#56b5ff"
+              stroke="url(#localStrokeGradient)"
               strokeWidth={2}
               dot={false}
+              activeDot={{ r: 3, strokeWidth: 0, fill: '#8ed6ff' }}
               isAnimationActive={false}
             />
             <Line
               type="monotone"
               dataKey="meanEnergy"
-              stroke="#7de0b2"
+              stroke="url(#meanStrokeGradient)"
               strokeWidth={2}
               dot={false}
+              activeDot={{ r: 3, strokeWidth: 0, fill: '#b8f7de' }}
               isAnimationActive={false}
             />
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
     </section>

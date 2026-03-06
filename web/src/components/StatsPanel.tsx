@@ -21,13 +21,14 @@ interface StatsPanelProps {
 interface MetricRowProps {
   label: string;
   value: string;
+  numeric?: boolean;
 }
 
-function MetricRow({ label, value }: MetricRowProps) {
+function MetricRow({ label, value, numeric = true }: MetricRowProps) {
   return (
     <div className="metric-row">
       <span className="metric-label">{label}</span>
-      <span className="metric-value">{value}</span>
+      <span className={`metric-value ${numeric ? 'mono' : ''}`}>{value}</span>
     </div>
   );
 }
@@ -42,6 +43,7 @@ export function StatsPanel({
   return (
     <section className="panel-card">
       <h2 className="panel-title">Simulation Stats</h2>
+      <h3 className="panel-subhead">Current Frame</h3>
 
       <div className="metric-grid">
         <MetricRow
@@ -74,9 +76,10 @@ export function StatsPanel({
       </div>
 
       <div className="panel-divider" />
+      <h3 className="panel-subhead">Run Metadata</h3>
 
       <div className="metric-grid">
-        <MetricRow label="Run ID" value={init.runId} />
+        <MetricRow label="Run ID" value={init.runId} numeric={false} />
         <MetricRow
           label="Particles"
           value={formatInteger(init.numParticles)}
@@ -104,6 +107,7 @@ export function StatsPanel({
       {done ? (
         <>
           <div className="panel-divider" />
+          <h3 className="panel-subhead">Final Summary</h3>
           <div className="metric-grid">
             <MetricRow
               label="Final Mean"

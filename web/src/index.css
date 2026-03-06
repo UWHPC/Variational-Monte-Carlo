@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 :root {
   --bg-0: #060a11;
@@ -10,6 +10,7 @@
   --accent: #58b8ff;
   --accent-soft: #273d58;
   --danger: #ff8585;
+  --mono-font: 'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
 }
 
 * {
@@ -70,7 +71,7 @@ select {
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
   overflow-y: auto;
   padding-right: 2px;
@@ -81,21 +82,21 @@ select {
   border-radius: 12px;
   background: var(--panel);
   backdrop-filter: blur(8px);
-  padding: 12px 14px;
+  padding: 11px 13px;
 }
 
 .panel-title {
-  margin: 0 0 10px;
-  font-size: 0.78rem;
+  margin: 0 0 8px;
+  font-size: 0.74rem;
   font-weight: 600;
   color: var(--text-muted);
-  letter-spacing: 0.07em;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
 }
 
 .metric-grid {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .metric-row {
@@ -116,10 +117,23 @@ select {
   text-align: right;
 }
 
+.mono {
+  font-family: var(--mono-font);
+}
+
+.panel-subhead {
+  margin: 0 0 8px;
+  color: #b9c8dd;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
 .panel-divider {
   height: 1px;
-  background: #233449;
-  margin: 12px 0;
+  background: linear-gradient(90deg, transparent, #2f435c 12%, #2f435c 88%, transparent);
+  margin: 10px 0;
 }
 
 .controls-row {
@@ -187,12 +201,53 @@ input[type='range'] {
 }
 
 .chart-panel {
-  min-height: 270px;
+  min-height: 300px;
 }
 
 .chart-shell {
-  height: 230px;
+  height: 255px;
   width: 100%;
+}
+
+.status-strip {
+  padding: 8px 10px;
+}
+
+.status-chip-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.status-chip {
+  border: 1px solid #2c415a;
+  border-radius: 8px;
+  background: #122031;
+  min-height: 44px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+}
+
+.status-chip-live {
+  border-color: #3d6a56;
+  background: linear-gradient(155deg, #122b29, #10211f);
+}
+
+.status-label {
+  color: #8ea4c1;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.status-value {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #e4eeff;
+  line-height: 1.15;
 }
 
 .loading-state,
@@ -254,5 +309,9 @@ input[type='range'] {
 
   .sidebar {
     overflow-y: visible;
+  }
+
+  .status-chip-group {
+    grid-template-columns: 1fr 1fr;
   }
 }
