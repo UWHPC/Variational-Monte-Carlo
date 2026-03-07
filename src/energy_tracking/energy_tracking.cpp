@@ -103,7 +103,7 @@ double EnergyTracker::potential_energy(const Particles& particles,
 
     // Reciprocal-space sum:
     const double prefactor{1.0 / (2.0 * std::numbers::pi * L * L * L)};
-    const std::size_t num_G{G_vector_x_get().size()};
+    const std::size_t num_G{num_g_vectors_get()};
 
     const auto& G_vec_x{G_vector_x_get()};
     const auto& G_vec_y{G_vector_y_get()};

@@ -2,6 +2,7 @@
 #include "output_writer/output_writer.hpp"
 #include "simulation/simulation.hpp"
 
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -25,6 +26,13 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
 
     std::unique_ptr<OutputWriter> writer{make_output_writer(OutputFormat::JSON, out_file)};
     Simulation sim{config, std::move(writer)};
+
+    auto start{std::chrono::steady_clock::now()};
     sim.run();
+    auto end{std::chrono::steady_clock::now()};
+
+    std::chrono::duration<double> elapsed{end - start};
+    std::cout << "Elapsed: " << elapsed.count() << " s" << std::endl;
+
     return 0;
 }

@@ -25,6 +25,7 @@ public:
 
     double eval_total_energy(const Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept;
 
+private:
     [[nodiscard]] double ewald_alpha_get() const noexcept { return ewald_alpha_; }
     [[nodiscard]] double ewald_correction_get() const noexcept { return ewald_correction_; }
     [[nodiscard]] double ewald_background_get() const noexcept { return ewald_background_; }
@@ -41,7 +42,6 @@ public:
 
     [[nodiscard]] std::size_t num_g_vectors_get() const noexcept { return G_vector_x_.size(); }
 
-private:
     double kinetic_energy(const Particles& particles) const noexcept;
     double potential_energy(const Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept;
 };
