@@ -137,6 +137,8 @@ bool Simulation::metropolis_step() {
         p_x[rand_particle] = old_x;
         p_y[rand_particle] = old_y;
         p_z[rand_particle] = old_z;
+
+        log_psi_set() = wave_function_get().evaluate_log_psi(particles_get(), pbc_get());
     }
 
     return false;
