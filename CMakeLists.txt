@@ -39,6 +39,7 @@ add_library(vmc_lib STATIC
     src/simulation/simulation.cpp
     src/blocking_analysis/blocking_analysis.cpp
     src/output_writer/output_writer.cpp
+    src/energy_tracking/energy_tracking.cpp
 )
 
 target_include_directories(vmc_lib PUBLIC src)

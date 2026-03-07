@@ -7,9 +7,9 @@
 Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_writer)
     : config_{std::move(config)}, particles_{config_.num_particles}, pbc_{config_.box_length},
       wave_function_{config_.num_particles, config_.box_length}, blocking_analysis_{config_.block_size},
-      energy_tracker_{config_.box_length, config_.num_particles}, output_writer_{std::move(output_writer)}, proposed_{},
-      accepted_{}, log_psi_current_{}, rng_{config_.seed}, proposal_{-config_.step_size, config_.step_size},
-      pick_particle_{0, config_.num_particles - 1} {}
+      energy_tracker_{config_.box_length, static_cast<double>(config_.num_particles)},
+      output_writer_{std::move(output_writer)}, proposed_{}, accepted_{}, log_psi_current_{}, rng_{config_.seed},
+      proposal_{-config_.step_size, config_.step_size}, pick_particle_{0, config_.num_particles - 1} {}
 
 std::vector<double> Simulation::positions_snapshot() const {
     const std::size_t N{particles_.num_particles_get()};
