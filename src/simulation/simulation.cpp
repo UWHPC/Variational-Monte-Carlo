@@ -4,11 +4,12 @@
 #include <string>
 #include <utility>
 
-Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_writer) noexcept
+Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_writer)
     : config_{std::move(config)}, particles_{config_.num_particles}, pbc_{config_.box_length},
       wave_function_{config_.num_particles, config_.box_length}, blocking_analysis_{config_.block_size},
-      output_writer_{std::move(output_writer)}, proposed_{}, accepted_{}, log_psi_current_{}, rng_{config_.seed},
-      proposal_{-config_.step_size, config_.step_size}, pick_particle_{0, config_.num_particles - 1} {}
+      energy_tracker_{config_.box_length, config_.num_particles}, output_writer_{std::move(output_writer)}, proposed_{},
+      accepted_{}, log_psi_current_{}, rng_{config_.seed}, proposal_{-config_.step_size, config_.step_size},
+      pick_particle_{0, config_.num_particles - 1} {}
 
 std::vector<double> Simulation::positions_snapshot() const {
     const std::size_t N{particles_.num_particles_get()};
@@ -25,59 +26,6 @@ std::vector<double> Simulation::positions_snapshot() const {
         positions.push_back(p_z[i]);
     }
     return positions;
-}
-
-double Simulation::kinetic_energy(const Particles& particles) const noexcept {
-    const double* RESTRICT grad_x{particles.grad_log_psi_x_get()};
-    const double* RESTRICT grad_y{particles.grad_log_psi_y_get()};
-    const double* RESTRICT grad_z{particles.grad_log_psi_z_get()};
-    const double* RESTRICT lap{particles.lap_log_psi_get()};
-
-    // Kinetic
-    double T_sum{};
-    const std::size_t N{particles.num_particles_get()};
-
-    for (std::size_t i = 0; i < N; ++i) {
-        // Computes ||Grad(logPsi)||^2
-        const double grad_sq{grad_x[i] * grad_x[i] + grad_y[i] * grad_y[i] + grad_z[i] * grad_z[i]};
-
-        // Accumulate Lapl(LogPsi) + ||Grad(LogPsi)||^2
-        T_sum += (lap[i] + grad_sq);
-    }
-
-    return -0.5 * T_sum;
-}
-
-double Simulation::potential_energy(const Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept {
-    const double* RESTRICT px{particles.pos_x_get()};
-    const double* RESTRICT py{particles.pos_y_get()};
-    const double* RESTRICT pz{particles.pos_z_get()};
-
-    // Potential
-    double V_sum{};
-    const std::size_t N{particles.num_particles_get()};
-
-    for (std::size_t i = 0; i < N; ++i) {
-        for (std::size_t j = i + 1; j < N; ++j) {
-            // To get around if else statement for branching,
-            // ensures does not run if r_ij < 1.0e-12
-            const double r_ij{pbc.distance(px[i], py[i], pz[i], px[j], py[j], pz[j])};
-            const bool degenerate{r_ij < 1.0e-12};
-
-            const double mask{degenerate ? 0.0 : 1.0};
-            const double inv_r_ij{degenerate ? 1.0 : 1 / r_ij};
-
-            // if degenerate == true, V_sum = 0.0 / 1.0 = 0
-            // so the contribution is 0
-            V_sum += mask * inv_r_ij;
-        }
-    }
-
-    return V_sum;
-}
-
-double Simulation::eval_total_energy(const Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept {
-    return kinetic_energy(particles) + potential_energy(particles, pbc);
 }
 
 /// @brief Intializes Random Positions for each particle, making sure to not exceed box length
@@ -182,6 +130,7 @@ Simulation::MeasurementSummary Simulation::measure() {
     auto& particles{particles_get()};
     auto& pbc{pbc_get()};
     auto& blocking_analysis{blocking_analysis_get()};
+    auto& energy_tracker{energy_tracker_get()};
     proposed_ = 0U;
     accepted_ = 0U;
 
@@ -197,7 +146,7 @@ Simulation::MeasurementSummary Simulation::measure() {
 
         wavefunction.evaluate_derivatives(particles, pbc);
 
-        const double E_local{eval_total_energy(particles, pbc)};
+        const double E_local{energy_tracker.eval_total_energy(particles, pbc)};
         running_energy_sum += E_local;
         blocking_analysis.add(E_local);
 

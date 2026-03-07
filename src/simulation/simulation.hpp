@@ -2,6 +2,7 @@
 
 #include "../blocking_analysis/blocking_analysis.hpp"
 #include "../config/config.hpp"
+#include "../energy_tracking/energy_tracking.hpp"
 #include "../output_writer/output_writer.hpp"
 #include "../particles/particles.hpp"
 #include "../pbc/pbc.hpp"
@@ -22,6 +23,7 @@ private:
     PeriodicBoundaryCondition pbc_;
     WaveFunction wave_function_;
     BlockingAnalysis blocking_analysis_;
+    EnergyTracker energy_tracker_;
     std::unique_ptr<OutputWriter> output_writer_;
 
     // Physical quantities of sim:
@@ -44,6 +46,7 @@ private:
     [[nodiscard]] PeriodicBoundaryCondition& pbc_get() { return pbc_; }
     [[nodiscard]] Particles& particles_get() { return particles_; }
     [[nodiscard]] WaveFunction& wave_function_get() { return wave_function_; }
+    [[nodiscard]] EnergyTracker& energy_tracker_get() { return energy_tracker_; }
     [[nodiscard]] BlockingAnalysis& blocking_analysis_get() { return blocking_analysis_; }
 
     // Randomly generated uniform, proposal, and particle:
@@ -69,14 +72,10 @@ private:
     [[nodiscard]] std::vector<double> positions_snapshot() const;
 
 public:
-    explicit Simulation(Config cfg, std::unique_ptr<OutputWriter> output_writer = nullptr) noexcept;
+    explicit Simulation(Config cfg, std::unique_ptr<OutputWriter> output_writer = nullptr);
     void run();
 
 private:
-    double kinetic_energy(const Particles& particles) const noexcept;
-    double potential_energy(const Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept;
-    double eval_total_energy(const Particles& p, const PeriodicBoundaryCondition& pbc) const noexcept;
-
     void initialize_positions();
     bool metropolis_step();
     void warmup();
