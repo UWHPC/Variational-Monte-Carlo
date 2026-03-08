@@ -16,6 +16,8 @@ project(Variational-Monte-Carlo LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(PROFILE_MODE "Enable lightweight internal profiling timers and disable per-step output" OFF)
+
 # --- Build type default (Release unless overridden) ---
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
@@ -58,6 +60,7 @@ target_compile_options(vmc_lib PRIVATE
     $<$<CONFIG:Release>:${VMC_RELEASE_OPTIONS}>
     $<$<CONFIG:Debug>:${VMC_DEBUG_OPTIONS}>
 )
+target_compile_definitions(vmc_lib PRIVATE $<$<BOOL:${PROFILE_MODE}>:VMC_PROFILE_MODE>)
 
 # --- Main executable ---
 add_executable(vmc
@@ -70,6 +73,7 @@ target_compile_options(vmc PRIVATE
     $<$<CONFIG:Release>:${VMC_RELEASE_OPTIONS}>
     $<$<CONFIG:Debug>:${VMC_DEBUG_OPTIONS}>
 )
+target_compile_definitions(vmc PRIVATE $<$<BOOL:${PROFILE_MODE}>:VMC_PROFILE_MODE>)
 
 # --- Testing (opt-in via BUILD_TESTING argument) ---
 include(CTest)

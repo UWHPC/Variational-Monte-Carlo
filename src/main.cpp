@@ -18,13 +18,18 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
                         .block_size = 1000U};
 
     // const Config config{parse_args(argc, argv)};
+    std::unique_ptr<OutputWriter> writer{};
+#ifndef VMC_PROFILE_MODE
     std::ofstream out_file{"data/run.jsonl"};
     if (!out_file) {
         std::cerr << "Failed to open output file: data/run.jsonl\n";
         return 1;
     }
+    writer = make_output_writer(OutputFormat::JSON, out_file);
+#else
+    std::cout << "PROFILE_MODE enabled: per-step output is disabled.\n";
+#endif
 
-    std::unique_ptr<OutputWriter> writer{make_output_writer(OutputFormat::JSON, out_file)};
     Simulation sim{config, std::move(writer)};
 
     auto start{std::chrono::steady_clock::now()};
