@@ -7,22 +7,30 @@
 #include <cstddef>
 #include <cstdlib>
 #include <numbers>
+#include <vector>
 
 class SlaterPlaneWave {
 private:
     std::size_t num_orbitals_;
+    std::size_t num_unique_k_;
     std::size_t matrix_size_;
     double box_length_;
 
-    // Int vectors:
+    // Per-orbital mapping: which unique k-vector does orbital j use
+    std::vector<std::size_t> orbital_k_index_;
+
+    // Per-orbital type: 0 = cos, 1 = sin
+    std::vector<std::uint8_t> orbital_type_;
+
+    // Int vectors (sized to num_orbitals_ for pivot, num_unique_k_ for n-vectors):
     enum PivotIndex : std::size_t { N_X_, N_Y_, N_Z_, PIVOT_, NUM_INT_VECTORS_ };
     AlignedSoA<int> int_vectors_;
 
-    // Double vectors:
+    // Double vectors (k-vectors sized to num_unique_k_; rhs/solution to num_orbitals_):
     enum VectorIndex : std::size_t { K_X_, K_Y_, K_Z_, RHS_, SOLUTION_, NUM_DOUBLE_VECTORS_ };
     AlignedSoA<double> double_vectors_;
 
-    // All matrices:
+    // All matrices (sized to num_orbitals_^2):
     enum MatrixIndex : std::size_t { D_, INV_D_, LU_, NUM_MATRIX_ };
     AlignedSoA<double> matrices_;
 
@@ -30,14 +38,26 @@ public:
     explicit SlaterPlaneWave(std::size_t num_particles, double box_length);
 
     // Getters:
-    // Num orbitals - N
+    // Num orbitals - N (num_particles)
     [[nodiscard]] std::size_t num_orbitals_get() const noexcept { return num_orbitals_; }
+
+    // Number of unique k-vectors (after +-n deduplication)
+    [[nodiscard]] std::size_t num_unique_k_get() const noexcept { return num_unique_k_; }
+    [[nodiscard]] std::size_t& num_unique_k_set() noexcept { return num_unique_k_; }
 
     // Matrix size - N^2
     [[nodiscard]] std::size_t matrix_size_get() const noexcept { return matrix_size_; }
 
     // Box length - L
     [[nodiscard]] double box_length_get() const noexcept { return box_length_; }
+
+    // Per-orbital k-vector index
+    [[nodiscard]] std::vector<std::size_t>& orbital_k_index_get() noexcept { return orbital_k_index_; }
+    [[nodiscard]] const std::vector<std::size_t>& orbital_k_index_get() const noexcept { return orbital_k_index_; }
+
+    // Per-orbital type (0=cos, 1=sin)
+    [[nodiscard]] std::vector<std::uint8_t>& orbital_type_get() noexcept { return orbital_type_; }
+    [[nodiscard]] const std::vector<std::uint8_t>& orbital_type_get() const noexcept { return orbital_type_; }
 
     // Det. matrix
     [[nodiscard]] double* determinant_get() noexcept { return matrices_[D_]; }
@@ -51,11 +71,11 @@ public:
     [[nodiscard]] double* lower_upper_get() noexcept { return matrices_[LU_]; }
     [[nodiscard]] double const* lower_upper_get() const noexcept { return matrices_[LU_]; }
 
-    // Pivot matrix
+    // Pivot vector
     [[nodiscard]] int* pivot_get() noexcept { return int_vectors_[PIVOT_]; }
     [[nodiscard]] int const* pivot_get() const noexcept { return int_vectors_[PIVOT_]; }
 
-    // X component of n
+    // X component of n (length = num_unique_k_)
     [[nodiscard]] int* n_vector_x_get() noexcept { return int_vectors_[N_X_]; }
     [[nodiscard]] int const* n_vector_x_get() const noexcept { return int_vectors_[N_X_]; }
 
@@ -67,15 +87,15 @@ public:
     [[nodiscard]] int* n_vector_z_get() noexcept { return int_vectors_[N_Z_]; }
     [[nodiscard]] int const* n_vector_z_get() const noexcept { return int_vectors_[N_Z_]; }
 
-    // Solution vector:
+    // Solution vector
     [[nodiscard]] double* solution_get() noexcept { return double_vectors_[SOLUTION_]; }
     [[nodiscard]] double const* solution_get() const noexcept { return double_vectors_[SOLUTION_]; }
 
-    // RHS vector:
+    // RHS vector
     [[nodiscard]] double* rhs_get() noexcept { return double_vectors_[RHS_]; }
     [[nodiscard]] double const* rhs_get() const noexcept { return double_vectors_[RHS_]; }
 
-    // X component of k
+    // X component of k (length = num_unique_k_)
     [[nodiscard]] double* k_vector_x_get() noexcept { return double_vectors_[K_X_]; }
     [[nodiscard]] double const* k_vector_x_get() const noexcept { return double_vectors_[K_X_]; }
 

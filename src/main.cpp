@@ -9,7 +9,9 @@
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     // Temporary local config while CLI parsing is disabled.
-    const Config config{.num_particles = 50U,
+    // Closed shells: N = 1, 7, 19, 27, 33, 57, 81, 93, 123, 147, 171, 179, 203, 251, 257, 305, 341, 365, 389, 437, 461,
+    // 485
+    const Config config{.num_particles = 57U,
                         .box_length = 6.75,
                         .warmup_steps = 2000U,
                         .measure_steps = 20000U,

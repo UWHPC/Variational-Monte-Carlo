@@ -100,14 +100,56 @@ void solve_lower_upper(const double* LU, const int* pivot, const double* b, doub
     }
 }
 
+// Canonical representative rule for +-n deduplication:
+// The canonical form is: the first nonzero component is positive
+// The zero vector (0,0,0) is its own canonical representative
+bool is_canonical(int n_x, int n_y, int n_z) {
+    if (n_x > 0)
+        return true;
+    if (n_x < 0)
+        return false;
+    if (n_y > 0)
+        return true;
+    if (n_y < 0)
+        return false;
+    if (n_z > 0)
+        return true;
+    if (n_z < 0)
+        return false;
+
+    // (0,0,0)
+    return true;
+}
+
 } // namespace
 
+// Real plane-wave basis from complex exponentials
+// The complex basis e^{ik·r} = cos(k·r) + i·sin(k·r) gives two
+// linearly independent real orbitals per k-vector:
+//   φ_cos(r) = cos(k·r)
+//   φ_sin(r) = sin(k·r)
+//
+// Since cos(k·r) = cos(-k·r) and sin(k·r) = -sin(-k·r),
+// the ±k pair maps to the same {cos, sin} pair. We deduplicate
+// by keeping only the canonical +n representative (first nonzero
+// component positive).
+//
+// k = 0 is special: sin(0) = 0 for all r, so it contributes
+// only one orbital (cos(0) = 1).
+//
+// Orbital count: N = 1 + 2 × (number of nonzero canonical k-vectors)
+// Closed shells: N = 1, 7, 19, 27, 33, 57, ...
 SlaterPlaneWave::SlaterPlaneWave(std::size_t num_particles, double box_lengthL)
     : num_orbitals_{num_particles}, matrix_size_{num_particles * num_particles}, box_length_{box_lengthL},
-      int_vectors_{num_particles, NUM_INT_VECTORS_}, double_vectors_{num_particles, NUM_DOUBLE_VECTORS_},
-      matrices_{num_particles * num_particles, NUM_MATRIX_} {
+      orbital_k_index_(num_particles), orbital_type_(num_particles, 0), int_vectors_{num_particles, NUM_INT_VECTORS_},
+      double_vectors_{num_particles, NUM_DOUBLE_VECTORS_}, matrices_{num_particles * num_particles, NUM_MATRIX_} {
 
     const std::size_t N{num_orbitals_get()};
+
+    // Generate deduplicated canonical n-vectors
+    // Only keep canonical representatives: first nonzero component positive
+    // k=0 produces 1 orbital (cos = 1)
+    // Each nonzero k produces 2 orbitals (cos, sin)
 
     struct nVectorCandidate {
         int n_cand_x;
@@ -128,6 +170,9 @@ SlaterPlaneWave::SlaterPlaneWave(std::size_t num_particles, double box_lengthL)
     for (int new_x = -N_MAX; new_x <= N_MAX; ++new_x) {
         for (int new_y = -N_MAX; new_y <= N_MAX; ++new_y) {
             for (int new_z = -N_MAX; new_z <= N_MAX; ++new_z) {
+                if (!is_canonical(new_x, new_y, new_z))
+                    continue;
+
                 const int new_mag_sq{new_x * new_x + new_y * new_y + new_z * new_z};
                 n_candidates.emplace_back(new_x, new_y, new_z, new_mag_sq);
             }
@@ -148,31 +193,67 @@ SlaterPlaneWave::SlaterPlaneWave(std::size_t num_particles, double box_lengthL)
         return a.n_cand_z < b.n_cand_z;
     });
 
+    // Assign orbitals
+    // Orbital 0: k=0 -> cos(0 dot r) = cos(0) = 1
+    // For each nonzero canonical k: orbital 2m-1 -> cos(k dot r), orbital 2m -> sin(k dot r)
+
     int* RESTRICT n_x{n_vector_x_get()};
     int* RESTRICT n_y{n_vector_y_get()};
     int* RESTRICT n_z{n_vector_z_get()};
 
-    // Fill n-vector with smallest magnitude states
-    for (std::size_t i = 0; i < N; ++i) {
-        n_x[i] = n_candidates[i].n_cand_x;
-        n_y[i] = n_candidates[i].n_cand_y;
-        n_z[i] = n_candidates[i].n_cand_z;
+    auto& orb_k_idx{orbital_k_index_get()};
+    auto& orb_type{orbital_type_get()};
+
+    std::size_t orb_idx{};
+    std::size_t k_idx{};
+
+    for (std::size_t c = 0; c < n_candidates.size() && orb_idx < N; ++c) {
+        const auto& cand{n_candidates[c]};
+        const bool mag_not_zero{cand.n_mag_sq != 0};
+
+        n_x[k_idx] = cand.n_cand_x;
+        n_y[k_idx] = cand.n_cand_y;
+        n_z[k_idx] = cand.n_cand_z;
+
+        // Cos orbital (every k-vector gets one)
+        orb_k_idx[orb_idx] = k_idx;
+        orb_type[orb_idx] = 0;
+        ++orb_idx;
+
+        // Sin orbital (only for non-zero k - sin(0) = 0 is singular)
+        if (mag_not_zero && orb_idx < N) {
+            orb_k_idx[orb_idx] = k_idx;
+            orb_type[orb_idx] = 1;
+            ++orb_idx;
+        }
+
+        ++k_idx;
     }
+
+    num_unique_k_set() = k_idx;
 
     double* RESTRICT k_x{k_vector_x_get()};
     double* RESTRICT k_y{k_vector_y_get()};
     double* RESTRICT k_z{k_vector_z_get()};
 
-    const double inv_L{1 / box_length_get()};
+    const double inv_L{1.0 / box_length_get()};
 
     // Follows the calculation: K = (2pi/L) * n;
-    for (std::size_t i = 0; i < N; ++i) {
+    for (std::size_t i = 0; i < k_idx; ++i) {
         k_x[i] = 2 * std::numbers::pi * inv_L * static_cast<double>(n_x[i]);
         k_y[i] = 2 * std::numbers::pi * inv_L * static_cast<double>(n_y[i]);
         k_z[i] = 2 * std::numbers::pi * inv_L * static_cast<double>(n_z[i]);
     }
 };
 
+// Slater matrix D_{i,j} = φ_j(r_i)
+// Each orbital j has an associated k-vector (via orbital_k_index)
+// and a type (via orbital_type): 0 = cos, 1 = sin.
+//
+//   type 0: D_{i,j} = cos(k_j · r_i)
+//   type 1: D_{i,j} = sin(k_j · r_i)
+//
+// log|Ψ_Slater| = log|det(D)|
 double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     const std::size_t N{num_orbitals_get()};
     const std::size_t padded_N{particles.padding_stride_get()};
@@ -184,6 +265,9 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     const double* RESTRICT k_x_comp{k_vector_x_get()};
     const double* RESTRICT k_y_comp{k_vector_y_get()};
     const double* RESTRICT k_z_comp{k_vector_z_get()};
+
+    const auto& k_index{orbital_k_index_get()};
+    const auto& orb_type{orbital_type_get()};
 
     double* RESTRICT det_matrix{determinant_get()};
     double* RESTRICT lower_upper_matrix{lower_upper_get()};
@@ -201,9 +285,14 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
         const double p_z{pos_z[particle]};
 
         for (std::size_t orbital = 0; orbital < N; ++orbital) {
-            const double k_dot_r = k_x_comp[orbital] * p_x + k_y_comp[orbital] * p_y + k_z_comp[orbital] * p_z;
+            const std::size_t k_idx{k_index[orbital]};
+            const double k_dot_r = k_x_comp[k_idx] * p_x + k_y_comp[k_idx] * p_y + k_z_comp[k_idx] * p_z;
 
-            det_matrix[index(particle, orbital, N)] = std::cos(k_dot_r);
+            if (orb_type[orbital] == 0) {
+                det_matrix[index(particle, orbital, N)] = std::cos(k_dot_r);
+            } else {
+                det_matrix[index(particle, orbital, N)] = std::sin(k_dot_r);
+            }
         }
     }
 
@@ -257,6 +346,9 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
     const double* RESTRICT k_y{k_vector_y_get()};
     const double* RESTRICT k_z{k_vector_z_get()};
 
+    const auto& k_index{orbital_k_index_get()};
+    const auto& o_type{orbital_type_get()};
+
     const double* RESTRICT inv_det{inv_determinant_get()};
 
     for (std::size_t particle = 0; particle < N; ++particle) {
@@ -264,45 +356,68 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
         const double p_y{pos_y[particle]};
         const double p_z{pos_z[particle]};
 
-        double d_Log_det_dx{}, d_Log_det_dy{}, d_Log_det_dz{};
+        double d_log_det_dx{}, d_log_det_dy{}, d_log_det_dz{};
 
         // Σ_j (D^{-1})_{j,particle} * (∇^2 D_{particle,j})
         double laplace_det_term{};
 
         for (std::size_t orbital = 0; orbital < N; ++orbital) {
-            const double k_x_orbital{k_x[orbital]};
-            const double k_y_orbital{k_y[orbital]};
-            const double k_z_orbital{k_z[orbital]};
+            const std::size_t k_idx{k_index[orbital]};
+
+            const double k_x_orbital{k_x[k_idx]};
+            const double k_y_orbital{k_y[k_idx]};
+            const double k_z_orbital{k_z[k_idx]};
 
             const double k_dot_R{k_x_orbital * p_x + k_y_orbital * p_y + k_z_orbital * p_z};
+
             const double cos_term{std::cos(k_dot_R)};
             const double sin_term{std::sin(k_dot_R)};
-            // D(particle,orbital) = cos(k·r)
-            // ∇_particle D = -sin(k·r) * k
-            const double dD_dx{-sin_term * k_x_orbital};
-            const double dD_dy{-sin_term * k_y_orbital};
-            const double dD_dz{-sin_term * k_z_orbital};
 
-            // ∇^2 D = -cos(k·r) * |k|^2
             const double k_sq{k_x_orbital * k_x_orbital + k_y_orbital * k_y_orbital + k_z_orbital * k_z_orbital};
-            const double lap_D{-cos_term * k_sq};
-            // weight = (D^{-1})_{orbital,particle}
-            // invD_ is row-major, so entry (row=orbital, col=particle):
+
+            // ∇_i log|det D| = Σ_j (D⁻¹)_{j,i} · ∇_i D_{i,j}
+            //
+            // ∇²_i log|det D| = Σ_j (D⁻¹)_{j,i} · ∇²_i D_{i,j}
+            //                    - ||∇_i log|det D|||²
+            //
+            // The cross term arises from d/dx (f'/f) = f''/f - (f'/f)²
+            // applied to each component of the gradient.
+
+            double dD_dx{}, dD_dy{}, dD_dz{};
+            double lap_D{};
+
+            if (o_type[orbital] == 0) {
+                // D = cos(k dot r)
+                // grad(D) = -sin(k dot r) * k
+                // lap(D) = -cos(k dot r) * |k|^2
+                dD_dx = -sin_term * k_x_orbital;
+                dD_dy = -sin_term * k_y_orbital;
+                dD_dz = -sin_term * k_z_orbital;
+                lap_D = -cos_term * k_sq;
+            } else {
+                // D = sin(k dot r)
+                // grad(D) = cos(k dot r) * k
+                // lap(D) = -sin(k dot r) * |k|^2
+                dD_dx = cos_term * k_x_orbital;
+                dD_dy = cos_term * k_y_orbital;
+                dD_dz = cos_term * k_z_orbital;
+                lap_D = -sin_term * k_sq;
+            }
+
             const double weight{inv_det[index(orbital, particle, N)]};
 
-            d_Log_det_dx += weight * dD_dx;
-            d_Log_det_dy += weight * dD_dy;
-            d_Log_det_dz += weight * dD_dz;
+            d_log_det_dx += weight * dD_dx;
+            d_log_det_dy += weight * dD_dy;
+            d_log_det_dz += weight * dD_dz;
 
             laplace_det_term += weight * lap_D;
         }
-        // ∇^2 log det D = Σ_j (D^{-1})_{j,i} ∇^2 D_{i,j}  -  ||∇ log det D||^2
-        const double grad_sq{d_Log_det_dx * d_Log_det_dx + d_Log_det_dy * d_Log_det_dy + d_Log_det_dz * d_Log_det_dz};
+        const double grad_sq{d_log_det_dx * d_log_det_dx + d_log_det_dy * d_log_det_dy + d_log_det_dz * d_log_det_dz};
         const double lap_log_det{laplace_det_term - grad_sq};
 
-        grad_x[particle] += d_Log_det_dx;
-        grad_y[particle] += d_Log_det_dy;
-        grad_z[particle] += d_Log_det_dz;
+        grad_x[particle] += d_log_det_dx;
+        grad_y[particle] += d_log_det_dy;
+        grad_z[particle] += d_log_det_dz;
 
         laplacian[particle] += lap_log_det;
     }

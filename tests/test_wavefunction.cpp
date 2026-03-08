@@ -31,11 +31,16 @@ TEST_CASE("WaveFunction evaluateDerivatives clears buffers and delegates to Jast
 
     WaveFunction waveFunction{2U, 10.0, 0.5, 1.0};
 
+    // Compute expected: zero-init then add both Slater and Jastrow
     std::vector<double> expectedX(stride, 0.0);
     std::vector<double> expectedY(stride, 0.0);
     std::vector<double> expectedZ(stride, 0.0);
     std::vector<double> expectedLap(stride, 0.0);
 
+    // Need to call log_abs_det first to populate the inverse
+    waveFunction.slater_plane_wave_ptr().log_abs_det(particles);
+    waveFunction.slater_plane_wave_ptr().add_derivatives(particles, expectedX.data(), expectedY.data(),
+                                                         expectedZ.data(), expectedLap.data());
     waveFunction.jastrow_pade_ptr().add_derivatives(particles, pbc, expectedX.data(), expectedY.data(),
                                                     expectedZ.data(), expectedLap.data());
 
@@ -49,7 +54,10 @@ TEST_CASE("WaveFunction evaluateDerivatives clears buffers and delegates to Jast
     }
 }
 
-TEST_CASE("WaveFunction evaluate_log_psi updates particle log_psi", "[wavefunction]") {
+TEST_CASE("WaveFunction evaluate_log_psi returns finite for N=1", "[wavefunction]") {
+    // N=1: orbital 0 is cos(0·r) = 1, so log|det| = 0
+    // Jastrow with 1 particle has no pairs, so J = 0
+    // Total log_psi = 0
     Particles particles{1U};
     const PeriodicBoundaryCondition pbc{10.0};
 
@@ -59,18 +67,6 @@ TEST_CASE("WaveFunction evaluate_log_psi updates particle log_psi", "[wavefuncti
 
     WaveFunction waveFunction{1U, 10.0, 0.5, 1.0};
 
-    waveFunction.slater_plane_wave_ptr().k_vector_x_get()[0] = 0.3;
-    waveFunction.slater_plane_wave_ptr().k_vector_y_get()[0] = -0.2;
-    waveFunction.slater_plane_wave_ptr().k_vector_z_get()[0] = 0.5;
-
-    waveFunction.evaluate_log_psi(particles, pbc);
-
-    const double k_dot_r{waveFunction.slater_plane_wave_ptr().k_vector_x_get()[0] * particles.pos_x_get()[0] +
-                         waveFunction.slater_plane_wave_ptr().k_vector_y_get()[0] * particles.pos_y_get()[0] +
-                         waveFunction.slater_plane_wave_ptr().k_vector_z_get()[0] * particles.pos_z_get()[0]};
-
-    const double expectedLogPsi{std::log(std::abs(std::cos(k_dot_r)))};
-
     const double logPsi{waveFunction.evaluate_log_psi(particles, pbc)};
-    requireNearWave(logPsi, expectedLogPsi);
+    requireNearWave(logPsi, 0.0);
 }
