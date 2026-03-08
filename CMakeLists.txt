@@ -16,9 +16,17 @@ project(Variational-Monte-Carlo LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# --- Build type default (Release unless overridden) ---
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release)
+endif()
+
 # --- Compiler warnings and optimizations ---
 if(MSVC)
     set(VMC_WARNING_OPTIONS /W4 /permissive- /arch:AVX2)
+    set(VMC_RELEASE_OPTIONS /O2)
+    set(VMC_DEBUG_OPTIONS   /Od /Zi)
 else()
     set(VMC_WARNING_OPTIONS
         -Wall
@@ -28,6 +36,8 @@ else()
         -Wconversion
         -Wsign-conversion
     )
+    set(VMC_RELEASE_OPTIONS -O3 -march=native)
+    set(VMC_DEBUG_OPTIONS   -g -O0)
 endif()
 
 # --- Library target for all source files ---
@@ -43,7 +53,11 @@ add_library(vmc_lib STATIC
 )
 
 target_include_directories(vmc_lib PUBLIC src)
-target_compile_options(vmc_lib PRIVATE ${VMC_WARNING_OPTIONS})
+target_compile_options(vmc_lib PRIVATE
+    ${VMC_WARNING_OPTIONS}
+    $<$<CONFIG:Release>:${VMC_RELEASE_OPTIONS}>
+    $<$<CONFIG:Debug>:${VMC_DEBUG_OPTIONS}>
+)
 
 # --- Main executable ---
 add_executable(vmc
@@ -51,7 +65,11 @@ add_executable(vmc
 )
 
 target_link_libraries(vmc PRIVATE vmc_lib)
-target_compile_options(vmc PRIVATE ${VMC_WARNING_OPTIONS})
+target_compile_options(vmc PRIVATE
+    ${VMC_WARNING_OPTIONS}
+    $<$<CONFIG:Release>:${VMC_RELEASE_OPTIONS}>
+    $<$<CONFIG:Debug>:${VMC_DEBUG_OPTIONS}>
+)
 
 # --- Testing (opt-in via BUILD_TESTING argument) ---
 include(CTest)
@@ -76,7 +94,11 @@ if(BUILD_TESTING)
         Catch2::Catch2WithMain
         vmc_lib
     )
-    target_compile_options(vmc_tests PRIVATE ${VMC_WARNING_OPTIONS})
+    target_compile_options(vmc_tests PRIVATE
+        ${VMC_WARNING_OPTIONS}
+        $<$<CONFIG:Release>:${VMC_RELEASE_OPTIONS}>
+        $<$<CONFIG:Debug>:${VMC_DEBUG_OPTIONS}>
+    )
 
     list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
     include(Catch)
