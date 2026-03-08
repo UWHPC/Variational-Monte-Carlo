@@ -108,7 +108,7 @@ public:
     [[nodiscard]] double const* k_vector_z_get() const noexcept { return double_vectors_[K_Z_]; }
 
     // Computes log|det(D)| and updates internal cached inverse/LU.
-    [[nodiscard]] double log_abs_det(const Particles& particles);
+    double log_abs_det(const Particles& particles);
 
     // Accumulates Slater contributions into grad/lap (length = stride/at least N).
     void add_derivatives(const Particles& particles, double* RESTRICT grad_x, double* RESTRICT grad_y,

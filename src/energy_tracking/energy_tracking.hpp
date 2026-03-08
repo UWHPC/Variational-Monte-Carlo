@@ -9,9 +9,6 @@
 
 class EnergyTracker {
 private:
-    // L - needed for recip. prefactor
-    double box_length_;
-
     // Constants for Ewald Energy:
     double ewald_alpha_;
     double ewald_correction_;

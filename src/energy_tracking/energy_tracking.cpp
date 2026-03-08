@@ -4,7 +4,7 @@
 #include <numbers>
 
 EnergyTracker::EnergyTracker(double box_length, double num_particles)
-    : box_length_{box_length}, ewald_alpha_{6.0 / box_length},                              // 6.0 / L
+    : ewald_alpha_{6.0 / box_length},                                                       // 6.0 / L
       ewald_correction_{-6.0 * num_particles / (std::sqrt(std::numbers::pi) * box_length)}, // -6.0 * N / (sqrt(pi) * L)
       ewald_background_{-std::numbers::pi * num_particles * num_particles / (72.0 * box_length)} { // -pi * N^2 / (72L)
 
