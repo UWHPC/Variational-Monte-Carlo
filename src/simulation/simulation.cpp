@@ -78,17 +78,16 @@ bool Simulation::metropolis_step() {
     const double log_u{log(rand_uniform_double())};
     const double min_term{std::min(0.0, 2.0 * delta_log_psi)};
 
-    if (log_u < min_term) {
+    bool accepted{log_u < min_term};
+
+    if (accepted) {
         log_psi_set() = new_log_psi;
         return true;
-    } else {
-        p_x[rand_particle] = old_x;
-        p_y[rand_particle] = old_y;
-        p_z[rand_particle] = old_z;
-
-        log_psi_set() = wave_function_get().evaluate_log_psi(particles_get(), pbc_get());
     }
 
+    p_x[rand_particle] = old_x;
+    p_y[rand_particle] = old_y;
+    p_z[rand_particle] = old_z;
     return false;
 }
 
@@ -144,6 +143,7 @@ Simulation::MeasurementSummary Simulation::measure() {
             ++accepted_;
         }
 
+        wavefunction.evaluate_log_psi(particles, pbc);
         wavefunction.evaluate_derivatives(particles, pbc);
 
         const double E_local{energy_tracker.eval_total_energy(particles, pbc)};
