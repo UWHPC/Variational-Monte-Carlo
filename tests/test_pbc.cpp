@@ -98,3 +98,20 @@ TEST_CASE("minimum-image displacement is antisymmetric between particle ordering
     require_near_pbc(dyAB, -dyBA);
     require_near_pbc(dzAB, -dzBA);
 }
+
+TEST_CASE("wrap and min_image correction branches handle large-magnitude roundoff", "[pbc]") {
+    const PeriodicBoundaryCondition pbc{10.0};
+
+    const double wrapped_high{pbc.wrap(4.198806833387129e17)};
+    const double wrapped_low{pbc.wrap(6.2516038340170664e16)};
+
+    REQUIRE(wrapped_high >= 0.0);
+    REQUIRE(wrapped_high < pbc.L_get());
+    REQUIRE(wrapped_low >= 0.0);
+    REQUIRE(wrapped_low < pbc.L_get());
+
+    require_near_pbc(wrapped_high, 6.0);
+    require_near_pbc(wrapped_low, 4.0);
+
+    require_near_pbc(pbc.min_image(-3.9847521738915704e16), -4.0);
+}
