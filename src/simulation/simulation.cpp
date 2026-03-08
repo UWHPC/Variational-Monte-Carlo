@@ -46,6 +46,7 @@ void Simulation::initialize_positions() {
         p_z[i] = rand_uniform_double() * length;
     }
     log_psi_set() = wave_function_get().evaluate_log_psi(particles_get(), pbc_get());
+    energy_tracker_get().initialize_structure_factors(particles_get());
 }
 
 /// @brief Randomly selects a particle and proposes a new position, then checks if the proposed move was valid then
@@ -83,12 +84,15 @@ bool Simulation::metropolis_step() {
 
     if (accepted) {
         log_psi_set() = new_log_psi;
+        energy_tracker_get().update_structure_factors(old_x, old_y, old_z, p_x[rand_particle], p_y[rand_particle],
+                                                      p_z[rand_particle]);
         return true;
     }
 
     p_x[rand_particle] = old_x;
     p_y[rand_particle] = old_y;
     p_z[rand_particle] = old_z;
+
     return false;
 }
 
