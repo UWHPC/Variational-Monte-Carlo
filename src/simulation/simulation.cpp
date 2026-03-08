@@ -1,33 +1,9 @@
 #include "simulation.hpp"
 
-#include <chrono>
-#include <iomanip>
 #include <iostream>
 #include <optional>
 #include <string>
 #include <utility>
-
-#ifdef VMC_PROFILE_MODE
-namespace {
-
-class ScopedTimer {
-public:
-    explicit ScopedTimer(double& accumulator)
-        : start_{std::chrono::steady_clock::now()}, accumulator_{accumulator} {}
-
-    ~ScopedTimer() {
-        const auto end{std::chrono::steady_clock::now()};
-        const std::chrono::duration<double> elapsed{end - start_};
-        accumulator_ += elapsed.count();
-    }
-
-private:
-    std::chrono::steady_clock::time_point start_;
-    double& accumulator_;
-};
-
-} // namespace
-#endif
 
 Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_writer)
     : config_{std::move(config)}, particles_{config_.num_particles}, pbc_{config_.box_length},
@@ -132,16 +108,7 @@ void Simulation::warmup() {
 
     for (std::size_t i{}; i < warmup_steps; i++) {
         window_proposed++;
-        bool accepted{};
-#ifdef VMC_PROFILE_MODE
-        {
-            ScopedTimer timer{profile_stats_.metropolis_warmup_seconds};
-            accepted = metropolis_step();
-        }
-        ++profile_stats_.warmup_metropolis_calls;
-#else
-        accepted = metropolis_step();
-#endif
+        const bool accepted{metropolis_step()};
         if (accepted)
             ++window_accepted;
 
@@ -173,65 +140,24 @@ Simulation::MeasurementSummary Simulation::measure() {
     std::optional<double> final_standard_error{};
 
     for (std::size_t i = 0; i < measure_steps; ++i) {
-#ifdef VMC_PROFILE_MODE
-        ++profile_stats_.measure_iterations;
-#endif
         ++proposed_;
-        bool accepted{};
-#ifdef VMC_PROFILE_MODE
-        {
-            ScopedTimer timer{profile_stats_.metropolis_measure_seconds};
-            accepted = metropolis_step();
-        }
-        ++profile_stats_.measure_metropolis_calls;
-#else
-        accepted = metropolis_step();
-#endif
+        const bool accepted{metropolis_step()};
         if (accepted) {
             ++accepted_;
         }
 
-#ifdef VMC_PROFILE_MODE
-        {
-            ScopedTimer timer{profile_stats_.evaluate_log_psi_seconds};
-            wavefunction.evaluate_log_psi(particles, pbc);
-        }
-        {
-            ScopedTimer timer{profile_stats_.evaluate_derivatives_seconds};
-            wavefunction.evaluate_derivatives(particles, pbc);
-        }
-#else
         wavefunction.evaluate_log_psi(particles, pbc);
         wavefunction.evaluate_derivatives(particles, pbc);
-#endif
 
-#ifdef VMC_PROFILE_MODE
-        double E_local{};
-        {
-            ScopedTimer timer{profile_stats_.energy_eval_seconds};
-            E_local = energy_tracker.eval_total_energy(particles, pbc);
-        }
-#else
         const double E_local{energy_tracker.eval_total_energy(particles, pbc)};
-#endif
         running_energy_sum += E_local;
-#ifdef VMC_PROFILE_MODE
-        {
-            ScopedTimer timer{profile_stats_.blocking_seconds};
-            blocking_analysis.add(E_local);
-        }
-#else
         blocking_analysis.add(E_local);
-#endif
 
         const double running_mean{running_energy_sum / static_cast<double>(i + 1U)};
         final_mean_energy = running_mean;
 
         std::optional<double> frame_standard_error{};
         if (blocking_analysis.ready()) {
-#ifdef VMC_PROFILE_MODE
-            ScopedTimer timer{profile_stats_.blocking_seconds};
-#endif
             const auto [blocked_mean, standard_error]{blocking_analysis.mean_and_standard_error()};
             final_mean_energy = blocked_mean;
             final_standard_error = standard_error;
@@ -239,9 +165,6 @@ Simulation::MeasurementSummary Simulation::measure() {
         }
 
         if (output_writer_) {
-#ifdef VMC_PROFILE_MODE
-            ScopedTimer timer{profile_stats_.output_seconds};
-#endif
             output_writer_->write_frame(FrameData{.step = i + 1U,
                                                   .accepted = accepted_,
                                                   .proposed = proposed_,
@@ -290,51 +213,4 @@ void Simulation::run() {
                                             .final_mean_energy = summary.mean_energy,
                                             .final_standard_error = summary.standard_error});
     }
-#ifdef VMC_PROFILE_MODE
-    print_profile_summary();
-#endif
 }
-
-#ifdef VMC_PROFILE_MODE
-void Simulation::print_profile_summary() const {
-    const double timed_measure_total{
-        profile_stats_.metropolis_measure_seconds + profile_stats_.evaluate_log_psi_seconds +
-        profile_stats_.evaluate_derivatives_seconds + profile_stats_.energy_eval_seconds + profile_stats_.blocking_seconds +
-        profile_stats_.output_seconds};
-
-    const auto pct = [timed_measure_total](double seconds) {
-        if (timed_measure_total <= 0.0) {
-            return 0.0;
-        }
-        return (100.0 * seconds) / timed_measure_total;
-    };
-
-    const auto us_per = [](double seconds, std::uint64_t count) {
-        if (count == 0U) {
-            return 0.0;
-        }
-        return (seconds * 1'000'000.0) / static_cast<double>(count);
-    };
-
-    std::cout << std::fixed << std::setprecision(3);
-    std::cout << "[profile] warmup metropolis: " << profile_stats_.metropolis_warmup_seconds << " s ("
-              << us_per(profile_stats_.metropolis_warmup_seconds, profile_stats_.warmup_metropolis_calls)
-              << " us/call)\n";
-    std::cout << "[profile] measure metropolis: " << profile_stats_.metropolis_measure_seconds << " s ("
-              << pct(profile_stats_.metropolis_measure_seconds) << "%, "
-              << us_per(profile_stats_.metropolis_measure_seconds, profile_stats_.measure_metropolis_calls)
-              << " us/call)\n";
-    std::cout << "[profile] evaluate_log_psi: " << profile_stats_.evaluate_log_psi_seconds << " s ("
-              << pct(profile_stats_.evaluate_log_psi_seconds) << "%)\n";
-    std::cout << "[profile] evaluate_derivatives: " << profile_stats_.evaluate_derivatives_seconds << " s ("
-              << pct(profile_stats_.evaluate_derivatives_seconds) << "%)\n";
-    std::cout << "[profile] energy eval: " << profile_stats_.energy_eval_seconds << " s ("
-              << pct(profile_stats_.energy_eval_seconds) << "%)\n";
-    std::cout << "[profile] blocking stats: " << profile_stats_.blocking_seconds << " s ("
-              << pct(profile_stats_.blocking_seconds) << "%)\n";
-    std::cout << "[profile] output write: " << profile_stats_.output_seconds << " s (" << pct(profile_stats_.output_seconds)
-              << "%)\n";
-    std::cout << "[profile] measured iterations: " << profile_stats_.measure_iterations << '\n';
-    std::cout << "[profile] timed measure subtotal: " << timed_measure_total << " s\n";
-}
-#endif

@@ -16,19 +16,20 @@ project(Variational-Monte-Carlo LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-option(PROFILE_MODE "Enable lightweight internal profiling timers and disable per-step output" OFF)
-
 # --- Build type default (Release unless overridden) ---
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
-    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release)
 endif()
+set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release RelWithDebInfo MinSizeRel)
 
 # --- Compiler warnings and optimizations ---
 if(MSVC)
     set(VMC_WARNING_OPTIONS /W4 /permissive- /arch:AVX2)
     set(VMC_RELEASE_OPTIONS /O2)
     set(VMC_DEBUG_OPTIONS   /Od /Zi)
+    set(VMC_RELWITHDEBINFO_OPT_1 /O2)
+    set(VMC_RELWITHDEBINFO_OPT_2 /Oy-)
+    set(VMC_RELWITHDEBINFO_OPT_3 "")
 else()
     set(VMC_WARNING_OPTIONS
         -Wall
@@ -40,6 +41,9 @@ else()
     )
     set(VMC_RELEASE_OPTIONS -O3 -march=native)
     set(VMC_DEBUG_OPTIONS   -g -O0)
+    set(VMC_RELWITHDEBINFO_OPT_1 -O3)
+    set(VMC_RELWITHDEBINFO_OPT_2 -march=native)
+    set(VMC_RELWITHDEBINFO_OPT_3 -fno-omit-frame-pointer)
 endif()
 
 # --- Library target for all source files ---
@@ -59,8 +63,10 @@ target_compile_options(vmc_lib PRIVATE
     ${VMC_WARNING_OPTIONS}
     $<$<CONFIG:Release>:${VMC_RELEASE_OPTIONS}>
     $<$<CONFIG:Debug>:${VMC_DEBUG_OPTIONS}>
+    $<$<CONFIG:RelWithDebInfo>:${VMC_RELWITHDEBINFO_OPT_1}>
+    $<$<CONFIG:RelWithDebInfo>:${VMC_RELWITHDEBINFO_OPT_2}>
+    $<$<CONFIG:RelWithDebInfo>:${VMC_RELWITHDEBINFO_OPT_3}>
 )
-target_compile_definitions(vmc_lib PRIVATE $<$<BOOL:${PROFILE_MODE}>:VMC_PROFILE_MODE>)
 
 # --- Main executable ---
 add_executable(vmc
@@ -72,8 +78,10 @@ target_compile_options(vmc PRIVATE
     ${VMC_WARNING_OPTIONS}
     $<$<CONFIG:Release>:${VMC_RELEASE_OPTIONS}>
     $<$<CONFIG:Debug>:${VMC_DEBUG_OPTIONS}>
+    $<$<CONFIG:RelWithDebInfo>:${VMC_RELWITHDEBINFO_OPT_1}>
+    $<$<CONFIG:RelWithDebInfo>:${VMC_RELWITHDEBINFO_OPT_2}>
+    $<$<CONFIG:RelWithDebInfo>:${VMC_RELWITHDEBINFO_OPT_3}>
 )
-target_compile_definitions(vmc PRIVATE $<$<BOOL:${PROFILE_MODE}>:VMC_PROFILE_MODE>)
 
 # --- Testing (opt-in via BUILD_TESTING argument) ---
 include(CTest)
@@ -102,6 +110,9 @@ if(BUILD_TESTING)
         ${VMC_WARNING_OPTIONS}
         $<$<CONFIG:Release>:${VMC_RELEASE_OPTIONS}>
         $<$<CONFIG:Debug>:${VMC_DEBUG_OPTIONS}>
+        $<$<CONFIG:RelWithDebInfo>:${VMC_RELWITHDEBINFO_OPT_1}>
+        $<$<CONFIG:RelWithDebInfo>:${VMC_RELWITHDEBINFO_OPT_2}>
+        $<$<CONFIG:RelWithDebInfo>:${VMC_RELWITHDEBINFO_OPT_3}>
     )
 
     list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)

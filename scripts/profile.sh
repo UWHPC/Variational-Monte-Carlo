@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BUILD_TYPE="${1:-RelWithDebInfo}"
-BUILD_DIR="${2:-build-prof}"
+BUILD_DIR="${1:-build-prof}"
 
-cmake -S . -B "$BUILD_DIR" -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DPROFILE_MODE=ON
+cmake -S . -B "$BUILD_DIR" -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build "$BUILD_DIR" --target vmc
-"./$BUILD_DIR/vmc"
+echo "Profiler build ready: ./$BUILD_DIR/vmc"

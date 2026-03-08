@@ -26,30 +26,20 @@ Alternatively, a manual build involves: \
 
 ## Profiling Mode
 
-You can enable a lightweight built-in profiler that:
-- disables per-step JSON output (so I/O does not dominate samples),
-- prints a timing breakdown for core simulation phases.
+Use a profiler-friendly build (optimized with debug symbols) for external profilers.
 
-Build and run:
+Build:
 `./scripts/profile.sh` or `./scripts/profile.ps1`
 
 Script parameters:
-- `./scripts/profile.sh [BUILD_TYPE] [BUILD_DIR]` (defaults: `RelWithDebInfo`, `build-prof`)
-- `./scripts/profile.ps1 [-BuildType <BUILD_TYPE>] [-BuildDir <BUILD_DIR>]`
-  (defaults: `RelWithDebInfo`, `build-prof`)
+- `./scripts/profile.sh [BUILD_DIR]` (default: `build-prof`)
+- `./scripts/profile.ps1 [-BuildDir <BUILD_DIR>]` (default: `build-prof`)
 
 Alternatively, manually:
-`cmake -S . -B build-prof -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo -DPROFILE_MODE=ON`
+`cmake -S . -B build-prof -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo`
 `cmake --build build-prof --target vmc`
-`./build-prof/vmc`
 
-You will see `[profile]` lines for:
-- warmup and measurement Metropolis time,
-- `evaluate_log_psi`,
-- derivative evaluation,
-- local energy evaluation,
-- blocking-statistics overhead,
-- output writing overhead.
+Run under your profiler using `./build-prof/vmc`.
 
 ## Run Tests
 

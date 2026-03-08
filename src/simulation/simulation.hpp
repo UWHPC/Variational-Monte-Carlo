@@ -12,9 +12,6 @@
 #include <optional>
 #include <random>
 #include <vector>
-#ifdef VMC_PROFILE_MODE
-#include <cstdint>
-#endif
 
 class Simulation {
 private:
@@ -33,22 +30,6 @@ private:
     std::size_t proposed_;
     std::size_t accepted_;
     double log_psi_current_;
-
-#ifdef VMC_PROFILE_MODE
-    struct ProfileStats {
-        double metropolis_warmup_seconds{};
-        double metropolis_measure_seconds{};
-        double evaluate_log_psi_seconds{};
-        double evaluate_derivatives_seconds{};
-        double energy_eval_seconds{};
-        double blocking_seconds{};
-        double output_seconds{};
-        std::uint64_t warmup_metropolis_calls{};
-        std::uint64_t measure_metropolis_calls{};
-        std::uint64_t measure_iterations{};
-    };
-    ProfileStats profile_stats_{};
-#endif
 
     // Random num generation:
     std::mt19937_64 rng_;
@@ -99,7 +80,4 @@ private:
     bool metropolis_step();
     void warmup();
     MeasurementSummary measure();
-#ifdef VMC_PROFILE_MODE
-    void print_profile_summary() const;
-#endif
 };
