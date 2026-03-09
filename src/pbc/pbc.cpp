@@ -30,39 +30,3 @@ void PeriodicBoundaryCondition::wrap3(double& x, double& y, double& z) const noe
     y = wrap(y);
     z = wrap(z);
 }
-
-double PeriodicBoundaryCondition::min_image(double dx) const noexcept {
-    const double L{L_get()};
-    const double inv_L{inv_L_get()};
-
-    // dx -= L * round(dx / L)
-    dx -= L * std::round(dx * inv_L);
-
-    // handle edge cases, ensure (-L/2, L/2]
-    const double HALF_L{0.5 * L};
-
-    if (dx > HALF_L) {
-        dx -= L;
-    }
-    if (dx <= -HALF_L) {
-        dx += L;
-    }
-
-    return dx;
-}
-
-void PeriodicBoundaryCondition::displacement(double xi, double yi, double zi, double xj, double yj, double zj,
-                                             double& dx, double& dy, double& dz) const noexcept {
-    dx = min_image(xi - xj);
-    dy = min_image(yi - yj);
-    dz = min_image(zi - zj);
-}
-
-double PeriodicBoundaryCondition::distance(double xi, double yi, double zi, double xj, double yj,
-                                           double zj) const noexcept {
-    double dx{}, dy{}, dz{};
-
-    displacement(xi, yi, zi, xj, yj, zj, dx, dy, dz);
-
-    return std::sqrt(dx * dx + dy * dy + dz * dz);
-}

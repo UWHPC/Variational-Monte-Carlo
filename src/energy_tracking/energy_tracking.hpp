@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../particles/particles.hpp"
-#include "../pbc/pbc.hpp"
 #include "../utilities/aligned_soa.hpp"
 
 #include <cstddef>
@@ -39,7 +38,7 @@ public:
     void update_structure_factors(double old_x, double old_y, double old_z, double new_x, double new_y,
                                   double new_z) noexcept;
 
-    double eval_total_energy(const Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept;
+    double eval_total_energy(const Particles& particles) const noexcept;
 
 private:
     [[nodiscard]] double ewald_alpha_get() const noexcept { return ewald_alpha_; }
@@ -65,5 +64,5 @@ private:
     [[nodiscard]] std::size_t num_g_vectors_get() const noexcept { return G_vector_x_.size(); }
 
     double kinetic_energy(const Particles& particles) const noexcept;
-    double potential_energy(const Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept;
+    double potential_energy(const Particles& particles) const noexcept;
 };

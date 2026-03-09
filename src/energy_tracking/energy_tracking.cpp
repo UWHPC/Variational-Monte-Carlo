@@ -124,8 +124,7 @@ double EnergyTracker::kinetic_energy(const Particles& particles) const noexcept 
     return -0.5 * T_sum;
 }
 
-double EnergyTracker::potential_energy(const Particles& particles,
-                                       const PeriodicBoundaryCondition& pbc) const noexcept {
+double EnergyTracker::potential_energy(const Particles& particles) const noexcept {
     const std::size_t N{particles.num_particles_get()};
     const double L{box_length_};
     const double half_L{0.5 * L};
@@ -192,7 +191,6 @@ double EnergyTracker::potential_energy(const Particles& particles,
     return V_real + V_recip + ewald_self_correction_term + ewald_background;
 }
 
-double EnergyTracker::eval_total_energy(const Particles& particles,
-                                        const PeriodicBoundaryCondition& pbc) const noexcept {
-    return kinetic_energy(particles) + potential_energy(particles, pbc);
+double EnergyTracker::eval_total_energy(const Particles& particles) const noexcept {
+    return kinetic_energy(particles) + potential_energy(particles);
 }

@@ -46,7 +46,7 @@ void Simulation::initialize_positions() {
         p_y[i] = rand_uniform_double() * length;
         p_z[i] = rand_uniform_double() * length;
     }
-    log_psi_set() = wave_function_get().evaluate_log_psi(particles_get(), pbc_get());
+    log_psi_set() = wave_function_get().evaluate_log_psi(particles_get());
     energy_tracker_get().initialize_structure_factors(particles_get());
 }
 
@@ -68,7 +68,7 @@ bool Simulation::metropolis_step() {
     const double old_z{p_z[rand_particle]};
 
     // Old Jastrow value:
-    const double old_jastrow{wave_function_get().jastrow_pade_ptr().value(particles_get(), pbc_get())};
+    const double old_jastrow{wave_function_get().jastrow_pade_get().value(particles_get())};
 
     // Add randomness:
     p_x[rand_particle] += rand_proposal_double();
@@ -79,12 +79,12 @@ bool Simulation::metropolis_step() {
     pbc_get().wrap3(p_x[rand_particle], p_y[rand_particle], p_z[rand_particle]);
 
     // Build new Slater row for moved particle and compute determinant ratio — O(N):
-    auto& slater{wave_function_get().slater_plane_wave_ptr()};
+    auto& slater{wave_function_get().slater_plane_wave_get()};
     const double* new_row{slater.build_row(rand_particle, particles_get())};
     const double slater_ratio{slater.determinant_ratio(rand_particle, new_row)};
 
     // Compute new Jastrow value:
-    const double new_jastrow{wave_function_get().jastrow_pade_ptr().value(particles_get(), pbc_get())};
+    const double new_jastrow{wave_function_get().jastrow_pade_get().value(particles_get())};
     const double delta_jastrow{new_jastrow - old_jastrow};
 
     const double log_ratio_sq{2.0 * std::log(std::abs(slater_ratio)) + 2.0 * delta_jastrow};
@@ -151,7 +151,6 @@ Simulation::MeasurementSummary Simulation::measure() {
 
     auto& wavefunction{wave_function_get()};
     auto& particles{particles_get()};
-    auto& pbc{pbc_get()};
     auto& blocking_analysis{blocking_analysis_get()};
     auto& energy_tracker{energy_tracker_get()};
     proposed_ = 0U;
@@ -168,9 +167,9 @@ Simulation::MeasurementSummary Simulation::measure() {
             ++accepted_;
         }
 
-        wavefunction.evaluate_derivatives(particles, pbc);
+        wavefunction.evaluate_derivatives(particles);
 
-        const double E_local{energy_tracker.eval_total_energy(particles, pbc)};
+        const double E_local{energy_tracker.eval_total_energy(particles)};
         running_energy_sum += E_local;
         blocking_analysis.add(E_local);
 

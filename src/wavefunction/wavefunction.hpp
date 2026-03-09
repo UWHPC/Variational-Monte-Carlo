@@ -12,14 +12,14 @@ private:
 
 public:
     explicit WaveFunction(std::size_t num_particles, double box_length, double a = 0.5, double b = 1.0)
-        : jastrow_pade_{a, b}, slater_plane_wave_{num_particles, box_length} {}
+        : jastrow_pade_{box_length, a, b}, slater_plane_wave_{num_particles, box_length} {}
 
-    [[nodiscard]] JastrowPade& jastrow_pade_ptr() { return jastrow_pade_; }
-    [[nodiscard]] const JastrowPade& jastrow_pade_ptr() const { return jastrow_pade_; }
+    [[nodiscard]] JastrowPade& jastrow_pade_get() { return jastrow_pade_; }
+    [[nodiscard]] const JastrowPade& jastrow_pade_get() const { return jastrow_pade_; }
 
-    [[nodiscard]] SlaterPlaneWave& slater_plane_wave_ptr() { return slater_plane_wave_; }
-    [[nodiscard]] const SlaterPlaneWave& slater_plane_wave_ptr() const { return slater_plane_wave_; }
+    [[nodiscard]] SlaterPlaneWave& slater_plane_wave_get() { return slater_plane_wave_; }
+    [[nodiscard]] const SlaterPlaneWave& slater_plane_wave_get() const { return slater_plane_wave_; }
 
-    void evaluate_derivatives(Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept;
-    double evaluate_log_psi(const Particles& particles, const PeriodicBoundaryCondition& pbc);
+    void evaluate_derivatives(Particles& particles) const noexcept;
+    double evaluate_log_psi(const Particles& particles);
 };

@@ -307,7 +307,7 @@ TEST_CASE("Free gas: EnergyTracker kinetic term matches manual computation", "[v
     // comparing two calls with/without derivatives (same approach as
     // test_energy_tracking.cpp).
     // Simpler: just verify the manual value matches exact.
-    const SlaterPlaneWave& slater{wf.slater_plane_wave_ptr()};
+    const SlaterPlaneWave& slater{wf.slater_plane_wave_get()};
     const double T_EXACT{exact_kinetic_energy(slater)};
 
     require_near_validation(T_manual, T_EXACT, 1e-8);
@@ -373,7 +373,7 @@ TEST_CASE("Free gas partial shell N=16: zero-variance property still holds", "[v
     Particles particles{N};
     const PeriodicBoundaryCondition pbc{L};
     WaveFunction wf{N, L, 0.0, 1.0};
-    const SlaterPlaneWave& slater{wf.slater_plane_wave_ptr()};
+    const SlaterPlaneWave& slater{wf.slater_plane_wave_get()};
     const double T_EXACT{exact_kinetic_energy(slater)};
 
     std::mt19937_64 rng{1337};

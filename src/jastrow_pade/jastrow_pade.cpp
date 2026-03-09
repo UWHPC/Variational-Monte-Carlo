@@ -3,7 +3,7 @@
 #include <cmath>
 #include <cstddef>
 
-double JastrowPade::value(const Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept {
+double JastrowPade::value(const Particles& particles) const noexcept {
     const std::size_t num_particles{particles.num_particles_get()};
     const double L{box_length_};
     const double half_L{0.5 * L};
@@ -46,9 +46,8 @@ double JastrowPade::value(const Particles& particles, const PeriodicBoundaryCond
     return jastrow_pade;
 }
 
-void JastrowPade::add_derivatives(const Particles& particles, const PeriodicBoundaryCondition& pbc,
-                                  double* RESTRICT grad_x, double* RESTRICT grad_y, double* RESTRICT grad_z,
-                                  double* RESTRICT laplacian) const noexcept {
+void JastrowPade::add_derivatives(const Particles& particles, double* RESTRICT grad_x, double* RESTRICT grad_y,
+                                  double* RESTRICT grad_z, double* RESTRICT laplacian) const noexcept {
     // NOTE: assumes gradX/gradY/gradZ/lap are zero-initialized by caller
     const std::size_t num_particles{particles.num_particles_get()};
     const double L{box_length_};
@@ -97,17 +96,14 @@ void JastrowPade::add_derivatives(const Particles& particles, const PeriodicBoun
 
             // ∇_i u(r_ij) = u'(r) * (r_vec / r)
             const double grad_factor{first_deriv * inv_dist};
-            const double grad_contribution_x{grad_factor * displ_x};
-            const double grad_contribution_y{grad_factor * displ_y};
-            const double grad_contribution_z{grad_factor * displ_z};
 
-            grad_x[i] += mask * grad_contribution_x;
-            grad_y[i] += mask * grad_contribution_y;
-            grad_z[i] += mask * grad_contribution_z;
+            grad_x[i] += mask * grad_factor * displ_x;
+            grad_y[i] += mask * grad_factor * displ_y;
+            grad_z[i] += mask * grad_factor * displ_z;
 
-            grad_x[j] -= mask * grad_contribution_x;
-            grad_y[j] -= mask * grad_contribution_y;
-            grad_z[j] -= mask * grad_contribution_z;
+            grad_x[j] -= mask * grad_factor * displ_x;
+            grad_y[j] -= mask * grad_factor * displ_y;
+            grad_z[j] -= mask * grad_factor * displ_z;
 
             // ∇^2 u(r) = u''(r) + (2/r) u'(r)
             const double laplacian_pair{second_deriv + 2.0 * first_deriv * inv_dist};

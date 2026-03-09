@@ -17,14 +17,4 @@ public:
 
     // wrap x, y, z independently
     void wrap3(double& x, double& y, double& z) const noexcept;
-
-    // apply min image mapping to displacement component
-    [[nodiscard]] double min_image(double dx) const noexcept;
-
-    // compute min image displacement vector from j to i
-    void displacement(double xi, double yi, double zi, double xj, double yj, double zj, double& dx, double& dy,
-                      double& dz) const noexcept;
-
-    // compute euclidean norm of min image displacement
-    [[nodiscard]] double distance(double xi, double yi, double zi, double xj, double yj, double zj) const noexcept;
 };

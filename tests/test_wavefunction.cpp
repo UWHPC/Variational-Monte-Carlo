@@ -38,10 +38,10 @@ TEST_CASE("WaveFunction evaluateDerivatives clears buffers and delegates to Jast
     std::vector<double> expectedLap(stride, 0.0);
 
     // Need to call log_abs_det first to populate the inverse
-    waveFunction.slater_plane_wave_ptr().log_abs_det(particles);
-    waveFunction.slater_plane_wave_ptr().add_derivatives(particles, expectedX.data(), expectedY.data(),
+    waveFunction.slater_plane_wave_get().log_abs_det(particles);
+    waveFunction.slater_plane_wave_get().add_derivatives(particles, expectedX.data(), expectedY.data(),
                                                          expectedZ.data(), expectedLap.data());
-    waveFunction.jastrow_pade_ptr().add_derivatives(particles, pbc, expectedX.data(), expectedY.data(),
+    waveFunction.jastrow_pade_get().add_derivatives(particles, pbc, expectedX.data(), expectedY.data(),
                                                     expectedZ.data(), expectedLap.data());
 
     waveFunction.evaluate_derivatives(particles, pbc);
