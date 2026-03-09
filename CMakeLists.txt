@@ -48,7 +48,6 @@ endif()
 
 # --- Library target for all source files ---
 add_library(vmc_lib STATIC
-    src/pbc/pbc.cpp
     src/jastrow_pade/jastrow_pade.cpp
     src/wavefunction/wavefunction.cpp
     src/slater_plane_wave/slater_plane_wave.cpp

@@ -3,7 +3,6 @@
 #include "energy_tracking/energy_tracking.hpp"
 #include "output_writer/output_writer.hpp"
 #include "particles/particles.hpp"
-#include "pbc/pbc.hpp"
 #include "simulation/simulation.hpp"
 #include "slater_plane_wave/slater_plane_wave.hpp"
 #include "wavefunction/wavefunction.hpp"
@@ -70,8 +69,8 @@ struct SimResult {
     double acceptance_rate;
 };
 
-SimResult run_vmc(std::size_t N, double L, std::size_t warmup, std::size_t measure,
-                  double step_size, uint64_t seed, std::size_t block_size) {
+SimResult run_vmc(std::size_t N, double L, std::size_t warmup, std::size_t measure, double step_size, uint64_t seed,
+                  std::size_t block_size) {
     const Config config{.num_particles = N,
                         .box_length = L,
                         .warmup_steps = warmup,
@@ -334,8 +333,7 @@ TEST_CASE("Independent seeds produce consistent energies", "[interacting]") {
     const auto r1{run_vmc(N, L, 3000U, 40000U, 0.8, 111U, 1000U)};
     const auto r2{run_vmc(N, L, 3000U, 40000U, 0.8, 222U, 1000U)};
 
-    const double COMBINED_SE{std::sqrt(r1.standard_error * r1.standard_error +
-                                        r2.standard_error * r2.standard_error)};
+    const double COMBINED_SE{std::sqrt(r1.standard_error * r1.standard_error + r2.standard_error * r2.standard_error)};
     const double DELTA{std::abs(r1.mean_energy - r2.mean_energy)};
 
     // Should agree within 3 sigma
