@@ -11,6 +11,8 @@ inline void alignedFree(void* ptr) { _aligned_free(ptr); }
 #elif defined(__APPLE__)
 inline void* AlignedAlloc(std::size_t alignment, std::size_t size) {
     void* ptr{nullptr};
+    // posix_memalign requires alignment >= sizeof(void*) and a power of two
+    alignment = std::max(alignment, sizeof(void*));
     posix_memalign(&ptr, alignment, size);
     return ptr;
 }
