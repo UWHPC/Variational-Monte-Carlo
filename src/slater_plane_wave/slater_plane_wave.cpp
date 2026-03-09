@@ -334,6 +334,89 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     return log_abs_det;
 }
 
+double* SlaterPlaneWave::build_row(std::size_t particle, const Particles& particles) noexcept {
+    const std::size_t N{num_orbitals_get()};
+
+    const double p_x{particles.pos_x_get()[particle]};
+    const double p_y{particles.pos_y_get()[particle]};
+    const double p_z{particles.pos_z_get()[particle]};
+
+    const double* RESTRICT k_x{k_vector_x_get()};
+    const double* RESTRICT k_y{k_vector_y_get()};
+    const double* RESTRICT k_z{k_vector_z_get()};
+
+    const auto& k_index{orbital_k_index_get()};
+    const auto& orb_type{orbital_type_get()};
+
+    double* RESTRICT row{new_row_get()};
+
+    for (std::size_t orbital = 0; orbital < N; ++orbital) {
+        const std::size_t k_idx{k_index[orbital]};
+        const double k_dot_r{k_x[k_idx] * p_x + k_y[k_idx] * p_y + k_z[k_idx] * p_z};
+
+        if (orb_type[orbital] == 0) {
+            row[orbital] = std::cos(k_dot_r);
+        } else {
+            row[orbital] = std::sin(k_dot_r);
+        }
+    }
+
+    return row;
+}
+
+double SlaterPlaneWave::determinant_ratio(std::size_t particle, const double* new_row) const noexcept {
+    const std::size_t N{num_orbitals_get()};
+    const double* RESTRICT inv_det{inv_determinant_get()};
+
+    double ratio{};
+    for (std::size_t j = 0; j < N; ++j) {
+        ratio += new_row[j] * inv_det[index(j, particle, N)];
+    }
+
+    return ratio;
+}
+
+void SlaterPlaneWave::accept_move(std::size_t particle, const double* new_row, double ratio) noexcept {
+    const std::size_t N{num_orbitals_get()};
+
+    double* RESTRICT inv_det{inv_determinant_get()};
+    double* RESTRICT det_matrix{determinant_get()};
+    double* RESTRICT inv_d_col{inv_d_col_get()};
+
+    const double inv_ratio{1.0 / ratio};
+
+    // Cache particle row column j for inv_D before changing
+    for (std::size_t j = 0; j < N; ++j) {
+        inv_d_col[j] = inv_det[index(j, particle, N)];
+    }
+
+    // Follows Sherman-Morrison update:
+    for (std::size_t k = 0; k < N; ++k) {
+        if (k == particle) {
+            // Special case: column p just scales by 1/R
+            for (std::size_t j = 0; j < N; ++j) {
+                inv_det[index(j, k, N)] = inv_d_col[j] * inv_ratio;
+            }
+        } else {
+            // Compute s_k = Σ_m new_row[m] * (D⁻¹_old)[m, k]
+            double s_k{};
+            for (std::size_t m = 0; m < N; ++m) {
+                s_k += new_row[m] * inv_det[index(m, k, N)];
+            }
+
+            const double factor{s_k * inv_ratio};
+            for (std::size_t j = 0; j < N; ++j) {
+                inv_det[index(j, k, N)] -= inv_d_col[j] * factor;
+            }
+        }
+    }
+
+    // Patch row `particle` of D to match the new positions:
+    for (std::size_t j = 0; j < N; ++j) {
+        det_matrix[index(particle, j, N)] = new_row[j];
+    }
+}
+
 void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRICT grad_x, double* RESTRICT grad_y,
                                       double* RESTRICT grad_z, double* RESTRICT laplacian) const noexcept {
     const std::size_t N{num_orbitals_get()};

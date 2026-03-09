@@ -26,8 +26,8 @@ private:
     enum PivotIndex : std::size_t { N_X_, N_Y_, N_Z_, PIVOT_, NUM_INT_VECTORS_ };
     AlignedSoA<int> int_vectors_;
 
-    // Double vectors (k-vectors sized to num_unique_k_; rhs/solution to num_orbitals_):
-    enum VectorIndex : std::size_t { K_X_, K_Y_, K_Z_, RHS_, SOLUTION_, NUM_DOUBLE_VECTORS_ };
+    // Double vectors (k-vectors sized to num_unique_k_; rest to num_orbitals_):
+    enum VectorIndex : std::size_t { K_X_, K_Y_, K_Z_, RHS_, SOLUTION_, NEW_ROW_, INV_D_COL_, NUM_DOUBLE_VECTORS_ };
     AlignedSoA<double> double_vectors_;
 
     // All matrices (sized to num_orbitals_^2):
@@ -107,10 +107,28 @@ public:
     [[nodiscard]] double* k_vector_z_get() noexcept { return double_vectors_[K_Z_]; }
     [[nodiscard]] double const* k_vector_z_get() const noexcept { return double_vectors_[K_Z_]; }
 
-    // Computes log|det(D)| and updates internal cached inverse/LU.
+    // Computes log|det(D)| via full LU - use for initialization only.
     double log_abs_det(const Particles& particles);
+
+    // Builds the new Slater row for a moved particle into the internal NEW_ROW_ buffer.
+    // Returns a pointer to the internal buffer (valid until next call).
+    double* build_row(std::size_t particle, const Particles& particles) noexcept;
+
+    // Call after build_row. O(N).
+    [[nodiscard]] double determinant_ratio(std::size_t particle, const double* new_row) const noexcept;
+
+    // Applies the Sherman-Morrison inverse update and patches D.
+    // Call only after accepting a move. O(N^2).
+    void accept_move(std::size_t particle, const double* new_row, double ratio) noexcept;
 
     // Accumulates Slater contributions into grad/lap (length = stride/at least N).
     void add_derivatives(const Particles& particles, double* RESTRICT grad_x, double* RESTRICT grad_y,
                          double* RESTRICT grad_z, double* RESTRICT laplacian) const noexcept;
+
+private:
+    // Scratch buffer: new Slater row for moved particle
+    [[nodiscard]] double* new_row_get() noexcept { return double_vectors_[NEW_ROW_]; }
+
+    // Scratch buffer: column of D_inv used by Sherman-Morrison
+    [[nodiscard]] double* inv_d_col_get() noexcept { return double_vectors_[INV_D_COL_]; }
 };

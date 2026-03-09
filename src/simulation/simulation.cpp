@@ -1,5 +1,6 @@
 #include "simulation.hpp"
 
+#include <cmath>
 #include <iostream>
 #include <optional>
 #include <string>
@@ -66,6 +67,9 @@ bool Simulation::metropolis_step() {
     const double old_y{p_y[rand_particle]};
     const double old_z{p_z[rand_particle]};
 
+    // Old Jastrow value:
+    const double old_jastrow{wave_function_get().jastrow_pade_ptr().value(particles_get(), pbc_get())};
+
     // Add randomness:
     p_x[rand_particle] += rand_proposal_double();
     p_y[rand_particle] += rand_proposal_double();
@@ -74,16 +78,30 @@ bool Simulation::metropolis_step() {
     // Wrap to ensure particles dont drift outside [0,L):
     pbc_get().wrap3(p_x[rand_particle], p_y[rand_particle], p_z[rand_particle]);
 
-    const double new_log_psi{wave_function_get().evaluate_log_psi(particles_get(), pbc_get())};
-    const double delta_log_psi{new_log_psi - log_psi_get()};
+    // Build new Slater row for moved particle and compute determinant ratio — O(N):
+    auto& slater{wave_function_get().slater_plane_wave_ptr()};
+    const double* new_row{slater.build_row(rand_particle, particles_get())};
+    const double slater_ratio{slater.determinant_ratio(rand_particle, new_row)};
 
-    const double log_u{log(rand_uniform_double())};
-    const double min_term{std::min(0.0, 2.0 * delta_log_psi)};
+    // Compute new Jastrow value:
+    const double new_jastrow{wave_function_get().jastrow_pade_ptr().value(particles_get(), pbc_get())};
+    const double delta_jastrow{new_jastrow - old_jastrow};
 
-    bool accepted{log_u < min_term};
+    const double log_ratio_sq{2.0 * std::log(std::abs(slater_ratio)) + 2.0 * delta_jastrow};
+
+    const double log_u{std::log(rand_uniform_double())};
+    const double min_term{std::min(0.0, log_ratio_sq)};
+
+    const bool accepted{log_u < min_term};
 
     if (accepted) {
-        log_psi_set() = new_log_psi;
+        // Update log_psi:
+        log_psi_set() += std::log(std::abs(slater_ratio)) + delta_jastrow;
+
+        // Sherman-Morrison inverse update:
+        slater.accept_move(rand_particle, new_row, slater_ratio);
+
+        // Update Ewald structure factors:
         energy_tracker_get().update_structure_factors(old_x, old_y, old_z, p_x[rand_particle], p_y[rand_particle],
                                                       p_z[rand_particle]);
         return true;
@@ -150,7 +168,6 @@ Simulation::MeasurementSummary Simulation::measure() {
             ++accepted_;
         }
 
-        wavefunction.evaluate_log_psi(particles, pbc);
         wavefunction.evaluate_derivatives(particles, pbc);
 
         const double E_local{energy_tracker.eval_total_energy(particles, pbc)};
