@@ -5,7 +5,6 @@
 #include "test_jastrow_pade.cpp"
 #include "test_output_writer.cpp"
 #include "test_particles.cpp"
-#include "test_pbc.cpp"
 #include "test_simulation.cpp"
 #include "test_simulation_rejection_invariance.cpp"
 #include "test_slater_plane_wave.cpp"
