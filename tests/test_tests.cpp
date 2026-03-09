@@ -9,4 +9,6 @@
 #include "test_simulation.cpp"
 #include "test_simulation_rejection_invariance.cpp"
 #include "test_slater_plane_wave.cpp"
+#include "test_validation_free_gas.cpp"
+#include "test_validation_interacting.cpp"
 #include "test_wavefunction.cpp"
