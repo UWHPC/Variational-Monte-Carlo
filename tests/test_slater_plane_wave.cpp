@@ -1,7 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "particles/particles.hpp"
-#include "pbc/pbc.hpp"
 #include "slater_plane_wave/slater_plane_wave.hpp"
 
 #include <cmath>

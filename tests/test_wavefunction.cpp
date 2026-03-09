@@ -1,4 +1,4 @@
-#include "wavefunction/wavefunction.hpp"
+#include "../src/wavefunction/wavefunction.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <vector>

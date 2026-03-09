@@ -2,7 +2,6 @@
 
 #include "../jastrow_pade/jastrow_pade.hpp"
 #include "../particles/particles.hpp"
-#include "../pbc/pbc.hpp"
 #include "../slater_plane_wave/slater_plane_wave.hpp"
 
 class WaveFunction {

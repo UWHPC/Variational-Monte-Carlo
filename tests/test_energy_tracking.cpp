@@ -31,8 +31,8 @@ void copy_derivatives(const Particles& source, Particles& dest) {
 
 TEST_CASE("EnergyTracker total energy changes by expected kinetic contribution", "[energy]") {
     constexpr std::size_t n{3U};
-    const PeriodicBoundaryCondition pbc{8.0};
-    const EnergyTracker tracker{pbc.L_get(), static_cast<double>(n)};
+    constexpr double L{8.0};
+    const EnergyTracker tracker{L, static_cast<double>(n)};
 
     Particles reference{n};
     reference.pos_x_get()[0] = 0.3;
@@ -63,8 +63,8 @@ TEST_CASE("EnergyTracker total energy changes by expected kinetic contribution",
     with_derivatives.grad_log_psi_z_get()[2] = -0.5;
     with_derivatives.lap_log_psi_get()[2] = 0.7;
 
-    const double energy_without_derivatives{tracker.eval_total_energy(reference, pbc)};
-    const double energy_with_derivatives{tracker.eval_total_energy(with_derivatives, pbc)};
+    const double energy_without_derivatives{tracker.eval_total_energy(reference)};
+    const double energy_with_derivatives{tracker.eval_total_energy(with_derivatives)};
 
     double expected_kinetic{};
     for (std::size_t i = 0; i < n; ++i) {
@@ -80,8 +80,8 @@ TEST_CASE("EnergyTracker total energy changes by expected kinetic contribution",
 
 TEST_CASE("EnergyTracker is invariant under box-periodic particle translations", "[energy]") {
     constexpr std::size_t n{3U};
-    const PeriodicBoundaryCondition pbc{7.5};
-    const EnergyTracker tracker{pbc.L_get(), static_cast<double>(n)};
+    constexpr double L{7.5};
+    const EnergyTracker tracker{L, static_cast<double>(n)};
 
     Particles particles{n};
     particles.pos_x_get()[0] = 1.1;
@@ -113,21 +113,20 @@ TEST_CASE("EnergyTracker is invariant under box-periodic particle translations",
     copy_positions(particles, translated);
     copy_derivatives(particles, translated);
 
-    const double L{pbc.L_get()};
     translated.pos_x_get()[0] += L;
     translated.pos_y_get()[0] -= 2.0 * L;
     translated.pos_z_get()[1] += 3.0 * L;
     translated.pos_x_get()[2] -= L;
 
-    const double baseline{tracker.eval_total_energy(particles, pbc)};
-    const double shifted{tracker.eval_total_energy(translated, pbc)};
+    const double baseline{tracker.eval_total_energy(particles)};
+    const double shifted{tracker.eval_total_energy(translated)};
     require_near_energy(shifted, baseline, 1e-9);
 }
 
 TEST_CASE("EnergyTracker handles degenerate positions and permutation symmetry", "[energy]") {
     constexpr std::size_t n{2U};
-    const PeriodicBoundaryCondition pbc{6.0};
-    const EnergyTracker tracker{pbc.L_get(), static_cast<double>(n)};
+    constexpr double L{6.0};
+    const EnergyTracker tracker{L, static_cast<double>(n)};
 
     Particles particles{n};
     particles.pos_x_get()[0] = 2.0;
@@ -146,7 +145,7 @@ TEST_CASE("EnergyTracker handles degenerate positions and permutation symmetry",
     particles.grad_log_psi_z_get()[1] = 0.2;
     particles.lap_log_psi_get()[1] = -0.5;
 
-    const double degenerate_energy{tracker.eval_total_energy(particles, pbc)};
+    const double degenerate_energy{tracker.eval_total_energy(particles)};
     REQUIRE(std::isfinite(degenerate_energy));
 
     Particles permuted{n};
@@ -166,6 +165,6 @@ TEST_CASE("EnergyTracker handles degenerate positions and permutation symmetry",
     permuted.grad_log_psi_z_get()[1] = particles.grad_log_psi_z_get()[0];
     permuted.lap_log_psi_get()[1] = particles.lap_log_psi_get()[0];
 
-    const double permuted_energy{tracker.eval_total_energy(permuted, pbc)};
+    const double permuted_energy{tracker.eval_total_energy(permuted)};
     require_near_energy(permuted_energy, degenerate_energy, 1e-10);
 }

@@ -5,7 +5,6 @@
 #include "../energy_tracking/energy_tracking.hpp"
 #include "../output_writer/output_writer.hpp"
 #include "../particles/particles.hpp"
-#include "../pbc/pbc.hpp"
 #include "../wavefunction/wavefunction.hpp"
 
 #include <memory>
@@ -20,7 +19,6 @@ private:
 
     // Objects and physical handlers of sim:
     Particles particles_;
-    PeriodicBoundaryCondition pbc_;
     WaveFunction wave_function_;
     BlockingAnalysis blocking_analysis_;
     EnergyTracker energy_tracker_;
@@ -43,7 +41,6 @@ private:
     [[nodiscard]] std::uniform_real_distribution<double>& proposal() { return proposal_; }
     [[nodiscard]] std::uniform_int_distribution<std::size_t>& pick_particle() { return pick_particle_; }
 
-    [[nodiscard]] PeriodicBoundaryCondition& pbc_get() { return pbc_; }
     [[nodiscard]] Particles& particles_get() { return particles_; }
     [[nodiscard]] WaveFunction& wave_function_get() { return wave_function_; }
     [[nodiscard]] EnergyTracker& energy_tracker_get() { return energy_tracker_; }
