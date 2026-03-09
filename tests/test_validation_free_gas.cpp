@@ -84,7 +84,6 @@ TEST_CASE("Free gas N=1: kinetic energy is exactly zero", "[validation]") {
 
     // Run a few samples and confirm local kinetic energy is zero
     Particles particles{N};
-    const PeriodicBoundaryCondition pbc{L};
     WaveFunction wf{N, L, 0.0, 1.0}; // a = 0 -> Jastrow off
 
     std::mt19937_64 rng{42};
@@ -95,8 +94,8 @@ TEST_CASE("Free gas N=1: kinetic energy is exactly zero", "[validation]") {
         particles.pos_y_get()[0] = uniform(rng);
         particles.pos_z_get()[0] = uniform(rng);
 
-        wf.evaluate_log_psi(particles, pbc);
-        wf.evaluate_derivatives(particles, pbc);
+        wf.evaluate_log_psi(particles);
+        wf.evaluate_derivatives(particles);
 
         // Kinetic energy = -½ Σ (lap + grad²)
         const double gx{particles.grad_log_psi_x_get()[0]};
@@ -133,7 +132,6 @@ TEST_CASE("Free gas N=7: local kinetic energy matches exact value at every sampl
 
     // Now confirm VMC local kinetic energy matches at multiple random configs
     Particles particles{N};
-    const PeriodicBoundaryCondition pbc{L};
     WaveFunction wf{N, L, 0.0, 1.0};
 
     std::mt19937_64 rng{314159};
@@ -146,8 +144,8 @@ TEST_CASE("Free gas N=7: local kinetic energy matches exact value at every sampl
             particles.pos_z_get()[i] = uniform(rng);
         }
 
-        wf.evaluate_log_psi(particles, pbc);
-        wf.evaluate_derivatives(particles, pbc);
+        wf.evaluate_log_psi(particles);
+        wf.evaluate_derivatives(particles);
 
         double T_local{};
         for (std::size_t i = 0; i < N; ++i) {
@@ -185,7 +183,6 @@ TEST_CASE("Free gas N=19: local kinetic energy matches exact value at every samp
     require_near_validation(T_EXACT, T_ANALYTICAL);
 
     Particles particles{N};
-    const PeriodicBoundaryCondition pbc{L};
     WaveFunction wf{N, L, 0.0, 1.0};
 
     std::mt19937_64 rng{271828};
@@ -198,8 +195,8 @@ TEST_CASE("Free gas N=19: local kinetic energy matches exact value at every samp
             particles.pos_z_get()[i] = uniform(rng);
         }
 
-        wf.evaluate_log_psi(particles, pbc);
-        wf.evaluate_derivatives(particles, pbc);
+        wf.evaluate_log_psi(particles);
+        wf.evaluate_derivatives(particles);
 
         double T_local{};
         for (std::size_t i = 0; i < N; ++i) {
@@ -227,7 +224,6 @@ TEST_CASE("Free gas zero-variance: local kinetic energy is configuration-indepen
     constexpr double L{5.5};
 
     Particles particles{N};
-    const PeriodicBoundaryCondition pbc{L};
     WaveFunction wf{N, L, 0.0, 1.0};
 
     std::mt19937_64 rng{999};
@@ -243,8 +239,8 @@ TEST_CASE("Free gas zero-variance: local kinetic energy is configuration-indepen
             particles.pos_z_get()[i] = uniform(rng);
         }
 
-        wf.evaluate_log_psi(particles, pbc);
-        wf.evaluate_derivatives(particles, pbc);
+        wf.evaluate_log_psi(particles);
+        wf.evaluate_derivatives(particles);
 
         double T_local{};
         for (std::size_t i = 0; i < N; ++i) {
@@ -275,7 +271,6 @@ TEST_CASE("Free gas: EnergyTracker kinetic term matches manual computation", "[v
     constexpr double L{6.0};
 
     Particles particles{N};
-    const PeriodicBoundaryCondition pbc{L};
     WaveFunction wf{N, L, 0.0, 1.0};
     EnergyTracker tracker{L, static_cast<double>(N)};
 
@@ -288,8 +283,8 @@ TEST_CASE("Free gas: EnergyTracker kinetic term matches manual computation", "[v
         particles.pos_z_get()[i] = uniform(rng);
     }
 
-    wf.evaluate_log_psi(particles, pbc);
-    wf.evaluate_derivatives(particles, pbc);
+    wf.evaluate_log_psi(particles);
+    wf.evaluate_derivatives(particles);
 
     tracker.initialize_structure_factors(particles);
 
@@ -371,7 +366,6 @@ TEST_CASE("Free gas partial shell N=16: zero-variance property still holds", "[v
     constexpr double L{6.5};
 
     Particles particles{N};
-    const PeriodicBoundaryCondition pbc{L};
     WaveFunction wf{N, L, 0.0, 1.0};
     const SlaterPlaneWave& slater{wf.slater_plane_wave_get()};
     const double T_EXACT{exact_kinetic_energy(slater)};
@@ -388,8 +382,8 @@ TEST_CASE("Free gas partial shell N=16: zero-variance property still holds", "[v
             particles.pos_z_get()[i] = uniform(rng);
         }
 
-        wf.evaluate_log_psi(particles, pbc);
-        wf.evaluate_derivatives(particles, pbc);
+        wf.evaluate_log_psi(particles);
+        wf.evaluate_derivatives(particles);
 
         double T_local{};
         for (std::size_t i = 0; i < N; ++i) {

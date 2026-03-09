@@ -11,7 +11,6 @@ void requireNearWave(double actual, double expected, double tolerance = 1e-12) {
 
 TEST_CASE("WaveFunction evaluateDerivatives clears buffers and delegates to Jastrow", "[wavefunction]") {
     Particles particles{2U};
-    const PeriodicBoundaryCondition pbc{10.0};
 
     particles.pos_x_get()[0] = 0.0;
     particles.pos_y_get()[0] = 0.0;
@@ -41,10 +40,10 @@ TEST_CASE("WaveFunction evaluateDerivatives clears buffers and delegates to Jast
     waveFunction.slater_plane_wave_get().log_abs_det(particles);
     waveFunction.slater_plane_wave_get().add_derivatives(particles, expectedX.data(), expectedY.data(),
                                                          expectedZ.data(), expectedLap.data());
-    waveFunction.jastrow_pade_get().add_derivatives(particles, pbc, expectedX.data(), expectedY.data(),
-                                                    expectedZ.data(), expectedLap.data());
+    waveFunction.jastrow_pade_get().add_derivatives(particles, expectedX.data(), expectedY.data(), expectedZ.data(),
+                                                    expectedLap.data());
 
-    waveFunction.evaluate_derivatives(particles, pbc);
+    waveFunction.evaluate_derivatives(particles);
 
     for (std::size_t i = 0; i < stride; ++i) {
         requireNearWave(particles.grad_log_psi_x_get()[i], expectedX[i]);
@@ -59,7 +58,6 @@ TEST_CASE("WaveFunction evaluate_log_psi returns finite for N=1", "[wavefunction
     // Jastrow with 1 particle has no pairs, so J = 0
     // Total log_psi = 0
     Particles particles{1U};
-    const PeriodicBoundaryCondition pbc{10.0};
 
     particles.pos_x_get()[0] = 0.4;
     particles.pos_y_get()[0] = 0.7;
@@ -67,6 +65,6 @@ TEST_CASE("WaveFunction evaluate_log_psi returns finite for N=1", "[wavefunction
 
     WaveFunction waveFunction{1U, 10.0, 0.5, 1.0};
 
-    const double logPsi{waveFunction.evaluate_log_psi(particles, pbc)};
+    const double logPsi{waveFunction.evaluate_log_psi(particles)};
     requireNearWave(logPsi, 0.0);
 }

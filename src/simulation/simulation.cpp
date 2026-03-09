@@ -61,6 +61,8 @@ bool Simulation::metropolis_step() {
 
     // Local random vars:
     const std::size_t rand_particle{rand_particle_get()};
+    const double L{config_.box_length};
+    const double inv_L{1.0 / L};
 
     // Old positions:
     const double old_x{p_x[rand_particle]};
@@ -75,10 +77,21 @@ bool Simulation::metropolis_step() {
     p_y[rand_particle] += rand_proposal_double();
     p_z[rand_particle] += rand_proposal_double();
 
-    // Wrap to ensure particles dont drift outside [0,L):
-    pbc_get().wrap3(p_x[rand_particle], p_y[rand_particle], p_z[rand_particle]);
+    // Wrapping logic:
+    const double K_x{std::floor(p_x[rand_particle] * inv_L)};
+    const double K_y{std::floor(p_y[rand_particle] * inv_L)};
+    const double K_z{std::floor(p_z[rand_particle] * inv_L)};
 
-    // Build new Slater row for moved particle and compute determinant ratio — O(N):
+    p_x[rand_particle] -= K_x * L;
+    p_y[rand_particle] -= K_y * L;
+    p_z[rand_particle] -= K_z * L;
+
+    // Boolean mask to avoid branches:
+    p_x[rand_particle] += -L * (p_x[rand_particle] >= L) + L * (p_x[rand_particle] < 0.0);
+    p_y[rand_particle] += -L * (p_y[rand_particle] >= L) + L * (p_y[rand_particle] < 0.0);
+    p_z[rand_particle] += -L * (p_z[rand_particle] >= L) + L * (p_z[rand_particle] < 0.0);
+
+    // Build new Slater row for moved particle and compute determinant ratio - O(N):
     auto& slater{wave_function_get().slater_plane_wave_get()};
     const double* new_row{slater.build_row(rand_particle, particles_get())};
     const double slater_ratio{slater.determinant_ratio(rand_particle, new_row)};
