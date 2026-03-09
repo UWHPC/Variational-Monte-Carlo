@@ -9,6 +9,9 @@
 
 class EnergyTracker {
 private:
+    // Box length:
+    double box_length_;
+
     // Constants for Ewald Energy:
     double ewald_alpha_;
     double ewald_correction_;

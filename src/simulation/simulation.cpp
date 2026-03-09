@@ -38,7 +38,7 @@ void Simulation::initialize_positions() {
     double* RESTRICT p_z{particles_.pos_z_get()};
 
     const std::size_t N{particles_.num_particles_get()};
-    const double length{pbc_.L_get()};
+    const double length{config_.box_length};
 
     // Generate Random Starting Positions
     for (std::size_t i{}; i < N; i++) {

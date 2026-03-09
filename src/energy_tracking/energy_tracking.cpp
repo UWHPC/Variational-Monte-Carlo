@@ -4,7 +4,7 @@
 #include <numbers>
 
 EnergyTracker::EnergyTracker(double box_length, double num_particles)
-    : ewald_alpha_{6.0 / box_length},                                                       // 6.0 / L
+    : box_length_{box_length}, ewald_alpha_{6.0 / box_length},                              // 6.0 / L
       ewald_correction_{-6.0 * num_particles / (std::sqrt(std::numbers::pi) * box_length)}, // -6.0 * N / (sqrt(pi) * L)
       ewald_background_{-std::numbers::pi * num_particles * num_particles / (72.0 * box_length)} { // -pi * N^2 / (72L)
 
@@ -127,7 +127,9 @@ double EnergyTracker::kinetic_energy(const Particles& particles) const noexcept 
 double EnergyTracker::potential_energy(const Particles& particles,
                                        const PeriodicBoundaryCondition& pbc) const noexcept {
     const std::size_t N{particles.num_particles_get()};
-    const double L{pbc.L_get()};
+    const double L{box_length_};
+    const double half_L{0.5 * L};
+    const double inv_L{1.0 / L};
 
     const double* RESTRICT p_x{particles.pos_x_get()};
     const double* RESTRICT p_y{particles.pos_y_get()};
@@ -143,11 +145,26 @@ double EnergyTracker::potential_energy(const Particles& particles,
         for (std::size_t j = i + 1; j < N; ++j) {
             // To get around if else statement for branching,
             // ensures does not run if r_ij < 1.0e-12
-            const double dist{pbc.distance(p_x[i], p_y[i], p_z[i], p_x[j], p_y[j], p_z[j])};
+            double displ_x{p_x[i] - p_x[j]};
+            double displ_y{p_y[i] - p_y[j]};
+            double displ_z{p_z[i] - p_z[j]};
+
+            displ_x -= L * std::round(displ_x * inv_L);
+            displ_y -= L * std::round(displ_y * inv_L);
+            displ_z -= L * std::round(displ_z * inv_L);
+
+            // Boolean masks - reduce to 0 if false, and 1 if true.
+            displ_x += L * (displ_x <= -half_L) - L * (displ_x > half_L);
+            displ_y += L * (displ_y <= -half_L) - L * (displ_y > half_L);
+            displ_z += L * (displ_z <= -half_L) - L * (displ_z > half_L);
+
+            const double dist_sq{displ_x * displ_x + displ_y * displ_y + displ_z * displ_z};
+            const double dist{std::sqrt(dist_sq)};
+
             const bool degenerate{dist < 1.0e-12};
             const double mask{degenerate ? 0.0 : 1.0};
 
-            const double r_ij{degenerate ? 0.0 : dist};
+            const double r_ij{dist};
             const double inv_r_ij{degenerate ? 1.0 : 1 / r_ij};
 
             // if degenerate == true,

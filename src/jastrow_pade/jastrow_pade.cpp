@@ -5,6 +5,9 @@
 
 double JastrowPade::value(const Particles& particles, const PeriodicBoundaryCondition& pbc) const noexcept {
     const std::size_t num_particles{particles.num_particles_get()};
+    const double L{box_length_};
+    const double half_L{0.5 * L};
+    const double inv_L{1.0 / L};
 
     const double* RESTRICT pos_x{particles.pos_x_get()};
     const double* RESTRICT pos_y{particles.pos_y_get()};
@@ -17,20 +20,27 @@ double JastrowPade::value(const Particles& particles, const PeriodicBoundaryCond
 
     for (std::size_t i = 0; i < num_particles; ++i) {
         for (std::size_t j = i + 1; j < num_particles; ++j) {
-            double displ_x{}, displ_y{}, displ_z{};
+            double displ_x{pos_x[i] - pos_x[j]};
+            double displ_y{pos_y[i] - pos_y[j]};
+            double displ_z{pos_z[i] - pos_z[j]};
 
-            pbc.displacement(pos_x[i], pos_y[i], pos_z[i], pos_x[j], pos_y[j], pos_z[j], displ_x, displ_y, displ_z);
+            displ_x -= L * std::round(displ_x * inv_L);
+            displ_y -= L * std::round(displ_y * inv_L);
+            displ_z -= L * std::round(displ_z * inv_L);
+
+            // Boolean masks - reduce to 0 if false, and 1 if true.
+            displ_x += L * (displ_x <= -half_L) - L * (displ_x > half_L);
+            displ_y += L * (displ_y <= -half_L) - L * (displ_y > half_L);
+            displ_z += L * (displ_z <= -half_L) - L * (displ_z > half_L);
+
             const double dist_sq{displ_x * displ_x + displ_y * displ_y + displ_z * displ_z};
             const double dist{std::sqrt(dist_sq)};
 
-            // mask to get around if statement
-            const bool degenerate{dist < 1e-12};
-            const double mask{degenerate ? 0.0 : 1.0};
-
             // u(r) = a*r / (1 + b*r)
             const double denom{1.0 + b_local * dist};
+            const double inv_denom{1.0 / denom};
 
-            jastrow_pade += mask * (a_local * dist) / denom;
+            jastrow_pade += a_local * dist * inv_denom;
         }
     }
     return jastrow_pade;
@@ -41,6 +51,9 @@ void JastrowPade::add_derivatives(const Particles& particles, const PeriodicBoun
                                   double* RESTRICT laplacian) const noexcept {
     // NOTE: assumes gradX/gradY/gradZ/lap are zero-initialized by caller
     const std::size_t num_particles{particles.num_particles_get()};
+    const double L{box_length_};
+    const double half_L{0.5 * L};
+    const double inv_L{1.0 / L};
 
     const double* RESTRICT pos_x{particles.pos_x_get()};
     const double* RESTRICT pos_y{particles.pos_y_get()};
@@ -51,9 +64,19 @@ void JastrowPade::add_derivatives(const Particles& particles, const PeriodicBoun
 
     for (std::size_t i = 0; i < num_particles; ++i) {
         for (std::size_t j = i + 1; j < num_particles; ++j) {
-            double displ_x{}, displ_y{}, displ_z{};
+            double displ_x{pos_x[i] - pos_x[j]};
+            double displ_y{pos_y[i] - pos_y[j]};
+            double displ_z{pos_z[i] - pos_z[j]};
 
-            pbc.displacement(pos_x[i], pos_y[i], pos_z[i], pos_x[j], pos_y[j], pos_z[j], displ_x, displ_y, displ_z);
+            displ_x -= L * std::round(displ_x * inv_L);
+            displ_y -= L * std::round(displ_y * inv_L);
+            displ_z -= L * std::round(displ_z * inv_L);
+
+            // Boolean masks - reduce to 0 if false, and 1 if true.
+            displ_x += L * (displ_x <= -half_L) - L * (displ_x > half_L);
+            displ_y += L * (displ_y <= -half_L) - L * (displ_y > half_L);
+            displ_z += L * (displ_z <= -half_L) - L * (displ_z > half_L);
+
             const double dist_sq{displ_x * displ_x + displ_y * displ_y + displ_z * displ_z};
             const double dist{std::sqrt(dist_sq)};
 

@@ -5,13 +5,18 @@
 
 class JastrowPade {
 private:
+    // Box length:
+    double box_length_;
+
+    // Jastrow-Pade parameters:
     double a_;
     double b_;
 
 public:
     // eqn (28) on paper
     // u(r) = (a*r) / (1 + b*r)
-    explicit JastrowPade(double a = 0.25, double b = 1) noexcept : a_{a}, b_{b} {}
+    explicit JastrowPade(double box_length, double a = 0.25, double b = 1) noexcept
+        : box_length_{box_length}, a_{a}, b_{b} {}
 
     // Getters:
     [[nodiscard]] double a_get() const { return a_; }
