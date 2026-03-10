@@ -12,6 +12,7 @@ private:
     double box_length_;
 
     // Constants for Ewald Energy:
+    static constexpr double EWALD_RECIPROCAL_TOLERANCE{1.0e-6};
     double ewald_alpha_;
     double ewald_correction_;
     double ewald_background_;

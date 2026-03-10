@@ -288,11 +288,13 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
             const std::size_t k_idx{k_index[orbital]};
             const double k_dot_r = k_x_comp[k_idx] * p_x + k_y_comp[k_idx] * p_y + k_z_comp[k_idx] * p_z;
 
-            if (orb_type[orbital] == 0) {
-                det_matrix[index(particle, orbital, N)] = std::cos(k_dot_r);
-            } else {
-                det_matrix[index(particle, orbital, N)] = std::sin(k_dot_r);
-            }
+            const double type{static_cast<double>(orb_type[orbital])};
+
+            double cos_term{};
+            double sin_term{};
+            sincos(k_dot_r, &cos_term, &sin_term);
+
+            det_matrix[index(particle, orbital, N)] = cos_term + type * (sin_term - sin_term);
         }
     }
 
@@ -354,11 +356,13 @@ double* SlaterPlaneWave::build_row(std::size_t particle, const Particles& partic
         const std::size_t k_idx{k_index[orbital]};
         const double k_dot_r{k_x[k_idx] * p_x + k_y[k_idx] * p_y + k_z[k_idx] * p_z};
 
-        if (orb_type[orbital] == 0) {
-            row[orbital] = std::cos(k_dot_r);
-        } else {
-            row[orbital] = std::sin(k_dot_r);
-        }
+        const double type{static_cast<double>(orb_type[orbital])};
+
+        double cos_term{};
+        double sin_term{};
+        sincos(k_dot_r, &cos_term, &sin_term);
+
+        row[orbital] = cos_term + type * (sin_term - sin_term);
     }
 
     return row;
@@ -453,8 +457,9 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
 
             const double k_dot_R{k_x_orbital * p_x + k_y_orbital * p_y + k_z_orbital * p_z};
 
-            const double cos_term{std::cos(k_dot_R)};
-            const double sin_term{std::sin(k_dot_R)};
+            double cos_term{};
+            double sin_term{};
+            sincos(k_dot_R, &sin_term, &cos_term);
 
             const double k_sq{k_x_orbital * k_x_orbital + k_y_orbital * k_y_orbital + k_z_orbital * k_z_orbital};
 
@@ -468,13 +473,12 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
 
             double dD_dx{}, dD_dy{}, dD_dz{};
             double lap_D{};
-            
-            // Replaces the old if else branch with branchless math
-            const double is_type_1 = static_cast<double>(o_type[orbital]);
-            const double is_type_0 = 1.0 - is_type_1;
 
-            const double grad_factor = -sin_term * is_type_0 + cos_term * is_type_1;
-            const double lap_factor = -cos_term * is_type_0 + -sin_term * is_type_1;
+            // Replaces the old if else branch with branchless math
+            const double type{static_cast<double>(o_type[orbital])};
+
+            const double grad_factor{-sin_term + type * (sin_term + cos_term)};
+            const double lap_factor{-cos_term + type * (cos_term - sin_term)};
 
             // D =       (o_type[orbital] == 0) ? cos(k dot r)          : sin(k dot r)
             // grad(D) = (o_type[orbital] == 0) ? -sin(k dot r) * k     : cos(k dot r) * k

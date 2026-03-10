@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <numbers>
+#include <omp.h>
 
 EnergyTracker::EnergyTracker(double box_length, double num_particles)
     : box_length_{box_length}, ewald_alpha_{6.0 / box_length},                              // 6.0 / L
@@ -11,7 +12,7 @@ EnergyTracker::EnergyTracker(double box_length, double num_particles)
     // Constants:
     const double two_pi_over_L{2.0 * std::numbers::pi / box_length};
     const double four_alpha_sq{4.0 * ewald_alpha_ * ewald_alpha_};
-    const double cutoff_factor{15.0};
+    const double cutoff_factor{-std::log(EWALD_RECIPROCAL_TOLERANCE)};
 
     // Maximums:
     const double g_max_mag_sq{four_alpha_sq * cutoff_factor};
@@ -73,8 +74,12 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
         for (std::size_t j = 0; j < N; ++j) {
             const double G_dot_r{g_x[g] * p_x[j] + g_y[g] * p_y[j] + g_z[g] * p_z[j]};
 
-            cos_sum += std::cos(G_dot_r);
-            sin_sum += std::sin(G_dot_r);
+            double cos_term{};
+            double sin_term{};
+            sincos(G_dot_r, &sin_term, &cos_term);
+
+            cos_sum += cos_term;
+            sin_sum += sin_term;
         }
 
         sum_real[g] = cos_sum;
@@ -97,9 +102,21 @@ void EnergyTracker::update_structure_factors(double old_x, double old_y, double 
         const double old_dot{g_x[g] * old_x + g_y[g] * old_y + g_z[g] * old_z};
         const double new_dot{g_x[g] * new_x + g_y[g] * new_y + g_z[g] * new_z};
 
-        // Subtract old contribution, add new:
-        sum_real[g] += std::cos(new_dot) - std::cos(old_dot);
-        sum_imag[g] += std::sin(new_dot) - std::sin(old_dot);
+        // Old terms:
+        double cos_term{};
+        double sin_term{};
+        sincos(old_dot, &sin_term, &cos_term);
+
+        // Subtract old terms:
+        sum_real[g] -= cos_term;
+        sum_imag[g] -= sin_term;
+
+        // New terms:
+        sincos(new_dot, &sin_term, &cos_term);
+
+        // Add new terms:
+        sum_real[g] += cos_term;
+        sum_imag[g] += sin_term;
     }
 }
 
@@ -112,7 +129,6 @@ double EnergyTracker::kinetic_energy(const Particles& particles) const noexcept 
     // Kinetic
     double T_sum{};
     const std::size_t N{particles.num_particles_get()};
-
     for (std::size_t i = 0; i < N; ++i) {
         // Computes ||Grad(logPsi)||^2
         const double grad_sq{grad_x[i] * grad_x[i] + grad_y[i] * grad_y[i] + grad_z[i] * grad_z[i]};
@@ -142,8 +158,6 @@ double EnergyTracker::potential_energy(const Particles& particles) const noexcep
     double V_real{};
     for (std::size_t i = 0; i < N; ++i) {
         for (std::size_t j = i + 1; j < N; ++j) {
-            // To get around if else statement for branching,
-            // ensures does not run if r_ij < 1.0e-12
             double displ_x{p_x[i] - p_x[j]};
             double displ_y{p_y[i] - p_y[j]};
             double displ_z{p_z[i] - p_z[j]};
@@ -160,6 +174,8 @@ double EnergyTracker::potential_energy(const Particles& particles) const noexcep
             const double dist_sq{displ_x * displ_x + displ_y * displ_y + displ_z * displ_z};
             const double dist{std::sqrt(dist_sq)};
 
+            // To get around if else statement for branching,
+            // ensures does not run if r_ij < 1.0e-12
             const bool degenerate{dist < 1.0e-12};
             const double mask{degenerate ? 0.0 : 1.0};
 
