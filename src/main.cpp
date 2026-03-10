@@ -11,13 +11,13 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     // Temporary local config while CLI parsing is disabled.
     // Closed shells: N = 1, 7, 19, 27, 33, 57, 81, 93, 123, 147, 171, 179, 203, 251, 257, 305, 341, 365, 389, 437, 461,
     // 485
-    const Config config{.num_particles = 203U,
-                        .box_length = 6.75,
-                        .warmup_steps = 2000U,
-                        .measure_steps = 20000U,
+    const Config config{.num_particles = 485U,
+                        .box_length = 9.0,
+                        .warmup_steps = 500U,
+                        .measure_steps = 2000U,
                         .step_size = 0.05,
                         .seed = 12345U,
-                        .block_size = 1000U};
+                        .block_size = 500U};
 
     // const Config config{parse_args(argc, argv)};
     std::ofstream out_file{"data/run.jsonl"};
