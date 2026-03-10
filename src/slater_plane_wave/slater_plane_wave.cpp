@@ -290,9 +290,8 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
 
             const double type{static_cast<double>(orb_type[orbital])};
 
-            double cos_term{};
-            double sin_term{};
-            sincos(k_dot_r, &cos_term, &sin_term);
+            double cos_term{std::cos(k_dot_r)};
+            double sin_term{std::sin(k_dot_r)};
 
             det_matrix[index(particle, orbital, N)] = cos_term + type * (sin_term - sin_term);
         }
@@ -358,9 +357,8 @@ double* SlaterPlaneWave::build_row(std::size_t particle, const Particles& partic
 
         const double type{static_cast<double>(orb_type[orbital])};
 
-        double cos_term{};
-        double sin_term{};
-        sincos(k_dot_r, &cos_term, &sin_term);
+        double cos_term{std::cos(k_dot_r)};
+        double sin_term{std::sin(k_dot_r)};
 
         row[orbital] = cos_term + type * (sin_term - sin_term);
     }
@@ -456,11 +454,6 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
             const double k_z_orbital{k_z[k_idx]};
 
             const double k_dot_R{k_x_orbital * p_x + k_y_orbital * p_y + k_z_orbital * p_z};
-
-            double cos_term{};
-            double sin_term{};
-            sincos(k_dot_R, &sin_term, &cos_term);
-
             const double k_sq{k_x_orbital * k_x_orbital + k_y_orbital * k_y_orbital + k_z_orbital * k_z_orbital};
 
             // ∇_i log|det D| = Σ_j (D⁻¹)_{j,i} · ∇_i D_{i,j}
@@ -476,6 +469,9 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
 
             // Replaces the old if else branch with branchless math
             const double type{static_cast<double>(o_type[orbital])};
+
+            double cos_term{std::cos(k_dot_R)};
+            double sin_term{std::sin(k_dot_R)};
 
             const double grad_factor{-sin_term + type * (sin_term + cos_term)};
             const double lap_factor{-cos_term + type * (cos_term - sin_term)};

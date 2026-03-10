@@ -74,12 +74,8 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
         for (std::size_t j = 0; j < N; ++j) {
             const double G_dot_r{g_x[g] * p_x[j] + g_y[g] * p_y[j] + g_z[g] * p_z[j]};
 
-            double cos_term{};
-            double sin_term{};
-            sincos(G_dot_r, &sin_term, &cos_term);
-
-            cos_sum += cos_term;
-            sin_sum += sin_term;
+            cos_sum += std::cos(G_dot_r);
+            sin_sum += std::sin(G_dot_r);
         }
 
         sum_real[g] = cos_sum;
@@ -98,25 +94,14 @@ void EnergyTracker::update_structure_factors(double old_x, double old_y, double 
     auto& sum_real{sum_real_get()};
     auto& sum_imag{sum_imag_get()};
 
+#pragma omp simd
     for (std::size_t g = 0; g < num_G; ++g) {
         const double old_dot{g_x[g] * old_x + g_y[g] * old_y + g_z[g] * old_z};
         const double new_dot{g_x[g] * new_x + g_y[g] * new_y + g_z[g] * new_z};
 
-        // Old terms:
-        double cos_term{};
-        double sin_term{};
-        sincos(old_dot, &sin_term, &cos_term);
-
-        // Subtract old terms:
-        sum_real[g] -= cos_term;
-        sum_imag[g] -= sin_term;
-
-        // New terms:
-        sincos(new_dot, &sin_term, &cos_term);
-
-        // Add new terms:
-        sum_real[g] += cos_term;
-        sum_imag[g] += sin_term;
+        // Subtract old contribution, add new:
+        sum_real[g] += std::cos(new_dot) - std::cos(old_dot);
+        sum_imag[g] += std::sin(new_dot) - std::sin(old_dot);
     }
 }
 
