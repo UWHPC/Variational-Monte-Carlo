@@ -16,6 +16,9 @@ project(Variational-Monte-Carlo LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# --- Dependencies ---
+find_package(OpenMP REQUIRED COMPONENTS CXX)
+
 # --- Build type default (Release unless overridden) ---
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
@@ -58,6 +61,7 @@ add_library(vmc_lib STATIC
 )
 
 target_include_directories(vmc_lib PUBLIC src)
+target_link_libraries(vmc_lib PUBLIC OpenMP::OpenMP_CXX)
 target_compile_options(vmc_lib PRIVATE
     ${VMC_WARNING_OPTIONS}
     $<$<CONFIG:Release>:${VMC_RELEASE_OPTIONS}>
