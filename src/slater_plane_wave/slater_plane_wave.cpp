@@ -468,24 +468,21 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
 
             double dD_dx{}, dD_dy{}, dD_dz{};
             double lap_D{};
+            
+            // Replaces the old if else branch with branchless math
+            const double is_type_1 = static_cast<double>(o_type[orbital]);
+            const double is_type_0 = 1.0 - is_type_1;
 
-            if (o_type[orbital] == 0) {
-                // D = cos(k dot r)
-                // grad(D) = -sin(k dot r) * k
-                // lap(D) = -cos(k dot r) * |k|^2
-                dD_dx = -sin_term * k_x_orbital;
-                dD_dy = -sin_term * k_y_orbital;
-                dD_dz = -sin_term * k_z_orbital;
-                lap_D = -cos_term * k_sq;
-            } else {
-                // D = sin(k dot r)
-                // grad(D) = cos(k dot r) * k
-                // lap(D) = -sin(k dot r) * |k|^2
-                dD_dx = cos_term * k_x_orbital;
-                dD_dy = cos_term * k_y_orbital;
-                dD_dz = cos_term * k_z_orbital;
-                lap_D = -sin_term * k_sq;
-            }
+            const double grad_factor = -sin_term * is_type_0 + cos_term * is_type_1;
+            const double lap_factor = -cos_term * is_type_0 + -sin_term * is_type_1;
+
+            // D =       (o_type[orbital] == 0) ? cos(k dot r)          : sin(k dot r)
+            // grad(D) = (o_type[orbital] == 0) ? -sin(k dot r) * k     : cos(k dot r) * k
+            // lap (D) = (o_type[orbital] == 0) ? -cos(k dot r) * |k|^2 : -sin(k dor r) * |k|^2
+            dD_dx = k_x_orbital * grad_factor;
+            dD_dy = k_y_orbital * grad_factor;
+            dD_dz = k_z_orbital * grad_factor;
+            lap_D = k_sq * lap_factor;
 
             const double weight{inv_det[index(orbital, particle, N)]};
 
