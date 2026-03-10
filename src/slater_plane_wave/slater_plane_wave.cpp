@@ -293,7 +293,7 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
             double cos_term{std::cos(k_dot_r)};
             double sin_term{std::sin(k_dot_r)};
 
-            det_matrix[index(particle, orbital, N)] = cos_term + type * (sin_term - sin_term);
+            det_matrix[index(particle, orbital, N)] = cos_term + type * (sin_term - cos_term);
         }
     }
 
@@ -360,7 +360,7 @@ double* SlaterPlaneWave::build_row(std::size_t particle, const Particles& partic
         double cos_term{std::cos(k_dot_r)};
         double sin_term{std::sin(k_dot_r)};
 
-        row[orbital] = cos_term + type * (sin_term - sin_term);
+        row[orbital] = cos_term + type * (sin_term - cos_term);
     }
 
     return row;
