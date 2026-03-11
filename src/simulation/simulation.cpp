@@ -49,7 +49,6 @@ void Simulation::initialize_positions() {
     log_psi_set() = wave_function_get().evaluate_log_psi(particles_get());
 
     energy_tracker_get().initialize_structure_factors(particles_get());
-    energy_tracker_get().initialize_structure_factors(particles_get());
     energy_tracker_get().initialize_reciprocal_energy();
     energy_tracker_get().initialize_real_energy(particles_get());
 }
