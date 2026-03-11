@@ -113,3 +113,67 @@ void JastrowPade::add_derivatives(const Particles& particles, double* RESTRICT g
         }
     }
 }
+
+double JastrowPade::delta_value(const Particles& particles, std::size_t moved,
+                                double old_x, double old_y, double old_z) const noexcept {
+    const std::size_t num_particles{particles.num_particles_get()};
+    const double L{box_length_};
+    const double half_L{0.5 * L};
+    const double inv_L{1.0 / L};
+
+    const double* RESTRICT pos_x{particles.pos_x_get()};
+    const double* RESTRICT pos_y{particles.pos_y_get()};
+    const double* RESTRICT pos_z{particles.pos_z_get()};
+
+    const double a_local{a_get()};
+    const double b_local{b_get()};
+
+    const double new_x{pos_x[moved]};
+    const double new_y{pos_y[moved]};
+    const double new_z{pos_z[moved]};
+
+    double delta{};
+
+    for (std::size_t j = 0; j < num_particles; ++j) {
+        if (j == moved)
+            continue;
+
+        // Old pair:
+        double displ_old_x{old_x - pos_x[j]};
+        double displ_old_y{old_y - pos_y[j]};
+        double displ_old_z{old_z - pos_z[j]};
+
+        displ_old_x -= L * std::round(displ_old_x * inv_L);
+        displ_old_y -= L * std::round(displ_old_y * inv_L);
+        displ_old_z -= L * std::round(displ_old_z * inv_L);
+
+        displ_old_x += L * (displ_old_x <= -half_L) - L * (displ_old_x > half_L);
+        displ_old_y += L * (displ_old_y <= -half_L) - L * (displ_old_y > half_L);
+        displ_old_z += L * (displ_old_z <= -half_L) - L * (displ_old_z > half_L);
+
+        const double dist_old{std::sqrt(displ_old_x * displ_old_x + displ_old_y * displ_old_y + displ_old_z * displ_old_z)};
+        const double denom_old{1.0 + b_local * dist_old};
+
+        delta -= a_local * dist_old / denom_old;
+
+        // New pair:
+        double displ_new_x{new_x - pos_x[j]};
+        double displ_new_y{new_y - pos_y[j]};
+        double displ_new_z{new_z - pos_z[j]};
+
+        displ_new_x -= L * std::round(displ_new_x * inv_L);
+        displ_new_y -= L * std::round(displ_new_y * inv_L);
+        displ_new_z -= L * std::round(displ_new_z * inv_L);
+
+        displ_new_x += L * (displ_new_x <= -half_L) - L * (displ_new_x > half_L);
+        displ_new_y += L * (displ_new_y <= -half_L) - L * (displ_new_y > half_L);
+        displ_new_z += L * (displ_new_z <= -half_L) - L * (displ_new_z > half_L);
+
+        const double dist_new{std::sqrt(displ_new_x * displ_new_x + displ_new_y * displ_new_y + displ_new_z * displ_new_z)};
+        const double denom_new{1.0 + b_local * dist_new};
+
+        delta += a_local * dist_new / denom_new;
+    }
+
+    return delta;
+}

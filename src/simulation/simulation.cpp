@@ -72,8 +72,6 @@ bool Simulation::metropolis_step() {
     const double old_y{p_y[rand_particle]};
     const double old_z{p_z[rand_particle]};
 
-    // Old Jastrow value:
-    const double old_jastrow{wave_function_get().jastrow_pade_get().value(particles_get())};
 
     // Add randomness:
     p_x[rand_particle] += rand_proposal_double();
@@ -100,9 +98,8 @@ bool Simulation::metropolis_step() {
     const double slater_ratio{slater.determinant_ratio(rand_particle, new_row)};
 
     // Compute new Jastrow value:
-    const double new_jastrow{wave_function_get().jastrow_pade_get().value(particles_get())};
-    const double delta_jastrow{new_jastrow - old_jastrow};
-
+    const double delta_jastrow{wave_function_get().jastrow_pade_get().delta_value(
+    particles_get(), rand_particle, old_x, old_y, old_z)};
     const double log_ratio_sq{2.0 * std::log(std::abs(slater_ratio)) + 2.0 * delta_jastrow};
 
     const double log_u{std::log(rand_uniform_double())};
