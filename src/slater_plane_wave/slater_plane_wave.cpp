@@ -181,16 +181,8 @@ SlaterPlaneWave::SlaterPlaneWave(std::size_t num_particles, double box_lengthL)
 
     // Sort n-vector states to go from smallest magnitude to largest
     std::sort(n_candidates.begin(), n_candidates.end(), [](const nVectorCandidate& a, const nVectorCandidate& b) {
-        if (a.n_mag_sq != b.n_mag_sq) {
-            return a.n_mag_sq < b.n_mag_sq;
-        }
-        if (a.n_cand_x != b.n_cand_x) {
-            return a.n_cand_x < b.n_cand_x;
-        }
-        if (a.n_cand_y != b.n_cand_y) {
-            return a.n_cand_y < b.n_cand_y;
-        }
-        return a.n_cand_z < b.n_cand_z;
+        return std::tie(a.n_mag_sq, a.n_cand_x, a.n_cand_y, a.n_cand_z) < 
+           std::tie(b.n_mag_sq, b.n_cand_x, b.n_cand_y, b.n_cand_z);
     });
 
     // Assign orbitals
@@ -435,6 +427,18 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
     const auto& o_type{orbital_type_get()};
 
     const double* RESTRICT inv_det{inv_determinant_get()};
+
+    std::vector<double> k_sq_cache;
+    std::vector<double> sin_cache;
+    std::vector<double> cos_cache;
+    std::size_t num_k_vectors{num_unique_k_get()};
+    k_sq_cache.resize(num_k_vectors);
+    sin_cache.resize(num_k_vectors);
+    cos_cache.resize(num_k_vectors);
+
+    for (std::size_t k = 0; k < num_k_vectors; ++k) {
+        k_sq_cache[k] = k_x[k] * k_x[k] + k_y[k] * k_y[k] + k_z[k] * k_z[k];
+    }
 
     for (std::size_t particle = 0; particle < N; ++particle) {
         const double p_x{pos_x[particle]};

@@ -29,9 +29,9 @@ double JastrowPade::value(const Particles& particles) const noexcept {
             displ_z -= L * std::round(displ_z * inv_L);
 
             // Boolean masks - reduce to 0 if false, and 1 if true.
-            displ_x += L * (displ_x <= -half_L) - L * (displ_x > half_L);
-            displ_y += L * (displ_y <= -half_L) - L * (displ_y > half_L);
-            displ_z += L * (displ_z <= -half_L) - L * (displ_z > half_L);
+            // displ_x += L * (displ_x <= -half_L) - L * (displ_x > half_L);
+            // displ_y += L * (displ_y <= -half_L) - L * (displ_y > half_L);
+            // displ_z += L * (displ_z <= -half_L) - L * (displ_z > half_L);
 
             const double dist_sq{displ_x * displ_x + displ_y * displ_y + displ_z * displ_z};
             const double dist{std::sqrt(dist_sq)};
