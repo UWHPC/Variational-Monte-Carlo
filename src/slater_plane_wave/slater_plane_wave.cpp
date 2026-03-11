@@ -181,16 +181,8 @@ SlaterPlaneWave::SlaterPlaneWave(std::size_t num_particles, double box_lengthL)
 
     // Sort n-vector states to go from smallest magnitude to largest
     std::sort(n_candidates.begin(), n_candidates.end(), [](const nVectorCandidate& a, const nVectorCandidate& b) {
-        if (a.n_mag_sq != b.n_mag_sq) {
-            return a.n_mag_sq < b.n_mag_sq;
-        }
-        if (a.n_cand_x != b.n_cand_x) {
-            return a.n_cand_x < b.n_cand_x;
-        }
-        if (a.n_cand_y != b.n_cand_y) {
-            return a.n_cand_y < b.n_cand_y;
-        }
-        return a.n_cand_z < b.n_cand_z;
+        return std::tie(a.n_mag_sq, a.n_cand_x, a.n_cand_y, a.n_cand_z) < 
+           std::tie(b.n_mag_sq, b.n_cand_x, b.n_cand_y, b.n_cand_z);
     });
 
     // Assign orbitals
