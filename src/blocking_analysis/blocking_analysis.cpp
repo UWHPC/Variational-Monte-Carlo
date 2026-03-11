@@ -1,50 +1,36 @@
 #include "blocking_analysis.hpp"
 
-BlockingAnalysis::BlockingAnalysis(std::size_t num_blocks)
-    : block_size_{num_blocks}, in_block_{}, block_sum_{}, block_means_{} {}
+BlockingAnalysis::BlockingAnalysis(std::size_t block_size)
+    : num_blocks_{0}, running_mean_{0.0}, running_m2_{0.0}, block_size_{block_size}, in_block_{0}, block_sum_{0.0} {}
 
 std::pair<double, double> BlockingAnalysis::mean_and_standard_error() const {
-    if (!ready()) {
-        // The document says if K < 2, report mean only or flag it [cite: 35]
-        throw std::runtime_error("Not enough blocks to calculate Standard Error.");
+    if (num_blocks_ < 2) {
+        throw std::runtime_error("Not enough blocks");
     }
-    const std::size_t num_blocks{block_means_get().size()};
-    const double K{static_cast<double>(num_blocks)};
+    const double variance{running_m2_ / static_cast<double>(num_blocks_ - 1)};
+    const double standard_error{std::sqrt(variance / static_cast<double>(num_blocks_))};
 
-    double overall_mean{};
-    auto& block_means{block_means_get()};
-
-    // calculating average
-    const double inv_K{1.0 / K};
-    overall_mean = std::reduce(block_means.begin(), block_means.end(), 0.0) * inv_K;
-
-    // 2. Calculate the variance between the blocks (Eq. 39)
-    double variance_sum{};
-
-    for (std::size_t i = 0; i < num_blocks; ++i) {
-        variance_sum += (block_means[i] - overall_mean) * (block_means[i] - overall_mean);
-    }
-    const double denom{1.0 / (K - 1.0)};
-    const double s_sq{variance_sum * denom};
-
-    // 3. Calculate the Standard Error (Eq. 40)
-    const double standard_error{std::sqrt(s_sq * inv_K)};
-
-    return {overall_mean, standard_error};
+    return {running_mean_, standard_error};
 }
 
 void BlockingAnalysis::add(double local_energy) {
-    block_sum_set() += local_energy;
-    in_block_set()++;
+    block_sum_ += local_energy;
+    ++in_block_;
 
     // When the block is full, calculate its average and save it
-    if (in_block_get() == block_size_get()) {
-        block_means_get().push_back(block_sum_get() / static_cast<double>(block_size_get())); // Eq. 37
+    if (in_block_ == block_size_) {
+        // Welford's online algorithm:
+        const double block_mean{block_sum_ / static_cast<double>(block_size_)};
+        ++num_blocks_;
+        const double delta{block_mean - running_mean_};
+
+        running_mean_ += delta / static_cast<double>(num_blocks_);
+        running_m2_ += delta * (block_mean - running_mean_);
 
         // Reset for the next block
-        block_sum_set() = 0;
-        in_block_set() = 0;
+        block_sum_ = 0;
+        in_block_ = 0;
     }
 }
 
-bool BlockingAnalysis::ready() const noexcept { return block_means_.size() >= 2; }
+bool BlockingAnalysis::ready() const noexcept { return num_blocks_ >= 2; }

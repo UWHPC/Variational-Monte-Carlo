@@ -47,7 +47,11 @@ void Simulation::initialize_positions() {
         p_z[i] = rand_uniform_double() * length;
     }
     log_psi_set() = wave_function_get().evaluate_log_psi(particles_get());
+
     energy_tracker_get().initialize_structure_factors(particles_get());
+    energy_tracker_get().initialize_structure_factors(particles_get());
+    energy_tracker_get().initialize_reciprocal_energy();
+    energy_tracker_get().initialize_real_energy(particles_get());
 }
 
 /// @brief Randomly selects a particle and proposes a new position, then checks if the proposed move was valid then
@@ -114,9 +118,11 @@ bool Simulation::metropolis_step() {
         // Sherman-Morrison inverse update:
         slater.accept_move(rand_particle, new_row, slater_ratio);
 
-        // Update Ewald structure factors:
+        // Update Ewald structure factors, and potential energies:
         energy_tracker_get().update_structure_factors(old_x, old_y, old_z, p_x[rand_particle], p_y[rand_particle],
                                                       p_z[rand_particle]);
+        energy_tracker_get().update_real_energy(rand_particle, old_x, old_y, old_z, particles_get());
+
         return true;
     }
 

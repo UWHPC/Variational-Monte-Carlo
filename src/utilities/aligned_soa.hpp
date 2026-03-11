@@ -25,6 +25,12 @@ private:
     }
 
 public:
+    // Defaults:
+    AlignedSoA() : num_elements_{}, stride_length_{}, num_arrays_{}, memory_block_{nullptr} {}
+    AlignedSoA(AlignedSoA&&) noexcept = default;
+    AlignedSoA& operator=(AlignedSoA&&) noexcept = default;
+
+    // Non-Default:
     AlignedSoA(std::size_t num_elements, std::size_t num_arrays)
         : num_elements_{num_elements}, stride_length_{round_up(num_elements)}, num_arrays_{num_arrays} {
         // Determine the total elements and bytes needed for padded memory block:

@@ -2,12 +2,12 @@
 
 #include <cmath>
 #include <numbers>
-#include <omp.h>
 
 EnergyTracker::EnergyTracker(double box_length, double num_particles)
     : box_length_{box_length}, ewald_alpha_{6.0 / box_length},                              // 6.0 / L
       ewald_correction_{-6.0 * num_particles / (std::sqrt(std::numbers::pi) * box_length)}, // -6.0 * N / (sqrt(pi) * L)
-      ewald_background_{-std::numbers::pi * num_particles * num_particles / (72.0 * box_length)} { // -pi * N^2 / (72L)
+      ewald_background_{-std::numbers::pi * num_particles * num_particles / (72.0 * box_length)}, // -pi * N^2 / (72L)
+      V_recip_{}, V_real_{}, num_g_vectors_{}, data_{} {
 
     // Constants:
     const double two_pi_over_L{2.0 * std::numbers::pi / box_length};
@@ -18,16 +18,25 @@ EnergyTracker::EnergyTracker(double box_length, double num_particles)
     const double g_max_mag_sq{four_alpha_sq * cutoff_factor};
     const int m_max{static_cast<int>(std::ceil(std::sqrt(g_max_mag_sq) / two_pi_over_L)) + 1};
 
-    auto& g_x{G_vector_x_get()};
-    auto& g_y{G_vector_y_get()};
-    auto& g_z{G_vector_z_get()};
-    auto& g_weights{G_vector_weights_get()};
+    // Temp. Vectors:
+    std::vector<double> tmp_x, tmp_y, tmp_z, tmp_w;
+
+    auto& g_x{tmp_x};
+    auto& g_y{tmp_y};
+    auto& g_z{tmp_z};
+    auto& g_weights{tmp_w};
 
     // G = 2*pi / L
     for (int m_x = -m_max; m_x <= m_max; ++m_x) {
         for (int m_y = -m_max; m_y <= m_max; ++m_y) {
             for (int m_z = -m_max; m_z <= m_max; ++m_z) {
-                if (m_x == 0 && m_y == 0 && m_z == 0)
+                // Only keeps "positive half-sphere"
+                // Make up for this by 2x the weights
+                if (m_x < 0)
+                    continue;
+                if (m_x == 0 && m_y < 0)
+                    continue;
+                if (m_x == 0 && m_y == 0 && m_z <= 0)
                     continue;
 
                 const double g_cand_x{two_pi_over_L * static_cast<double>(m_x)};
@@ -41,15 +50,66 @@ EnergyTracker::EnergyTracker(double box_length, double num_particles)
                 g_x.emplace_back(g_cand_x);
                 g_y.emplace_back(g_cand_y);
                 g_z.emplace_back(g_cand_z);
-                g_weights.emplace_back(4.0 * std::numbers::pi * std::numbers::pi / g_cand_mag_sq *
+                g_weights.emplace_back(8.0 * std::numbers::pi * std::numbers::pi / g_cand_mag_sq *
                                        std::exp(-g_cand_mag_sq / four_alpha_sq));
             }
         }
     }
 
-    // Size structure factor cache to match G-vector count:
-    sum_real_get().resize(num_g_vectors_get(), 0.0);
-    sum_imag_get().resize(num_g_vectors_get(), 0.0);
+    num_g_vectors_set() = g_x.size();
+
+    data_ = AlignedSoA<double>(num_g_vectors_, NUM_ARRAYS_);
+
+    std::copy_n(tmp_x.data(), num_g_vectors_, G_vector_x_get());
+    std::copy_n(tmp_y.data(), num_g_vectors_, G_vector_y_get());
+    std::copy_n(tmp_z.data(), num_g_vectors_, G_vector_z_get());
+    std::copy_n(tmp_w.data(), num_g_vectors_, G_vector_weights_get());
+}
+
+void EnergyTracker::initialize_reciprocal_energy() noexcept {
+    const double L{box_length_};
+    const double prefactor{1.0 / (2.0 * std::numbers::pi * L * L * L)};
+
+    const std::size_t num_G{num_g_vectors_get()};
+    const double* RESTRICT g_weights{G_vector_weights_get()};
+    const double* RESTRICT sum_real{sum_real_get()};
+    const double* RESTRICT sum_imag{sum_imag_get()};
+
+    double sum{};
+    for (std::size_t g = 0; g < num_G; ++g) {
+        sum += g_weights[g] * (sum_real[g] * sum_real[g] + sum_imag[g] * sum_imag[g]);
+    }
+    V_recip_set() = prefactor * sum;
+}
+
+void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept {
+    const std::size_t N{particles.num_particles_get()};
+    const double L{box_length_};
+    const double inv_L{1.0 / L};
+    const double alpha{ewald_alpha_};
+
+    const double* RESTRICT p_x{particles.pos_x_get()};
+    const double* RESTRICT p_y{particles.pos_y_get()};
+    const double* RESTRICT p_z{particles.pos_z_get()};
+
+    double sum{};
+    for (std::size_t i = 0; i < N; ++i) {
+        for (std::size_t j = i + 1; j < N; ++j) {
+            double dx{p_x[i] - p_x[j]};
+            double dy{p_y[i] - p_y[j]};
+            double dz{p_z[i] - p_z[j]};
+
+            dx -= L * std::round(dx * inv_L);
+            dy -= L * std::round(dy * inv_L);
+            dz -= L * std::round(dz * inv_L);
+
+            const double r{std::sqrt(dx * dx + dy * dy + dz * dz)};
+            const double inv_r{1.0 / r};
+
+            sum += std::erfc(alpha * r) * inv_r;
+        }
+    }
+    V_real_set() = sum;
 }
 
 void EnergyTracker::initialize_structure_factors(const Particles& particles) noexcept {
@@ -60,12 +120,12 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
     const double* RESTRICT p_y{particles.pos_y_get()};
     const double* RESTRICT p_z{particles.pos_z_get()};
 
-    const auto& g_x{G_vector_x_get()};
-    const auto& g_y{G_vector_y_get()};
-    const auto& g_z{G_vector_z_get()};
+    const double* RESTRICT g_x{G_vector_x_get()};
+    const double* RESTRICT g_y{G_vector_y_get()};
+    const double* RESTRICT g_z{G_vector_z_get()};
 
-    auto& sum_real{sum_real_get()};
-    auto& sum_imag{sum_imag_get()};
+    double* RESTRICT sum_real{sum_real_get()};
+    double* RESTRICT sum_imag{sum_imag_get()};
 
     for (std::size_t g = 0; g < num_G; ++g) {
         double cos_sum{};
@@ -85,24 +145,37 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
 
 void EnergyTracker::update_structure_factors(double old_x, double old_y, double old_z, double new_x, double new_y,
                                              double new_z) noexcept {
+    const double L{box_length_};
+
     const std::size_t num_G{num_g_vectors_get()};
+    const double prefactor{1.0 / (2.0 * std::numbers::pi * L * L * L)};
 
-    const auto& g_x{G_vector_x_get()};
-    const auto& g_y{G_vector_y_get()};
-    const auto& g_z{G_vector_z_get()};
+    const double* RESTRICT g_weights{G_vector_weights_get()};
+    const double* RESTRICT g_x{G_vector_x_get()};
+    const double* RESTRICT g_y{G_vector_y_get()};
+    const double* RESTRICT g_z{G_vector_z_get()};
 
-    auto& sum_real{sum_real_get()};
-    auto& sum_imag{sum_imag_get()};
+    double* RESTRICT sum_real{sum_real_get()};
+    double* RESTRICT sum_imag{sum_imag_get()};
 
-#pragma omp simd
+    double delta{};
+
     for (std::size_t g = 0; g < num_G; ++g) {
         const double old_dot{g_x[g] * old_x + g_y[g] * old_y + g_z[g] * old_z};
         const double new_dot{g_x[g] * new_x + g_y[g] * new_y + g_z[g] * new_z};
 
-        // Subtract old contribution, add new:
-        sum_real[g] += std::cos(new_dot) - std::cos(old_dot);
-        sum_imag[g] += std::sin(new_dot) - std::sin(old_dot);
+        const double d_real{std::cos(new_dot) - std::cos(old_dot)};
+        const double d_imag{std::sin(new_dot) - std::sin(old_dot)};
+
+        // |a+d|^2 - |a|^2 = 2*a*d + d^2
+        delta +=
+            g_weights[g] * (2.0 * (sum_real[g] * d_real + sum_imag[g] * d_imag) + d_real * d_real + d_imag * d_imag);
+
+        sum_real[g] += d_real;
+        sum_imag[g] += d_imag;
     }
+
+    V_recip_set() += prefactor * delta;
 }
 
 double EnergyTracker::kinetic_energy(const Particles& particles) const noexcept {
@@ -125,73 +198,72 @@ double EnergyTracker::kinetic_energy(const Particles& particles) const noexcept 
     return -0.5 * T_sum;
 }
 
-double EnergyTracker::potential_energy(const Particles& particles) const noexcept {
+void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, double old_y, double old_z,
+                                       const Particles& particles) noexcept {
     const std::size_t N{particles.num_particles_get()};
     const double L{box_length_};
-    const double half_L{0.5 * L};
     const double inv_L{1.0 / L};
+    const double alpha{ewald_alpha_};
 
     const double* RESTRICT p_x{particles.pos_x_get()};
     const double* RESTRICT p_y{particles.pos_y_get()};
     const double* RESTRICT p_z{particles.pos_z_get()};
 
-    const double ewald_alpha{ewald_alpha_get()};
+    // particles already has the NEW position at moved_idx
+    const double new_x{p_x[moved_idx]};
+    const double new_y{p_y[moved_idx]};
+    const double new_z{p_z[moved_idx]};
+
+    double delta{};
+    for (std::size_t j = 0; j < N; ++j) {
+        if (j == moved_idx)
+            continue;
+
+        // Subtract old pair:
+        double dx_old{old_x - p_x[j]};
+        double dy_old{old_y - p_y[j]};
+        double dz_old{old_z - p_z[j]};
+
+        dx_old -= L * std::round(dx_old * inv_L);
+        dy_old -= L * std::round(dy_old * inv_L);
+        dz_old -= L * std::round(dz_old * inv_L);
+
+        const double r_old{std::sqrt(dx_old * dx_old + dy_old * dy_old + dz_old * dz_old)};
+        const double inv_r_old{1.0 / r_old};
+
+        delta -= std::erfc(alpha * r_old) * inv_r_old;
+
+        // Add new pair:
+        double dx_new{new_x - p_x[j]};
+        double dy_new{new_y - p_y[j]};
+        double dz_new{new_z - p_z[j]};
+
+        dx_new -= L * std::round(dx_new * inv_L);
+        dy_new -= L * std::round(dy_new * inv_L);
+        dz_new -= L * std::round(dz_new * inv_L);
+
+        const double r_new{std::sqrt(dx_new * dx_new + dy_new * dy_new + dz_new * dz_new)};
+        const double inv_r_new{1.0 / r_new};
+
+        delta += std::erfc(alpha * r_new) * inv_r_new;
+    }
+
+    V_real_ += delta;
+}
+
+double EnergyTracker::potential_energy() const noexcept {
+    // Ewald constants:
     const double ewald_self_correction_term{ewald_correction_get()};
     const double ewald_background{ewald_background_get()};
 
-    // Real-space sum: erfc(a * r_ij) / r_ij
-    double V_real{};
-    for (std::size_t i = 0; i < N; ++i) {
-        for (std::size_t j = i + 1; j < N; ++j) {
-            double displ_x{p_x[i] - p_x[j]};
-            double displ_y{p_y[i] - p_y[j]};
-            double displ_z{p_z[i] - p_z[j]};
-
-            displ_x -= L * std::round(displ_x * inv_L);
-            displ_y -= L * std::round(displ_y * inv_L);
-            displ_z -= L * std::round(displ_z * inv_L);
-
-            // Boolean masks - reduce to 0 if false, and 1 if true.
-            displ_x += L * (displ_x <= -half_L) - L * (displ_x > half_L);
-            displ_y += L * (displ_y <= -half_L) - L * (displ_y > half_L);
-            displ_z += L * (displ_z <= -half_L) - L * (displ_z > half_L);
-
-            const double dist_sq{displ_x * displ_x + displ_y * displ_y + displ_z * displ_z};
-            const double dist{std::sqrt(dist_sq)};
-
-            // To get around if else statement for branching,
-            // ensures does not run if r_ij < 1.0e-12
-            const bool degenerate{dist < 1.0e-12};
-            const double mask{degenerate ? 0.0 : 1.0};
-
-            const double r_ij{dist};
-            const double inv_r_ij{degenerate ? 1.0 : 1 / r_ij};
-
-            // if degenerate == true,
-            // V_sum = 0.0 / 1.0 = 0
-            // so the contribution is 0
-            V_real += mask * std::erfc(ewald_alpha * r_ij) * inv_r_ij;
-        }
-    }
-
-    // Reciprocal-space sum:
-    const double prefactor{1.0 / (2.0 * std::numbers::pi * L * L * L)};
-    const std::size_t num_G{num_g_vectors_get()};
-
-    const auto& G_vec_weights{G_vector_weights_get()};
-    auto& sum_real{sum_real_get()};
-    auto& sum_imag{sum_imag_get()};
-
-    double V_recip{};
-    for (std::size_t i = 0; i < num_G; ++i) {
-        V_recip += G_vec_weights[i] * (sum_real[i] * sum_real[i] + sum_imag[i] * sum_imag[i]);
-    }
-    V_recip *= prefactor;
+    // Potentials calcualted in cache:
+    const double V_recip{V_recip_get()};
+    const double V_real{V_real_get()};
 
     // Self + background:
     return V_real + V_recip + ewald_self_correction_term + ewald_background;
 }
 
 double EnergyTracker::eval_total_energy(const Particles& particles) const noexcept {
-    return kinetic_energy(particles) + potential_energy(particles);
+    return kinetic_energy(particles) + potential_energy();
 }
