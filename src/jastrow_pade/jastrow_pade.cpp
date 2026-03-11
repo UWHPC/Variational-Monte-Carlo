@@ -6,7 +6,6 @@
 double JastrowPade::value(const Particles& particles) const noexcept {
     const std::size_t num_particles{particles.num_particles_get()};
     const double L{box_length_};
-    const double half_L{0.5 * L};
     const double inv_L{1.0 / L};
 
     const double* RESTRICT pos_x{particles.pos_x_get()};
@@ -114,8 +113,8 @@ void JastrowPade::add_derivatives(const Particles& particles, double* RESTRICT g
     }
 }
 
-double JastrowPade::delta_value(const Particles& particles, std::size_t moved,
-                                double old_x, double old_y, double old_z) const noexcept {
+double JastrowPade::delta_value(const Particles& particles, std::size_t moved, double old_x, double old_y,
+                                double old_z) const noexcept {
     const std::size_t num_particles{particles.num_particles_get()};
     const double L{box_length_};
     const double half_L{0.5 * L};
@@ -151,7 +150,8 @@ double JastrowPade::delta_value(const Particles& particles, std::size_t moved,
         displ_old_y += L * (displ_old_y <= -half_L) - L * (displ_old_y > half_L);
         displ_old_z += L * (displ_old_z <= -half_L) - L * (displ_old_z > half_L);
 
-        const double dist_old{std::sqrt(displ_old_x * displ_old_x + displ_old_y * displ_old_y + displ_old_z * displ_old_z)};
+        const double dist_old{
+            std::sqrt(displ_old_x * displ_old_x + displ_old_y * displ_old_y + displ_old_z * displ_old_z)};
         const double denom_old{1.0 + b_local * dist_old};
 
         delta -= a_local * dist_old / denom_old;
@@ -169,11 +169,135 @@ double JastrowPade::delta_value(const Particles& particles, std::size_t moved,
         displ_new_y += L * (displ_new_y <= -half_L) - L * (displ_new_y > half_L);
         displ_new_z += L * (displ_new_z <= -half_L) - L * (displ_new_z > half_L);
 
-        const double dist_new{std::sqrt(displ_new_x * displ_new_x + displ_new_y * displ_new_y + displ_new_z * displ_new_z)};
+        const double dist_new{
+            std::sqrt(displ_new_x * displ_new_x + displ_new_y * displ_new_y + displ_new_z * displ_new_z)};
         const double denom_new{1.0 + b_local * dist_new};
 
         delta += a_local * dist_new / denom_new;
     }
 
     return delta;
+}
+
+// Used to incrementally update, faster than recomputing
+void JastrowPade::update_derivatives_for_move(const Particles& particles, std::size_t moved, double old_x, double old_y,
+                                              double old_z, double* RESTRICT grad_x, double* RESTRICT grad_y,
+                                              double* RESTRICT grad_z, double* RESTRICT laplacian) const noexcept {
+    // cheaper to zero out old terms
+    grad_x[moved] = 0.0;
+    grad_y[moved] = 0.0;
+    grad_z[moved] = 0.0;
+    laplacian[moved] = 0.0;
+
+    const std::size_t num_particles{particles.num_particles_get()};
+    const double L{box_length_};
+    const double half_L{0.5 * L};
+    const double inv_L{1.0 / L};
+
+    const double* RESTRICT pos_x{particles.pos_x_get()};
+    const double* RESTRICT pos_y{particles.pos_y_get()};
+    const double* RESTRICT pos_z{particles.pos_z_get()};
+
+    const double a_local{a_get()};
+    const double b_local{b_get()};
+
+    const double new_x{pos_x[moved]};
+    const double new_y{pos_y[moved]};
+    const double new_z{pos_z[moved]};
+
+    for (std::size_t j = 0; j < num_particles; ++j) {
+        if (j == moved)
+            continue;
+
+        // Old pair:
+        double displ_old_x{old_x - pos_x[j]};
+        double displ_old_y{old_y - pos_y[j]};
+        double displ_old_z{old_z - pos_z[j]};
+
+        displ_old_x -= L * std::round(displ_old_x * inv_L);
+        displ_old_y -= L * std::round(displ_old_y * inv_L);
+        displ_old_z -= L * std::round(displ_old_z * inv_L);
+
+        displ_old_x += L * (displ_old_x <= -half_L) - L * (displ_old_x > half_L);
+        displ_old_y += L * (displ_old_y <= -half_L) - L * (displ_old_y > half_L);
+        displ_old_z += L * (displ_old_z <= -half_L) - L * (displ_old_z > half_L);
+
+        const double dist_old{
+            std::sqrt(displ_old_x * displ_old_x + displ_old_y * displ_old_y + displ_old_z * displ_old_z)};
+
+        // old values
+        const bool degenerate_old{dist_old < 1e-12};
+        const double inv_dist_old{degenerate_old ? 1.0 : 1.0 / dist_old};
+        const double mask_old{degenerate_old ? 0.0 : 1.0};
+
+        // u(r) = a*r / (1 + b*r)
+        // u'(r) = a / (1 + b*r)^2
+        // u''(r) = -2ab / (1 + b*r)^3
+        const double denom_old{1.0 + b_local * dist_old};
+        const double denom_sq_old{denom_old * denom_old};
+        const double denom_cb_old{denom_sq_old * denom_old};
+
+        const double first_deriv_old{a_local / denom_sq_old};
+        const double second_deriv_old{-2.0 * a_local * b_local / denom_cb_old};
+
+        // ∇_i u(r_ij) = u'(r) * (r_vec / r)
+        const double grad_factor_old{first_deriv_old * inv_dist_old};
+
+        grad_x[j] += mask_old * grad_factor_old * displ_old_x;
+        grad_y[j] += mask_old * grad_factor_old * displ_old_y;
+        grad_z[j] += mask_old * grad_factor_old * displ_old_z;
+
+        // ∇^2 u(r) = u''(r) + (2/r) u'(r)
+        const double laplacian_pair_old{second_deriv_old + 2.0 * first_deriv_old * inv_dist_old};
+
+        laplacian[j] -= mask_old * laplacian_pair_old;
+
+
+        // new values
+        double displ_new_x{new_x - pos_x[j]};
+        double displ_new_y{new_y - pos_y[j]};
+        double displ_new_z{new_z - pos_z[j]};
+
+        displ_new_x -= L * std::round(displ_new_x * inv_L);
+        displ_new_y -= L * std::round(displ_new_y * inv_L);
+        displ_new_z -= L * std::round(displ_new_z * inv_L);
+
+        displ_new_x += L * (displ_new_x <= -half_L) - L * (displ_new_x > half_L);
+        displ_new_y += L * (displ_new_y <= -half_L) - L * (displ_new_y > half_L);
+        displ_new_z += L * (displ_new_z <= -half_L) - L * (displ_new_z > half_L);
+
+        const double dist_new{
+            std::sqrt(displ_new_x * displ_new_x + displ_new_y * displ_new_y + displ_new_z * displ_new_z)};
+
+        const bool degenerate_new{dist_new < 1e-12};
+        const double inv_dist_new{degenerate_new ? 1.0 : 1.0 / dist_new};
+        const double mask_new{degenerate_new ? 0.0 : 1.0};
+
+        // u(r) = a*r / (1 + b*r)
+        // u'(r) = a / (1 + b*r)^2
+        // u''(r) = -2ab / (1 + b*r)^3
+        const double denom_new{1.0 + b_local * dist_new};
+        const double denom_sq_new{denom_new * denom_new};
+        const double denom_cb_new{denom_sq_new * denom_new};
+
+        const double first_deriv_new{a_local / denom_sq_new};
+        const double second_deriv_new{-2.0 * a_local * b_local / denom_cb_new};
+
+        // ∇_i u(r_ij) = u'(r) * (r_vec / r)
+        const double grad_factor_new{first_deriv_new * inv_dist_new};
+
+        grad_x[moved] += mask_new * grad_factor_new * displ_new_x;
+        grad_y[moved] += mask_new * grad_factor_new * displ_new_y;
+        grad_z[moved] += mask_new * grad_factor_new * displ_new_z;
+
+        grad_x[j] -= mask_new * grad_factor_new * displ_new_x;
+        grad_y[j] -= mask_new * grad_factor_new * displ_new_y;
+        grad_z[j] -= mask_new * grad_factor_new * displ_new_z;
+
+        // ∇^2 u(r) = u''(r) + (2/r) u'(r)
+        const double laplacian_pair_new{second_deriv_new + 2.0 * first_deriv_new * inv_dist_new};
+
+        laplacian[moved] += mask_new * laplacian_pair_new;
+        laplacian[j] += mask_new * laplacian_pair_new;
+    }
 }
