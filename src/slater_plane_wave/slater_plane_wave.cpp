@@ -6,7 +6,6 @@
 #include <limits>
 #include <vector>
 
-#include "../utilities/fast_trig.hpp"
 
 namespace {
 
@@ -284,8 +283,8 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
 
             const double type{static_cast<double>(orb_type[orbital])};
 
-            double cos_term{fast_cos(k_dot_r)};
-            double sin_term{fast_sin(k_dot_r)};
+            double cos_term{std::cos(k_dot_r)};
+            double sin_term{std::sin(k_dot_r)};
 
             det_matrix[index(particle, orbital, N)] = cos_term + type * (sin_term - cos_term);
         }
@@ -351,8 +350,8 @@ double* SlaterPlaneWave::build_row(std::size_t particle, const Particles& partic
 
         const double type{static_cast<double>(orb_type[orbital])};
 
-        double cos_term{fast_cos(k_dot_r)};
-        double sin_term{fast_sin(k_dot_r)};
+        double cos_term{std::cos(k_dot_r)};
+        double sin_term{std::sin(k_dot_r)};
 
         row[orbital] = cos_term + type * (sin_term - cos_term);
     }
@@ -476,8 +475,8 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
             // Replaces the old if else branch with branchless math
             const double type{static_cast<double>(o_type[orbital])};
 
-            double cos_term{fast_cos(k_dot_R)};
-            double sin_term{fast_sin(k_dot_R)};
+            double cos_term{std::cos(k_dot_R)};
+            double sin_term{std::sin(k_dot_R)};
 
             const double grad_factor{-sin_term + type * (sin_term + cos_term)};
             const double lap_factor{-cos_term + type * (cos_term - sin_term)};
