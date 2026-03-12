@@ -86,6 +86,7 @@ void EnergyTracker::initialize_reciprocal_energy() noexcept {
 void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept {
     const std::size_t N{particles.num_particles_get()};
     const double L{box_length_};
+    const double half_L{0.5 * L};
     const double inv_L{1.0 / L};
     const double alpha{ewald_alpha_};
 
@@ -100,9 +101,9 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
             double dy{p_y[i] - p_y[j]};
             double dz{p_z[i] - p_z[j]};
 
-            dx -= L * std::round(dx * inv_L);
-            dy -= L * std::round(dy * inv_L);
-            dz -= L * std::round(dz * inv_L);
+            dx += L * (dx <= -half_L) - L * (dx > half_L);
+            dy += L * (dy <= -half_L) - L * (dy > half_L);
+            dz += L * (dz <= -half_L) - L * (dz > half_L);
 
             const double r{std::sqrt(dx * dx + dy * dy + dz * dz)};
             const double inv_r{1.0 / r};
@@ -132,7 +133,7 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
         double cos_sum{};
         double sin_sum{};
 
-        #pragma omp simd
+#pragma omp simd
         for (std::size_t j = 0; j < N; ++j) {
             const double G_dot_r{g_x[g] * p_x[j] + g_y[g] * p_y[j] + g_z[g] * p_z[j]};
 
@@ -162,7 +163,7 @@ void EnergyTracker::update_structure_factors(double old_x, double old_y, double 
 
     double delta{};
 
-    #pragma omp simd
+#pragma omp simd
     for (std::size_t g = 0; g < num_G; ++g) {
         const double old_dot{g_x[g] * old_x + g_y[g] * old_y + g_z[g] * old_z};
         const double new_dot{g_x[g] * new_x + g_y[g] * new_y + g_z[g] * new_z};
@@ -205,6 +206,7 @@ void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, doub
                                        const Particles& particles) noexcept {
     const std::size_t N{particles.num_particles_get()};
     const double L{box_length_};
+    const double half_L{0.5 * L};
     const double inv_L{1.0 / L};
     const double alpha{ewald_alpha_};
 
@@ -227,9 +229,9 @@ void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, doub
         double dy_old{old_y - p_y[j]};
         double dz_old{old_z - p_z[j]};
 
-        dx_old -= L * std::round(dx_old * inv_L);
-        dy_old -= L * std::round(dy_old * inv_L);
-        dz_old -= L * std::round(dz_old * inv_L);
+        dx_old += L * (dx_old <= -half_L) - L * (dx_old > half_L);
+        dy_old += L * (dy_old <= -half_L) - L * (dy_old > half_L);
+        dz_old += L * (dz_old <= -half_L) - L * (dz_old > half_L);
 
         const double r_old{std::sqrt(dx_old * dx_old + dy_old * dy_old + dz_old * dz_old)};
         const double inv_r_old{1.0 / r_old};
@@ -241,9 +243,9 @@ void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, doub
         double dy_new{new_y - p_y[j]};
         double dz_new{new_z - p_z[j]};
 
-        dx_new -= L * std::round(dx_new * inv_L);
-        dy_new -= L * std::round(dy_new * inv_L);
-        dz_new -= L * std::round(dz_new * inv_L);
+        dx_new += L * (dx_new <= -half_L) - L * (dx_new > half_L);
+        dy_new += L * (dy_new <= -half_L) - L * (dy_new > half_L);
+        dz_new += L * (dz_new <= -half_L) - L * (dz_new > half_L);
 
         const double r_new{std::sqrt(dx_new * dx_new + dy_new * dy_new + dz_new * dz_new)};
         const double inv_r_new{1.0 / r_new};

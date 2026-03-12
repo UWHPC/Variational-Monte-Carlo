@@ -1,6 +1,7 @@
 #include "particles/particles.hpp"
 #include "slater_plane_wave.hpp"
 #include "utilities/aligned_soa.hpp"
+#include "../utilities/matrix.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -490,7 +491,7 @@ void SlaterPlaneWave::add_derivatives(double* RESTRICT grad_x, double* RESTRICT 
         const std::size_t offset{particle * num_k};
 
 
-#pragma omp simd
+        #pragma omp simd
         for (std::size_t orbital = 0; orbital < N; ++orbital) {
             const std::size_t k_idx{k_index[orbital]};
 

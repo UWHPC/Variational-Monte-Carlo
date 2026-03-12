@@ -16,7 +16,7 @@ private:
     bool jastrow_cache_valid_;        // whether cache is filled
     std::size_t steps_since_refresh_; // for drift correction
 
-    // Aligned SOA for the gradieent components and laplacian:
+    // Aligned SOA for the gradient components and laplacian:
     enum ArrayIndex : std::size_t { GRAD_X_, GRAD_Y_, GRAD_Z_, LAP_, NUM_ARRAYS_ };
     AlignedSoA<double> derivatives_;
 
