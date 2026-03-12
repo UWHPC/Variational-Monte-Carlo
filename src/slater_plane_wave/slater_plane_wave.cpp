@@ -249,6 +249,28 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, double box_lengthL)
     std::fill_n(cos_cache_get(), particles.padding_stride_get(), 0.0);
 };
 
+void SlaterPlaneWave::update_trig_cache(std::size_t particle, const Particles& particles) noexcept {
+    const std::size_t num_k{num_unique_k_get()};
+
+    const double px{particles.pos_x_get()[particle]};
+    const double py{particles.pos_y_get()[particle]};
+    const double pz{particles.pos_z_get()[particle]};
+
+    const double* RESTRICT kx{k_vector_x_get()};
+    const double* RESTRICT ky{k_vector_y_get()};
+    const double* RESTRICT kz{k_vector_z_get()};
+
+    double* RESTRICT c_row{cos_cache_get() + particle * num_k};
+    double* RESTRICT s_row{sin_cache_get() + particle * num_k};
+
+    for (std::size_t k = 0; k < num_k; ++k) {
+        const double dot{kx[k] * px + ky[k] * py + kz[k] * pz};
+        c_row[k] = std::cos(dot);
+        s_row[k] = std::sin(dot);
+    }
+}
+
+
 // Slater matrix D_{i,j} = φ_j(r_i)
 // Each orbital j has an associated k-vector (via orbital_k_index)
 // and a type (via orbital_type): 0 = cos, 1 = sin.
@@ -281,22 +303,30 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     double* RESTRICT rhs{rhs_get()};
     double* RESTRICT solution{solution_get()};
 
+    const std::size_t num_k{num_unique_k_get()};
+    double* RESTRICT cos_cache{cos_cache_get()};
+    double* RESTRICT sin_cache{sin_cache_get()};
+
     // Build determinant matrix D
     for (std::size_t particle = 0; particle < N; ++particle) {
         const double p_x{pos_x[particle]};
         const double p_y{pos_y[particle]};
         const double p_z{pos_z[particle]};
 
-#pragma omp simd
+        const std::size_t offset{particle * num_k};
+        for (std::size_t k{}; k < num_k; ++k) {
+            const double dot{k_x_comp[k] * p_x + k_y_comp[k] * p_y + k_z_comp[k] * p_z};
+            cos_cache[offset + k] = std::cos(dot);
+            sin_cache[offset + k] = std::sin(dot);
+        }
+
+        // Build D from cache
+        #pragma omp simd
         for (std::size_t orbital = 0; orbital < N; ++orbital) {
             const std::size_t k_idx{k_index[orbital]};
-            const double k_dot_r = k_x_comp[k_idx] * p_x + k_y_comp[k_idx] * p_y + k_z_comp[k_idx] * p_z;
-
             const double type{static_cast<double>(orb_type[orbital])};
-
-            double cos_term{std::cos(k_dot_r)};
-            double sin_term{std::sin(k_dot_r)};
-
+            const double cos_term{cos_cache[offset + k_idx]};
+            const double sin_term{sin_cache[offset + k_idx]};
             det_matrix[index(particle, orbital, N)] = cos_term + type * (sin_term - cos_term);
         }
     }
@@ -342,14 +372,6 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
 double* SlaterPlaneWave::build_row(std::size_t particle, const Particles& particles) noexcept {
     const std::size_t N{num_orbitals_get()};
 
-    const double p_x{particles.pos_x_get()[particle]};
-    const double p_y{particles.pos_y_get()[particle]};
-    const double p_z{particles.pos_z_get()[particle]};
-
-    const double* RESTRICT k_x{k_vector_x_get()};
-    const double* RESTRICT k_y{k_vector_y_get()};
-    const double* RESTRICT k_z{k_vector_z_get()};
-
     const auto& k_index{orbital_k_index_get()};
     const auto& orb_type{orbital_type_get()};
 
@@ -358,12 +380,11 @@ double* SlaterPlaneWave::build_row(std::size_t particle, const Particles& partic
 #pragma omp simd
     for (std::size_t orbital = 0; orbital < N; ++orbital) {
         const std::size_t k_idx{k_index[orbital]};
-        const double k_dot_r{k_x[k_idx] * p_x + k_y[k_idx] * p_y + k_z[k_idx] * p_z};
 
         const double type{static_cast<double>(orb_type[orbital])};
 
-        double cos_term{std::cos(k_dot_r)};
-        double sin_term{std::sin(k_dot_r)};
+        const double cos_term{cos_cache_get()[particle * num_unique_k_get() + k_idx]};
+        const double sin_term{sin_cache_get()[particle * num_unique_k_get() + k_idx]};
 
         row[orbital] = cos_term + type * (sin_term - cos_term);
     }
@@ -428,10 +449,6 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
                                       double* RESTRICT grad_z, double* RESTRICT laplacian) const noexcept {
     const std::size_t N{num_orbitals_get()};
 
-    const double* RESTRICT pos_x{particles.pos_x_get()};
-    const double* RESTRICT pos_y{particles.pos_y_get()};
-    const double* RESTRICT pos_z{particles.pos_z_get()};
-
     const double* RESTRICT k_x{k_vector_x_get()};
     const double* RESTRICT k_y{k_vector_y_get()};
     const double* RESTRICT k_z{k_vector_z_get()};
@@ -441,27 +458,20 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
 
     const double* RESTRICT inv_det{inv_determinant_get()};
 
-    std::vector<double> k_sq_cache;
-    std::vector<double> sin_cache;
-    std::vector<double> cos_cache;
-    std::size_t num_k_vectors{num_unique_k_get()};
-    k_sq_cache.resize(num_k_vectors);
-    sin_cache.resize(num_k_vectors);
-    cos_cache.resize(num_k_vectors);
+    const std::size_t num_k{num_unique_k_get()};
 
-    for (std::size_t k = 0; k < num_k_vectors; ++k) {
-        k_sq_cache[k] = k_x[k] * k_x[k] + k_y[k] * k_y[k] + k_z[k] * k_z[k];
-    }
+    const double* RESTRICT cos_cache{cos_cache_get()};
+    const double* RESTRICT sin_cache{sin_cache_get()};
+
 
     for (std::size_t particle = 0; particle < N; ++particle) {
-        const double p_x{pos_x[particle]};
-        const double p_y{pos_y[particle]};
-        const double p_z{pos_z[particle]};
-
         double d_log_det_dx{}, d_log_det_dy{}, d_log_det_dz{};
 
         // Σ_j (D^{-1})_{j,particle} * (∇^2 D_{particle,j})
         double laplace_det_term{};
+
+        const std::size_t offset{particle * num_k};
+
 
 #pragma omp simd
         for (std::size_t orbital = 0; orbital < N; ++orbital) {
@@ -471,8 +481,8 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
             const double k_y_orbital{k_y[k_idx]};
             const double k_z_orbital{k_z[k_idx]};
 
-            const double k_dot_R{k_x_orbital * p_x + k_y_orbital * p_y + k_z_orbital * p_z};
             const double k_sq{k_x_orbital * k_x_orbital + k_y_orbital * k_y_orbital + k_z_orbital * k_z_orbital};
+
 
             // ∇_i log|det D| = Σ_j (D⁻¹)_{j,i} · ∇_i D_{i,j}
             //
@@ -488,8 +498,8 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
             // Replaces the old if else branch with branchless math
             const double type{static_cast<double>(o_type[orbital])};
 
-            double cos_term{std::cos(k_dot_R)};
-            double sin_term{std::sin(k_dot_R)};
+            const double cos_term{cos_cache[offset + k_idx]};
+            const double sin_term{sin_cache[offset + k_idx]};
 
             const double grad_factor{-sin_term + type * (sin_term + cos_term)};
             const double lap_factor{-cos_term + type * (cos_term - sin_term)};

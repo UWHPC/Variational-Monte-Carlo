@@ -116,6 +116,8 @@ public:
     [[nodiscard]] double* cos_cache_get() noexcept { return trig_cache_[COS_CACHE_]; }
     [[nodiscard]] double const* cos_cache_get() const noexcept { return trig_cache_[COS_CACHE_]; }
 
+    void update_trig_cache(std::size_t particle, const Particles& particles) noexcept;
+
     // Computes log|det(D)| via full LU - use for initialization only.
     double log_abs_det(const Particles& particles);
 
