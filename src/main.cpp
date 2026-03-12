@@ -6,10 +6,11 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <omp.h>
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     // Temporary local config while CLI parsing is disabled.
-    
+
     // // Closed shells (up to 10k):
     // N = 1, 7, 19, 27, 33, 57, 81, 93, 123, 147, 171, 179,
     // 203, 251, 257, 305, 341, 365, 389, 437, 461, 485, 515, 587,
