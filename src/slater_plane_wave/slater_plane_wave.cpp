@@ -3,6 +3,7 @@
 #include "utilities/aligned_soa.hpp"
 
 #include <algorithm>
+#include <cstring>
 #include <cmath>
 #include <cstddef>
 #include <limits>
@@ -148,7 +149,7 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, double box_lengthL)
       orbital_k_index_(particles.num_particles_get()), orbital_type_(particles.num_particles_get(), 0),
       int_vectors_{particles.num_particles_get(), NUM_INT_VECTORS_},
       double_vectors_{particles.num_particles_get(), NUM_DOUBLE_VECTORS_}, trig_cache_{},
-      matrices_{particles.num_particles_get() * particles.num_particles_get(), NUM_MATRIX_} {
+      matrices_{particles.num_particles_get() * particles.num_particles_get(), NUM_MATRIX_}  {
 
     const std::size_t N{num_orbitals_get()};
     const std::size_t num_particles{particles.num_particles_get()};
@@ -245,9 +246,25 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, double box_lengthL)
     }
 
     trig_cache_ = AlignedSoA<double>(num_particles * num_unique_k_get(), NUM_TRIG_ARRAYS_);
+    trig_scratch_ = AlignedSoA<double>(num_unique_k_get(), NUM_SCRATCH_TRIG_);
     std::fill_n(sin_cache_get(), particles.padding_stride_get(), 0.0);
     std::fill_n(cos_cache_get(), particles.padding_stride_get(), 0.0);
 };
+
+
+void SlaterPlaneWave::save_trig_row(std::size_t particle) noexcept {
+    const std::size_t num_k{num_unique_k_get()};
+    const std::size_t offset{particle * num_k};
+    std::memcpy(trig_scratch_[SIN_SAVED_], sin_cache_get() + offset, num_k * sizeof(double));
+    std::memcpy(trig_scratch_[COS_SAVED_], cos_cache_get() + offset, num_k * sizeof(double));
+}
+
+void SlaterPlaneWave::restore_trig_row(std::size_t particle) noexcept {
+    const std::size_t num_k{num_unique_k_get()};
+    const std::size_t offset{particle * num_k};
+    std::memcpy(sin_cache_get() + offset, trig_scratch_[SIN_SAVED_], num_k * sizeof(double));
+    std::memcpy(cos_cache_get() + offset, trig_scratch_[COS_SAVED_], num_k * sizeof(double));
+}
 
 void SlaterPlaneWave::update_trig_cache(std::size_t particle, const Particles& particles) noexcept {
     const std::size_t num_k{num_unique_k_get()};
@@ -369,7 +386,7 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     return log_abs_det;
 }
 
-double* SlaterPlaneWave::build_row(std::size_t particle, const Particles& particles) noexcept {
+double* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
     const std::size_t N{num_orbitals_get()};
 
     const auto& k_index{orbital_k_index_get()};
@@ -445,7 +462,7 @@ void SlaterPlaneWave::accept_move(std::size_t particle, const double* new_row, d
     }
 }
 
-void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRICT grad_x, double* RESTRICT grad_y,
+void SlaterPlaneWave::add_derivatives(double* RESTRICT grad_x, double* RESTRICT grad_y,
                                       double* RESTRICT grad_z, double* RESTRICT laplacian) const noexcept {
     const std::size_t N{num_orbitals_get()};
 

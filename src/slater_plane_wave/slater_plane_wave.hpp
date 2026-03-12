@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <numbers>
+#include <cstring>
 #include <vector>
 
 class SlaterPlaneWave {
@@ -32,6 +33,9 @@ private:
 
     enum TrigIndex : std::size_t { SIN_CACHE_, COS_CACHE_, NUM_TRIG_ARRAYS_ };
     AlignedSoA<double> trig_cache_;
+
+    enum ScratchTrigIndex : std::size_t { SIN_SAVED_, COS_SAVED_, NUM_SCRATCH_TRIG_ };
+    AlignedSoA<double> trig_scratch_;
 
     // All matrices (sized to num_orbitals_^2):
     enum MatrixIndex : std::size_t { D_, INV_D_, LU_, NUM_MATRIX_ };
@@ -116,6 +120,9 @@ public:
     [[nodiscard]] double* cos_cache_get() noexcept { return trig_cache_[COS_CACHE_]; }
     [[nodiscard]] double const* cos_cache_get() const noexcept { return trig_cache_[COS_CACHE_]; }
 
+    void save_trig_row(std::size_t particle) noexcept;
+    void restore_trig_row(std::size_t particle) noexcept;
+
     void update_trig_cache(std::size_t particle, const Particles& particles) noexcept;
 
     // Computes log|det(D)| via full LU - use for initialization only.
@@ -123,7 +130,7 @@ public:
 
     // Builds the new Slater row for a moved particle into the internal NEW_ROW_ buffer.
     // Returns a pointer to the internal buffer (valid until next call).
-    double* build_row(std::size_t particle, const Particles& particles) noexcept;
+    double* build_row(std::size_t particle) noexcept;
 
     // Call after build_row. O(N).
     [[nodiscard]] double determinant_ratio(std::size_t particle, const double* new_row) const noexcept;
@@ -133,7 +140,7 @@ public:
     void accept_move(std::size_t particle, const double* new_row, double ratio) noexcept;
 
     // Accumulates Slater contributions into grad/lap (length = stride/at least N).
-    void add_derivatives(const Particles& particles, double* RESTRICT grad_x, double* RESTRICT grad_y,
+    void add_derivatives(double* RESTRICT grad_x, double* RESTRICT grad_y,
                          double* RESTRICT grad_z, double* RESTRICT laplacian) const noexcept;
 
 private:

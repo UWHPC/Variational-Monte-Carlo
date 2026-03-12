@@ -77,13 +77,13 @@ TEST_CASE("Free gas N=1: kinetic energy is exactly zero", "[validation]") {
     constexpr std::size_t N{1U};
     constexpr double L{5.0};
 
-    SlaterPlaneWave slater{N, L};
+    Particles particles{N};
+    SlaterPlaneWave slater{particles, L};
     const double T_EXACT{exact_kinetic_energy(slater)};
     require_near_validation(T_EXACT, 0.0);
 
     // Run a few samples and confirm local kinetic energy is zero
-    Particles particles{N};
-    WaveFunction wf{N, L, 0.0, 1.0}; // a = 0 -> Jastrow off
+    WaveFunction wf{particles, L, 0.0, 1.0}; // a = 0 -> Jastrow off
 
     std::mt19937_64 rng{42};
     std::uniform_real_distribution<double> uniform{0.0, L};
@@ -121,7 +121,8 @@ TEST_CASE("Free gas N=7: local kinetic energy matches exact value at every sampl
     constexpr std::size_t N{7U};
     constexpr double L{6.0};
 
-    SlaterPlaneWave slater{N, L};
+    Particles particles{N};
+    SlaterPlaneWave slater{particles, L};
     const double T_EXACT{exact_kinetic_energy(slater)};
 
     // Verify the analytical formula:  3 × (2π/L)²
@@ -130,8 +131,7 @@ TEST_CASE("Free gas N=7: local kinetic energy matches exact value at every sampl
     require_near_validation(T_EXACT, T_ANALYTICAL);
 
     // Now confirm VMC local kinetic energy matches at multiple random configs
-    Particles particles{N};
-    WaveFunction wf{N, L, 0.0, 1.0};
+    WaveFunction wf{particles, L, 0.0, 1.0};
 
     std::mt19937_64 rng{314159};
     std::uniform_real_distribution<double> uniform{0.0, L};
@@ -174,15 +174,15 @@ TEST_CASE("Free gas N=19: local kinetic energy matches exact value at every samp
     constexpr std::size_t N{19U};
     constexpr double L{7.0};
 
-    SlaterPlaneWave slater{N, L};
+    Particles particles{N};
+    SlaterPlaneWave slater{particles, L};
     const double T_EXACT{exact_kinetic_energy(slater)};
 
     const double K_SQ{(2.0 * std::numbers::pi / L) * (2.0 * std::numbers::pi / L)};
     const double T_ANALYTICAL{15.0 * K_SQ};
     require_near_validation(T_EXACT, T_ANALYTICAL);
 
-    Particles particles{N};
-    WaveFunction wf{N, L, 0.0, 1.0};
+    WaveFunction wf{particles, L, 0.0, 1.0};
 
     std::mt19937_64 rng{271828};
     std::uniform_real_distribution<double> uniform{0.0, L};
@@ -223,7 +223,7 @@ TEST_CASE("Free gas zero-variance: local kinetic energy is configuration-indepen
     constexpr double L{5.5};
 
     Particles particles{N};
-    WaveFunction wf{N, L, 0.0, 1.0};
+    WaveFunction wf{particles, L, 0.0, 1.0};
 
     std::mt19937_64 rng{999};
     std::uniform_real_distribution<double> uniform{0.0, L};
@@ -270,7 +270,7 @@ TEST_CASE("Free gas: EnergyTracker kinetic term matches manual computation", "[v
     constexpr double L{6.0};
 
     Particles particles{N};
-    WaveFunction wf{N, L, 0.0, 1.0};
+    WaveFunction wf{particles, L, 0.0, 1.0};
     EnergyTracker tracker{L, static_cast<double>(N)};
 
     std::mt19937_64 rng{65537};
@@ -324,27 +324,31 @@ TEST_CASE("Shell filling produces correct closed-shell orbital counts", "[valida
     // Actually: unique_k = (N+1)/2 for odd N since k=0 gives 1, rest give 2 each.
 
     SECTION("N = 1") {
-        const SlaterPlaneWave slater{1U, L};
+        Particles p{1U};
+        const SlaterPlaneWave slater{p, L};
         REQUIRE(slater.num_unique_k_get() == 1U);
         REQUIRE(slater.num_orbitals_get() == 1U);
     }
 
     SECTION("N = 7") {
-        const SlaterPlaneWave slater{7U, L};
+        Particles p{7U};
+        const SlaterPlaneWave slater{p, L};
         // k=0 (1 orbital) + 3 nonzero k (6 orbitals) = 7
         REQUIRE(slater.num_unique_k_get() == 4U);
         REQUIRE(slater.num_orbitals_get() == 7U);
     }
 
     SECTION("N = 19") {
-        const SlaterPlaneWave slater{19U, L};
+        Particles p{19U};
+        const SlaterPlaneWave slater{p, L};
         // k=0 (1) + 3 at |n|²=1 (6) + 6 at |n|²=2 (12) = 19
         REQUIRE(slater.num_unique_k_get() == 10U);
         REQUIRE(slater.num_orbitals_get() == 19U);
     }
 
     SECTION("N = 27") {
-        const SlaterPlaneWave slater{27U, L};
+        Particles p{27U};
+        const SlaterPlaneWave slater{p, L};
         // + 4 at |n|²=3: (1,1,1) and 3 canonical sign combos = 4
         // 19 + 4×2 = 27
         REQUIRE(slater.num_unique_k_get() == 14U);
@@ -365,7 +369,7 @@ TEST_CASE("Free gas partial shell N=16: zero-variance property still holds", "[v
     constexpr double L{6.5};
 
     Particles particles{N};
-    WaveFunction wf{N, L, 0.0, 1.0};
+    WaveFunction wf{particles, L, 0.0, 1.0};
     const SlaterPlaneWave& slater{wf.slater_plane_wave_get()};
     const double T_EXACT{exact_kinetic_energy(slater)};
 
