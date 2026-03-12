@@ -28,7 +28,7 @@ TEST_CASE("WaveFunction evaluateDerivatives clears buffers and delegates to Jast
         particles.lap_log_psi_get()[i] = 999.0;
     }
 
-    WaveFunction waveFunction{2U, 10.0, 0.5, 1.0};
+    WaveFunction waveFunction{particles, 10.0, 0.5, 1.0};
 
     // Compute expected: zero-init then add both Slater and Jastrow
     std::vector<double> expectedX(stride, 0.0);
@@ -38,7 +38,7 @@ TEST_CASE("WaveFunction evaluateDerivatives clears buffers and delegates to Jast
 
     // Need to call log_abs_det first to populate the inverse
     waveFunction.slater_plane_wave_get().log_abs_det(particles);
-    waveFunction.slater_plane_wave_get().add_derivatives(particles, expectedX.data(), expectedY.data(),
+    waveFunction.slater_plane_wave_get().add_derivatives(expectedX.data(), expectedY.data(),
                                                          expectedZ.data(), expectedLap.data());
     waveFunction.jastrow_pade_get().add_derivatives(particles, expectedX.data(), expectedY.data(), expectedZ.data(),
                                                     expectedLap.data());
@@ -63,7 +63,7 @@ TEST_CASE("WaveFunction evaluate_log_psi returns finite for N=1", "[wavefunction
     particles.pos_y_get()[0] = 0.7;
     particles.pos_z_get()[0] = 0.9;
 
-    WaveFunction waveFunction{1U, 10.0, 0.5, 1.0};
+    WaveFunction waveFunction{particles, 10.0, 0.5, 1.0};
 
     const double logPsi{waveFunction.evaluate_log_psi(particles)};
     requireNearWave(logPsi, 0.0);

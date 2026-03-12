@@ -126,7 +126,8 @@ TEST_CASE("Interacting VMC energy is below non-interacting KE at r_s=5", "[inter
     const double L{box_length_from_rs(R_S, N)};
 
     // Non-interacting exact KE
-    const SlaterPlaneWave slater{N, L};
+    Particles p{N};
+    const SlaterPlaneWave slater{p, L};
     const double T_EXACT{noninteracting_ke(slater)};
 
     // Run interacting VMC

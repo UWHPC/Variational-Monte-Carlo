@@ -8,7 +8,7 @@
 
 Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_writer)
     : config_{std::move(config)}, particles_{config_.num_particles},
-      wave_function_{config_.num_particles, config_.box_length}, blocking_analysis_{config_.block_size},
+      wave_function_{particles_, config_.box_length}, blocking_analysis_{config_.block_size},
       energy_tracker_{config_.box_length, static_cast<double>(config_.num_particles)},
       output_writer_{std::move(output_writer)}, proposed_{}, accepted_{}, log_psi_current_{}, rng_{config_.seed},
       proposal_{-config_.step_size, config_.step_size}, pick_particle_{0, config_.num_particles - 1} {}
@@ -91,9 +91,14 @@ Simulation::StepResult Simulation::metropolis_step() {
     p_y[rand_particle] += -L * (p_y[rand_particle] >= L) + L * (p_y[rand_particle] < 0.0);
     p_z[rand_particle] += -L * (p_z[rand_particle] >= L) + L * (p_z[rand_particle] < 0.0);
 
+    
     // Build new Slater row for moved particle and compute determinant ratio - O(N):
     auto& slater{wave_function_get().slater_plane_wave_get()};
-    const double* new_row{slater.build_row(rand_particle, particles_get())};
+
+    slater.save_trig_row(rand_particle);
+    slater.update_trig_cache(rand_particle, particles_get());
+
+    const double* new_row{slater.build_row(rand_particle)};
     const double slater_ratio{slater.determinant_ratio(rand_particle, new_row)};
 
     // Compute new Jastrow value:
@@ -124,6 +129,8 @@ Simulation::StepResult Simulation::metropolis_step() {
     p_x[rand_particle] = old_x;
     p_y[rand_particle] = old_y;
     p_z[rand_particle] = old_z;
+
+    slater.restore_trig_row(rand_particle);
 
     return StepResult{false, rand_particle, old_x, old_y, old_z};
 }

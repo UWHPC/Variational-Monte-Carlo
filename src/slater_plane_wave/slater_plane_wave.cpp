@@ -1,12 +1,132 @@
+#include "particles/particles.hpp"
 #include "slater_plane_wave.hpp"
+#include "utilities/aligned_soa.hpp"
 #include "../utilities/matrix.hpp"
 
 #include <algorithm>
+#include <cstring>
 #include <cmath>
 #include <cstddef>
 #include <limits>
 #include <omp.h>
 #include <vector>
+
+namespace {
+
+// @brief helper function to convert i-jth indices -> n
+// @param stride is the difference between the row and the column.
+// @return the appropriate i-th row j-th column as a size_t.
+inline std::size_t index(std::size_t row, std::size_t col, std::size_t stride) noexcept { return row * stride + col; }
+
+/*
+see https://www.geeksforgeeks.org/dsa/doolittle-algorithm-lu-decomposition/
+In-Place LU with partial pivoting in LU (size N*N, row-major)
+pivot is length >= N storing row permutation indices
+return numbers of row swaps (parity info, if you need det sign).
+*/
+int lower_upper_decomp(double* lowerUpper, int* pivot, std::size_t N) {
+    // Track row swaps
+    int swapCount{};
+
+    for (std::size_t row = 0; row < N; ++row)
+        pivot[row] = static_cast<int>(row);
+
+    for (std::size_t col = 0; col < N; ++col) {
+        // Pivot selection
+        // Find row >= col maximizing |LU(row, col)|
+        std::size_t pivotRow{col};
+        double maxAbs{std::abs(lowerUpper[index(col, col, N)])};
+
+        for (std::size_t row = col + 1; row < N; ++row) {
+            const double value = std::abs(lowerUpper[index(row, col, N)]);
+            if (value > maxAbs) {
+                maxAbs = value;
+                pivotRow = row;
+            };
+        }
+
+        // max abs = 0.0 implies the pivot column is 0 & det = 0.
+        if (maxAbs == 0.0)
+            continue;
+
+        if (pivotRow != col) {
+            for (std::size_t col2 = 0; col2 < N; ++col2) {
+                std::swap(lowerUpper[index(col, col2, N)], lowerUpper[index(pivotRow, col2, N)]);
+            }
+            std::swap(pivot[col], pivot[pivotRow]);
+            ++swapCount;
+        }
+
+        // eliminate
+        const double pivotValue{lowerUpper[index(col, col, N)]};
+        for (std::size_t row = col + 1; row < N; ++row) {
+            lowerUpper[index(row, col, N)] /= pivotValue; // L (i,k)
+            const double multiplier{lowerUpper[index(row, col, N)]};
+            for (std::size_t col2 = col + 1; col2 < N; ++col2) {
+                lowerUpper[index(row, col2, N)] -= multiplier * lowerUpper[index(col, col2, N)];
+            }
+        }
+    }
+
+    return swapCount;
+}
+
+/*
+see https://www.geeksforgeeks.org/dsa/doolittle-algorithm-lu-decomposition/
+solve (P^-1)LU x = b. given combined LU and pivot permutation piv.
+piv encodes the row permutation applied during LU so that
+we first permute b: y = P b, then solve L z = y, then U x = z.
+*/
+void solve_lower_upper(const double* LU, const int* pivot, const double* b, double* x, std::size_t N) {
+    // Apply permutation: x = Pb
+    // store y in x temporarily
+    for (std::size_t row = 0; row < N; ++row) {
+        const std::size_t permRow{static_cast<std::size_t>(pivot[row])};
+        x[row] = b[permRow];
+    }
+
+    // forward solve: ly = Pb (L has implicit on diagonal)
+    for (std::size_t row = 0; row < N; ++row) {
+        double sum = x[row];
+        for (std::size_t col = 0; col < row; ++col) {
+            sum -= LU[index(row, col, N)] * x[col];
+        }
+        x[row] = sum;
+    }
+
+    // backward solve: Ux = y
+    for (std::size_t rev = 0; rev < N; ++rev) {
+        const std::size_t row = N - 1 - rev;
+        double sum = x[row];
+        for (std::size_t col = row + 1; col < N; ++col) {
+            sum -= LU[index(row, col, N)] * x[col];
+        }
+        x[row] = sum / LU[index(row, row, N)];
+    }
+}
+
+// Canonical representative rule for +-n deduplication:
+// The canonical form is: the first nonzero component is positive
+// The zero vector (0,0,0) is its own canonical representative
+bool is_canonical(int n_x, int n_y, int n_z) {
+    if (n_x > 0)
+        return true;
+    if (n_x < 0)
+        return false;
+    if (n_y > 0)
+        return true;
+    if (n_y < 0)
+        return false;
+    if (n_z > 0)
+        return true;
+    if (n_z < 0)
+        return false;
+
+    // (0,0,0)
+    return true;
+}
+
+} // namespace
 
 // Real plane-wave basis from complex exponentials
 // The complex basis e^{ik·r} = cos(k·r) + i·sin(k·r) gives two
@@ -24,12 +144,16 @@
 //
 // Orbital count: N = 1 + 2 × (number of nonzero canonical k-vectors)
 // Closed shells: N = 1, 7, 19, 27, 33, 57, ...
-SlaterPlaneWave::SlaterPlaneWave(std::size_t num_particles, double box_lengthL)
-    : num_orbitals_{num_particles}, matrix_size_{num_particles * num_particles}, box_length_{box_lengthL},
-      orbital_k_index_(num_particles), orbital_type_(num_particles, 0), int_vectors_{num_particles, NUM_INT_VECTORS_},
-      double_vectors_{num_particles, NUM_DOUBLE_VECTORS_}, matrices_{num_particles * num_particles, NUM_MATRIX_} {
+SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, double box_lengthL)
+    : num_orbitals_{particles.num_particles_get()},
+      matrix_size_{particles.num_particles_get() * particles.num_particles_get()}, box_length_{box_lengthL},
+      orbital_k_index_(particles.num_particles_get()), orbital_type_(particles.num_particles_get(), 0),
+      int_vectors_{particles.num_particles_get(), NUM_INT_VECTORS_},
+      double_vectors_{particles.num_particles_get(), NUM_DOUBLE_VECTORS_}, trig_cache_{},
+      matrices_{particles.num_particles_get() * particles.num_particles_get(), NUM_MATRIX_}  {
 
     const std::size_t N{num_orbitals_get()};
+    const std::size_t num_particles{particles.num_particles_get()};
 
     // Generate deduplicated canonical n-vectors
     // Only keep canonical representatives: first nonzero component positive
@@ -121,7 +245,49 @@ SlaterPlaneWave::SlaterPlaneWave(std::size_t num_particles, double box_lengthL)
         k_y[i] = 2 * std::numbers::pi * inv_L * static_cast<double>(n_y[i]);
         k_z[i] = 2 * std::numbers::pi * inv_L * static_cast<double>(n_z[i]);
     }
+
+    trig_cache_ = AlignedSoA<double>(num_particles * num_unique_k_get(), NUM_TRIG_ARRAYS_);
+    trig_scratch_ = AlignedSoA<double>(num_unique_k_get(), NUM_SCRATCH_TRIG_);
+    std::fill_n(sin_cache_get(), particles.padding_stride_get(), 0.0);
+    std::fill_n(cos_cache_get(), particles.padding_stride_get(), 0.0);
 };
+
+
+void SlaterPlaneWave::save_trig_row(std::size_t particle) noexcept {
+    const std::size_t num_k{num_unique_k_get()};
+    const std::size_t offset{particle * num_k};
+    std::memcpy(trig_scratch_[SIN_SAVED_], sin_cache_get() + offset, num_k * sizeof(double));
+    std::memcpy(trig_scratch_[COS_SAVED_], cos_cache_get() + offset, num_k * sizeof(double));
+}
+
+void SlaterPlaneWave::restore_trig_row(std::size_t particle) noexcept {
+    const std::size_t num_k{num_unique_k_get()};
+    const std::size_t offset{particle * num_k};
+    std::memcpy(sin_cache_get() + offset, trig_scratch_[SIN_SAVED_], num_k * sizeof(double));
+    std::memcpy(cos_cache_get() + offset, trig_scratch_[COS_SAVED_], num_k * sizeof(double));
+}
+
+void SlaterPlaneWave::update_trig_cache(std::size_t particle, const Particles& particles) noexcept {
+    const std::size_t num_k{num_unique_k_get()};
+
+    const double px{particles.pos_x_get()[particle]};
+    const double py{particles.pos_y_get()[particle]};
+    const double pz{particles.pos_z_get()[particle]};
+
+    const double* RESTRICT kx{k_vector_x_get()};
+    const double* RESTRICT ky{k_vector_y_get()};
+    const double* RESTRICT kz{k_vector_z_get()};
+
+    double* RESTRICT c_row{cos_cache_get() + particle * num_k};
+    double* RESTRICT s_row{sin_cache_get() + particle * num_k};
+
+    for (std::size_t k = 0; k < num_k; ++k) {
+        const double dot{kx[k] * px + ky[k] * py + kz[k] * pz};
+        c_row[k] = std::cos(dot);
+        s_row[k] = std::sin(dot);
+    }
+}
+
 
 // Slater matrix D_{i,j} = φ_j(r_i)
 // Each orbital j has an associated k-vector (via orbital_k_index)
@@ -155,22 +321,30 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     double* RESTRICT rhs{rhs_get()};
     double* RESTRICT solution{solution_get()};
 
+    const std::size_t num_k{num_unique_k_get()};
+    double* RESTRICT cos_cache{cos_cache_get()};
+    double* RESTRICT sin_cache{sin_cache_get()};
+
     // Build determinant matrix D
     for (std::size_t particle = 0; particle < N; ++particle) {
         const double p_x{pos_x[particle]};
         const double p_y{pos_y[particle]};
         const double p_z{pos_z[particle]};
 
-#pragma omp simd
+        const std::size_t offset{particle * num_k};
+        for (std::size_t k{}; k < num_k; ++k) {
+            const double dot{k_x_comp[k] * p_x + k_y_comp[k] * p_y + k_z_comp[k] * p_z};
+            cos_cache[offset + k] = std::cos(dot);
+            sin_cache[offset + k] = std::sin(dot);
+        }
+
+        // Build D from cache
+        #pragma omp simd
         for (std::size_t orbital = 0; orbital < N; ++orbital) {
             const std::size_t k_idx{k_index[orbital]};
-            const double k_dot_r = k_x_comp[k_idx] * p_x + k_y_comp[k_idx] * p_y + k_z_comp[k_idx] * p_z;
-
             const double type{static_cast<double>(orb_type[orbital])};
-
-            double cos_term{std::cos(k_dot_r)};
-            double sin_term{std::sin(k_dot_r)};
-
+            const double cos_term{cos_cache[offset + k_idx]};
+            const double sin_term{sin_cache[offset + k_idx]};
             det_matrix[index(particle, orbital, N)] = cos_term + type * (sin_term - cos_term);
         }
     }
@@ -213,16 +387,8 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     return log_abs_det;
 }
 
-double* SlaterPlaneWave::build_row(std::size_t particle, const Particles& particles) noexcept {
+double* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
     const std::size_t N{num_orbitals_get()};
-
-    const double p_x{particles.pos_x_get()[particle]};
-    const double p_y{particles.pos_y_get()[particle]};
-    const double p_z{particles.pos_z_get()[particle]};
-
-    const double* RESTRICT k_x{k_vector_x_get()};
-    const double* RESTRICT k_y{k_vector_y_get()};
-    const double* RESTRICT k_z{k_vector_z_get()};
 
     const auto& k_index{orbital_k_index_get()};
     const auto& orb_type{orbital_type_get()};
@@ -232,12 +398,11 @@ double* SlaterPlaneWave::build_row(std::size_t particle, const Particles& partic
 #pragma omp simd
     for (std::size_t orbital = 0; orbital < N; ++orbital) {
         const std::size_t k_idx{k_index[orbital]};
-        const double k_dot_r{k_x[k_idx] * p_x + k_y[k_idx] * p_y + k_z[k_idx] * p_z};
 
         const double type{static_cast<double>(orb_type[orbital])};
 
-        double cos_term{std::cos(k_dot_r)};
-        double sin_term{std::sin(k_dot_r)};
+        const double cos_term{cos_cache_get()[particle * num_unique_k_get() + k_idx]};
+        const double sin_term{sin_cache_get()[particle * num_unique_k_get() + k_idx]};
 
         row[orbital] = cos_term + type * (sin_term - cos_term);
     }
@@ -298,13 +463,9 @@ void SlaterPlaneWave::accept_move(std::size_t particle, const double* new_row, d
     }
 }
 
-void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRICT grad_x, double* RESTRICT grad_y,
+void SlaterPlaneWave::add_derivatives(double* RESTRICT grad_x, double* RESTRICT grad_y,
                                       double* RESTRICT grad_z, double* RESTRICT laplacian) const noexcept {
     const std::size_t N{num_orbitals_get()};
-
-    const double* RESTRICT pos_x{particles.pos_x_get()};
-    const double* RESTRICT pos_y{particles.pos_y_get()};
-    const double* RESTRICT pos_z{particles.pos_z_get()};
 
     const double* RESTRICT k_x{k_vector_x_get()};
     const double* RESTRICT k_y{k_vector_y_get()};
@@ -315,29 +476,22 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
 
     const double* RESTRICT inv_det{inv_determinant_get()};
 
-    std::vector<double> k_sq_cache;
-    std::vector<double> sin_cache;
-    std::vector<double> cos_cache;
-    std::size_t num_k_vectors{num_unique_k_get()};
-    k_sq_cache.resize(num_k_vectors);
-    sin_cache.resize(num_k_vectors);
-    cos_cache.resize(num_k_vectors);
+    const std::size_t num_k{num_unique_k_get()};
 
-    for (std::size_t k = 0; k < num_k_vectors; ++k) {
-        k_sq_cache[k] = k_x[k] * k_x[k] + k_y[k] * k_y[k] + k_z[k] * k_z[k];
-    }
+    const double* RESTRICT cos_cache{cos_cache_get()};
+    const double* RESTRICT sin_cache{sin_cache_get()};
+
 
     for (std::size_t particle = 0; particle < N; ++particle) {
-        const double p_x{pos_x[particle]};
-        const double p_y{pos_y[particle]};
-        const double p_z{pos_z[particle]};
-
         double d_log_det_dx{}, d_log_det_dy{}, d_log_det_dz{};
 
         // Σ_j (D^{-1})_{j,particle} * (∇^2 D_{particle,j})
         double laplace_det_term{};
 
-#pragma omp simd
+        const std::size_t offset{particle * num_k};
+
+
+        #pragma omp simd
         for (std::size_t orbital = 0; orbital < N; ++orbital) {
             const std::size_t k_idx{k_index[orbital]};
 
@@ -345,8 +499,8 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
             const double k_y_orbital{k_y[k_idx]};
             const double k_z_orbital{k_z[k_idx]};
 
-            const double k_dot_R{k_x_orbital * p_x + k_y_orbital * p_y + k_z_orbital * p_z};
             const double k_sq{k_x_orbital * k_x_orbital + k_y_orbital * k_y_orbital + k_z_orbital * k_z_orbital};
+
 
             // ∇_i log|det D| = Σ_j (D⁻¹)_{j,i} · ∇_i D_{i,j}
             //
@@ -362,8 +516,8 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
             // Replaces the old if else branch with branchless math
             const double type{static_cast<double>(o_type[orbital])};
 
-            double cos_term{std::cos(k_dot_R)};
-            double sin_term{std::sin(k_dot_R)};
+            const double cos_term{cos_cache[offset + k_idx]};
+            const double sin_term{sin_cache[offset + k_idx]};
 
             const double grad_factor{-sin_term + type * (sin_term + cos_term)};
             const double lap_factor{-cos_term + type * (cos_term - sin_term)};
