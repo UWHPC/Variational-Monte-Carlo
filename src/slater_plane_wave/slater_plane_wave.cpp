@@ -1,12 +1,13 @@
+#include "particles/particles.hpp"
 #include "slater_plane_wave.hpp"
+#include "utilities/aligned_soa.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <limits>
-#include <vector>
 #include <omp.h>
-
+#include <vector>
 
 namespace {
 
@@ -141,12 +142,16 @@ bool is_canonical(int n_x, int n_y, int n_z) {
 //
 // Orbital count: N = 1 + 2 × (number of nonzero canonical k-vectors)
 // Closed shells: N = 1, 7, 19, 27, 33, 57, ...
-SlaterPlaneWave::SlaterPlaneWave(std::size_t num_particles, double box_lengthL)
-    : num_orbitals_{num_particles}, matrix_size_{num_particles * num_particles}, box_length_{box_lengthL},
-      orbital_k_index_(num_particles), orbital_type_(num_particles, 0), int_vectors_{num_particles, NUM_INT_VECTORS_},
-      double_vectors_{num_particles, NUM_DOUBLE_VECTORS_}, matrices_{num_particles * num_particles, NUM_MATRIX_} {
+SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, double box_lengthL)
+    : num_orbitals_{particles.num_particles_get()},
+      matrix_size_{particles.num_particles_get() * particles.num_particles_get()}, box_length_{box_lengthL},
+      orbital_k_index_(particles.num_particles_get()), orbital_type_(particles.num_particles_get(), 0),
+      int_vectors_{particles.num_particles_get(), NUM_INT_VECTORS_},
+      double_vectors_{particles.num_particles_get(), NUM_DOUBLE_VECTORS_}, trig_cache_{},
+      matrices_{particles.num_particles_get() * particles.num_particles_get(), NUM_MATRIX_} {
 
     const std::size_t N{num_orbitals_get()};
+    const std::size_t num_particles{particles.num_particles_get()};
 
     // Generate deduplicated canonical n-vectors
     // Only keep canonical representatives: first nonzero component positive
@@ -183,8 +188,8 @@ SlaterPlaneWave::SlaterPlaneWave(std::size_t num_particles, double box_lengthL)
 
     // Sort n-vector states to go from smallest magnitude to largest
     std::sort(n_candidates.begin(), n_candidates.end(), [](const nVectorCandidate& a, const nVectorCandidate& b) {
-        return std::tie(a.n_mag_sq, a.n_cand_x, a.n_cand_y, a.n_cand_z) < 
-           std::tie(b.n_mag_sq, b.n_cand_x, b.n_cand_y, b.n_cand_z);
+        return std::tie(a.n_mag_sq, a.n_cand_x, a.n_cand_y, a.n_cand_z) <
+               std::tie(b.n_mag_sq, b.n_cand_x, b.n_cand_y, b.n_cand_z);
     });
 
     // Assign orbitals
@@ -238,6 +243,10 @@ SlaterPlaneWave::SlaterPlaneWave(std::size_t num_particles, double box_lengthL)
         k_y[i] = 2 * std::numbers::pi * inv_L * static_cast<double>(n_y[i]);
         k_z[i] = 2 * std::numbers::pi * inv_L * static_cast<double>(n_z[i]);
     }
+
+    trig_cache_ = AlignedSoA<double>(num_particles * num_unique_k_get(), NUM_TRIG_ARRAYS_);
+    std::fill_n(sin_cache_get(), particles.padding_stride_get(), 0.0);
+    std::fill_n(cos_cache_get(), particles.padding_stride_get(), 0.0);
 };
 
 // Slater matrix D_{i,j} = φ_j(r_i)
@@ -278,7 +287,7 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
         const double p_y{pos_y[particle]};
         const double p_z{pos_z[particle]};
 
-        #pragma omp simd
+#pragma omp simd
         for (std::size_t orbital = 0; orbital < N; ++orbital) {
             const std::size_t k_idx{k_index[orbital]};
             const double k_dot_r = k_x_comp[k_idx] * p_x + k_y_comp[k_idx] * p_y + k_z_comp[k_idx] * p_z;
@@ -346,7 +355,7 @@ double* SlaterPlaneWave::build_row(std::size_t particle, const Particles& partic
 
     double* RESTRICT row{new_row_get()};
 
-    #pragma omp simd
+#pragma omp simd
     for (std::size_t orbital = 0; orbital < N; ++orbital) {
         const std::size_t k_idx{k_index[orbital]};
         const double k_dot_r{k_x[k_idx] * p_x + k_y[k_idx] * p_y + k_z[k_idx] * p_z};
@@ -454,7 +463,7 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
         // Σ_j (D^{-1})_{j,particle} * (∇^2 D_{particle,j})
         double laplace_det_term{};
 
-        #pragma omp simd
+#pragma omp simd
         for (std::size_t orbital = 0; orbital < N; ++orbital) {
             const std::size_t k_idx{k_index[orbital]};
 

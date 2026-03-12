@@ -30,12 +30,15 @@ private:
     enum VectorIndex : std::size_t { K_X_, K_Y_, K_Z_, RHS_, SOLUTION_, NEW_ROW_, INV_D_COL_, NUM_DOUBLE_VECTORS_ };
     AlignedSoA<double> double_vectors_;
 
+    enum TrigIndex : std::size_t { SIN_CACHE_, COS_CACHE_, NUM_TRIG_ARRAYS_ };
+    AlignedSoA<double> trig_cache_;
+
     // All matrices (sized to num_orbitals_^2):
     enum MatrixIndex : std::size_t { D_, INV_D_, LU_, NUM_MATRIX_ };
     AlignedSoA<double> matrices_;
 
 public:
-    explicit SlaterPlaneWave(std::size_t num_particles, double box_length);
+    explicit SlaterPlaneWave(const Particles& particles, double box_length);
 
     // Getters:
     // Num orbitals - N (num_particles)
@@ -106,6 +109,12 @@ public:
     // Z component of k
     [[nodiscard]] double* k_vector_z_get() noexcept { return double_vectors_[K_Z_]; }
     [[nodiscard]] double const* k_vector_z_get() const noexcept { return double_vectors_[K_Z_]; }
+
+    [[nodiscard]] double* sin_cache_get() noexcept { return trig_cache_[SIN_CACHE_]; }
+    [[nodiscard]] double const* sin_cache_get() const noexcept { return trig_cache_[SIN_CACHE_]; }
+
+    [[nodiscard]] double* cos_cache_get() noexcept { return trig_cache_[COS_CACHE_]; }
+    [[nodiscard]] double const* cos_cache_get() const noexcept { return trig_cache_[COS_CACHE_]; }
 
     // Computes log|det(D)| via full LU - use for initialization only.
     double log_abs_det(const Particles& particles);
