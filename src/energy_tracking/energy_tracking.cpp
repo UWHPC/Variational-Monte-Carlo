@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <numbers>
+#include <omp.h>
 
 EnergyTracker::EnergyTracker(double box_length, double num_particles)
     : box_length_{box_length}, ewald_alpha_{6.0 / box_length},                              // 6.0 / L
@@ -131,6 +132,7 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
         double cos_sum{};
         double sin_sum{};
 
+        #pragma omp simd
         for (std::size_t j = 0; j < N; ++j) {
             const double G_dot_r{g_x[g] * p_x[j] + g_y[g] * p_y[j] + g_z[g] * p_z[j]};
 
@@ -160,6 +162,7 @@ void EnergyTracker::update_structure_factors(double old_x, double old_y, double 
 
     double delta{};
 
+    #pragma omp simd
     for (std::size_t g = 0; g < num_G; ++g) {
         const double old_dot{g_x[g] * old_x + g_y[g] * old_y + g_z[g] * old_z};
         const double new_dot{g_x[g] * new_x + g_y[g] * new_y + g_z[g] * new_z};

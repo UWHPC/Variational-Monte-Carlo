@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <limits>
 #include <vector>
+#include <omp.h>
 
 
 namespace {
@@ -277,6 +278,7 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
         const double p_y{pos_y[particle]};
         const double p_z{pos_z[particle]};
 
+        #pragma omp simd
         for (std::size_t orbital = 0; orbital < N; ++orbital) {
             const std::size_t k_idx{k_index[orbital]};
             const double k_dot_r = k_x_comp[k_idx] * p_x + k_y_comp[k_idx] * p_y + k_z_comp[k_idx] * p_z;
@@ -344,6 +346,7 @@ double* SlaterPlaneWave::build_row(std::size_t particle, const Particles& partic
 
     double* RESTRICT row{new_row_get()};
 
+    #pragma omp simd
     for (std::size_t orbital = 0; orbital < N; ++orbital) {
         const std::size_t k_idx{k_index[orbital]};
         const double k_dot_r{k_x[k_idx] * p_x + k_y[k_idx] * p_y + k_z[k_idx] * p_z};
@@ -451,6 +454,7 @@ void SlaterPlaneWave::add_derivatives(const Particles& particles, double* RESTRI
         // Σ_j (D^{-1})_{j,particle} * (∇^2 D_{particle,j})
         double laplace_det_term{};
 
+        #pragma omp simd
         for (std::size_t orbital = 0; orbital < N; ++orbital) {
             const std::size_t k_idx{k_index[orbital]};
 
