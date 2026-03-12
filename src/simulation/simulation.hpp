@@ -66,6 +66,14 @@ private:
         std::optional<double> standard_error;
     };
 
+    struct StepResult {
+        bool accepted;
+        std::size_t moved_particle;
+        double old_x;
+        double old_y;
+        double old_z;
+    };
+
     [[nodiscard]] std::vector<double> positions_snapshot() const;
 
 public:
@@ -74,7 +82,7 @@ public:
 
 private:
     void initialize_positions();
-    bool metropolis_step();
+    StepResult metropolis_step();
     void warmup();
     MeasurementSummary measure();
 };
