@@ -17,11 +17,10 @@ void WaveFunction::evaluate_derivatives(Particles& particles) noexcept {
     std::fill_n(particles.grad_log_psi_z_get(), padded_stride, 0.0);
     std::fill_n(particles.lap_log_psi_get(), padded_stride, 0.0);
 
-    const std::size_t N{particles.num_particles_get()};
-    std::fill_n(jastrow_grad_x_get(), N, 0.0);
-    std::fill_n(jastrow_grad_y_get(), N, 0.0);
-    std::fill_n(jastrow_grad_z_get(), N, 0.0);
-    std::fill_n(jastrow_lap_get(), N, 0.0);
+    std::fill_n(jastrow_grad_x_get(), padded_stride, 0.0);
+    std::fill_n(jastrow_grad_y_get(), padded_stride, 0.0);
+    std::fill_n(jastrow_grad_z_get(), padded_stride, 0.0);
+    std::fill_n(jastrow_lap_get(), padded_stride, 0.0);
 
     slater_plane_wave_.add_derivatives(particles, particles.grad_log_psi_x_get(), particles.grad_log_psi_y_get(),
                                        particles.grad_log_psi_z_get(), particles.lap_log_psi_get());
@@ -29,6 +28,7 @@ void WaveFunction::evaluate_derivatives(Particles& particles) noexcept {
     jastrow_pade_.add_derivatives(particles, jastrow_grad_x_get(), jastrow_grad_y_get(), jastrow_grad_z_get(),
                                   jastrow_lap_get());
 
+    const std::size_t N{particles.num_particles_get()};
     for (std::size_t i{}; i < N; ++i) {
         particles.grad_log_psi_x_get()[i] += jastrow_grad_x_get()[i];
         particles.grad_log_psi_y_get()[i] += jastrow_grad_y_get()[i];
