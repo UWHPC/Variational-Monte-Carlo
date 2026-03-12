@@ -55,8 +55,7 @@ void Simulation::initialize_positions() {
 
 /// @brief Randomly selects a particle and proposes a new position, then checks if the proposed move was valid then
 /// either accepts or rejects it
-/// @return bool - Whether the proposed change was accepted
-bool Simulation::metropolis_step() {
+Simulation::StepResult Simulation::metropolis_step() {
     // Position pointers:
     double* RESTRICT p_x{particles_.pos_x_get()};
     double* RESTRICT p_y{particles_.pos_y_get()};
@@ -119,14 +118,14 @@ bool Simulation::metropolis_step() {
                                                       p_z[rand_particle]);
         energy_tracker_get().update_real_energy(rand_particle, old_x, old_y, old_z, particles_get());
 
-        return true;
+        return StepResult{true, rand_particle, old_x, old_y, old_z};
     }
 
     p_x[rand_particle] = old_x;
     p_y[rand_particle] = old_y;
     p_z[rand_particle] = old_z;
 
-    return false;
+    return StepResult{false, rand_particle, old_x, old_y, old_z};
 }
 
 /// @brief Warmup the simulation by processing a small warmup sweep on particles
@@ -145,7 +144,7 @@ void Simulation::warmup() {
 
     for (std::size_t i{}; i < warmup_steps; i++) {
         window_proposed++;
-        const bool accepted{metropolis_step()};
+        const bool accepted{metropolis_step().accepted};
         if (accepted)
             ++window_accepted;
 
@@ -177,12 +176,13 @@ Simulation::MeasurementSummary Simulation::measure() {
 
     for (std::size_t i = 0; i < measure_steps; ++i) {
         ++proposed_;
-        const bool accepted{metropolis_step()};
-        if (accepted) {
+        const StepResult result{metropolis_step()};
+        if (result.accepted) {
             ++accepted_;
         }
 
-        wavefunction.evaluate_derivatives(particles);
+        wavefunction.evaluate_derivatives(particles, result.accepted, result.moved_particle,
+                                  result.old_x, result.old_y, result.old_z);
 
         const double E_local{energy_tracker.eval_total_energy(particles)};
         running_energy_sum += E_local;
