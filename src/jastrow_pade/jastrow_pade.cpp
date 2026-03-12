@@ -6,7 +6,7 @@
 double JastrowPade::value(const Particles& particles) const noexcept {
     const std::size_t num_particles{particles.num_particles_get()};
     const double L{box_length_};
-    const double inv_L{1.0 / L};
+    const double half_L{0.5 * L};
 
     const double* RESTRICT pos_x{particles.pos_x_get()};
     const double* RESTRICT pos_y{particles.pos_y_get()};
@@ -23,14 +23,10 @@ double JastrowPade::value(const Particles& particles) const noexcept {
             double displ_y{pos_y[i] - pos_y[j]};
             double displ_z{pos_z[i] - pos_z[j]};
 
-            displ_x -= L * std::round(displ_x * inv_L);
-            displ_y -= L * std::round(displ_y * inv_L);
-            displ_z -= L * std::round(displ_z * inv_L);
-
             // Boolean masks - reduce to 0 if false, and 1 if true.
-            // displ_x += L * (displ_x <= -half_L) - L * (displ_x > half_L);
-            // displ_y += L * (displ_y <= -half_L) - L * (displ_y > half_L);
-            // displ_z += L * (displ_z <= -half_L) - L * (displ_z > half_L);
+            displ_x += L * (displ_x <= -half_L) - L * (displ_x > half_L);
+            displ_y += L * (displ_y <= -half_L) - L * (displ_y > half_L);
+            displ_z += L * (displ_z <= -half_L) - L * (displ_z > half_L);
 
             const double dist_sq{displ_x * displ_x + displ_y * displ_y + displ_z * displ_z};
             const double dist{std::sqrt(dist_sq)};
@@ -51,7 +47,6 @@ void JastrowPade::add_derivatives(const Particles& particles, double* RESTRICT g
     const std::size_t num_particles{particles.num_particles_get()};
     const double L{box_length_};
     const double half_L{0.5 * L};
-    const double inv_L{1.0 / L};
 
     const double* RESTRICT pos_x{particles.pos_x_get()};
     const double* RESTRICT pos_y{particles.pos_y_get()};
@@ -65,10 +60,6 @@ void JastrowPade::add_derivatives(const Particles& particles, double* RESTRICT g
             double displ_x{pos_x[i] - pos_x[j]};
             double displ_y{pos_y[i] - pos_y[j]};
             double displ_z{pos_z[i] - pos_z[j]};
-
-            displ_x -= L * std::round(displ_x * inv_L);
-            displ_y -= L * std::round(displ_y * inv_L);
-            displ_z -= L * std::round(displ_z * inv_L);
 
             // Boolean masks - reduce to 0 if false, and 1 if true.
             displ_x += L * (displ_x <= -half_L) - L * (displ_x > half_L);
@@ -118,7 +109,6 @@ double JastrowPade::delta_value(const Particles& particles, std::size_t moved, d
     const std::size_t num_particles{particles.num_particles_get()};
     const double L{box_length_};
     const double half_L{0.5 * L};
-    const double inv_L{1.0 / L};
 
     const double* RESTRICT pos_x{particles.pos_x_get()};
     const double* RESTRICT pos_y{particles.pos_y_get()};
@@ -142,10 +132,6 @@ double JastrowPade::delta_value(const Particles& particles, std::size_t moved, d
         double displ_old_y{old_y - pos_y[j]};
         double displ_old_z{old_z - pos_z[j]};
 
-        displ_old_x -= L * std::round(displ_old_x * inv_L);
-        displ_old_y -= L * std::round(displ_old_y * inv_L);
-        displ_old_z -= L * std::round(displ_old_z * inv_L);
-
         displ_old_x += L * (displ_old_x <= -half_L) - L * (displ_old_x > half_L);
         displ_old_y += L * (displ_old_y <= -half_L) - L * (displ_old_y > half_L);
         displ_old_z += L * (displ_old_z <= -half_L) - L * (displ_old_z > half_L);
@@ -160,10 +146,6 @@ double JastrowPade::delta_value(const Particles& particles, std::size_t moved, d
         double displ_new_x{new_x - pos_x[j]};
         double displ_new_y{new_y - pos_y[j]};
         double displ_new_z{new_z - pos_z[j]};
-
-        displ_new_x -= L * std::round(displ_new_x * inv_L);
-        displ_new_y -= L * std::round(displ_new_y * inv_L);
-        displ_new_z -= L * std::round(displ_new_z * inv_L);
 
         displ_new_x += L * (displ_new_x <= -half_L) - L * (displ_new_x > half_L);
         displ_new_y += L * (displ_new_y <= -half_L) - L * (displ_new_y > half_L);
@@ -192,7 +174,6 @@ void JastrowPade::update_derivatives_for_move(const Particles& particles, std::s
     const std::size_t num_particles{particles.num_particles_get()};
     const double L{box_length_};
     const double half_L{0.5 * L};
-    const double inv_L{1.0 / L};
 
     const double* RESTRICT pos_x{particles.pos_x_get()};
     const double* RESTRICT pos_y{particles.pos_y_get()};
@@ -213,10 +194,6 @@ void JastrowPade::update_derivatives_for_move(const Particles& particles, std::s
         double displ_old_x{old_x - pos_x[j]};
         double displ_old_y{old_y - pos_y[j]};
         double displ_old_z{old_z - pos_z[j]};
-
-        displ_old_x -= L * std::round(displ_old_x * inv_L);
-        displ_old_y -= L * std::round(displ_old_y * inv_L);
-        displ_old_z -= L * std::round(displ_old_z * inv_L);
 
         displ_old_x += L * (displ_old_x <= -half_L) - L * (displ_old_x > half_L);
         displ_old_y += L * (displ_old_y <= -half_L) - L * (displ_old_y > half_L);
@@ -252,15 +229,10 @@ void JastrowPade::update_derivatives_for_move(const Particles& particles, std::s
 
         laplacian[j] -= mask_old * laplacian_pair_old;
 
-
         // new values
         double displ_new_x{new_x - pos_x[j]};
         double displ_new_y{new_y - pos_y[j]};
         double displ_new_z{new_z - pos_z[j]};
-
-        displ_new_x -= L * std::round(displ_new_x * inv_L);
-        displ_new_y -= L * std::round(displ_new_y * inv_L);
-        displ_new_z -= L * std::round(displ_new_z * inv_L);
 
         displ_new_x += L * (displ_new_x <= -half_L) - L * (displ_new_x > half_L);
         displ_new_y += L * (displ_new_y <= -half_L) - L * (displ_new_y > half_L);
