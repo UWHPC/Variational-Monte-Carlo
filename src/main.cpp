@@ -25,7 +25,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     // 7123, 7153, 7249, 7441, 7497, 7521, 7689, 7809, 7881, 8025, 8121, 8217,
     // 8289, 8385, 8409, 8601, 8709, 8733, 8829, 8925, 9045, 9093, 9171, 9315,
     // 9435, 9459, 9627, 9771, 9795, 9843, 9939, 10059
-    const Config config{.num_particles = 485U,
+    const Config config{.num_particles = 1021U,
                         .box_length = 9.0,
                         .warmup_steps = 500U,
                         .measure_steps = 2000U,
@@ -34,14 +34,14 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
                         .block_size = 500U};
 
     // const Config config{parse_args(argc, argv)};
-    std::ofstream out_file{"data/run.jsonl"};
-    if (!out_file) {
-        std::cerr << "Failed to open output file: data/run.jsonl\n";
-        return 1;
-    }
-    std::unique_ptr<OutputWriter> writer{make_output_writer(OutputFormat::JSON, out_file)};
+    // std::ofstream out_file{"data/run.jsonl"};
+    // if (!out_file) {
+    //     std::cerr << "Failed to open output file: data/run.jsonl\n";
+    //     return 1;
+    // }
+    // std::unique_ptr<OutputWriter> writer{make_output_writer(OutputFormat::JSON, out_file)};
 
-    Simulation sim{config, std::move(writer)};
+    Simulation sim{config};
 
     auto start{std::chrono::steady_clock::now()};
     sim.run();
