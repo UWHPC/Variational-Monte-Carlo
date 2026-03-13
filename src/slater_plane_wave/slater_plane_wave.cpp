@@ -261,7 +261,7 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
         solve_lower_upper(lower_upper_matrix, pivot_vector, rhs, solution, N);
 
         for (std::size_t row = 0; row < N; ++row) {
-            inv_det_matrix[index(row, column, N)] = solution[row];
+            inv_det_matrix[index(column, row, N)] = solution[row];
         }
     }
 
@@ -297,7 +297,7 @@ double SlaterPlaneWave::determinant_ratio(std::size_t particle, const double* ne
 
     double ratio{};
     for (std::size_t j = 0; j < N; ++j) {
-        ratio += new_row[j] * inv_det[index(j, particle, N)];
+        ratio += new_row[j] * inv_det[index(particle, j, N)];
     }
 
     return ratio;
@@ -314,7 +314,7 @@ void SlaterPlaneWave::accept_move(std::size_t particle, const double* new_row, d
 
     // Cache particle row column j for inv_D before changing
     for (std::size_t j = 0; j < N; ++j) {
-        inv_d_col[j] = inv_det[index(j, particle, N)];
+        inv_d_col[j] = inv_det[index(particle, j, N)];
     }
 
     // Follows Sherman-Morrison update:
@@ -322,18 +322,18 @@ void SlaterPlaneWave::accept_move(std::size_t particle, const double* new_row, d
         if (k == particle) {
             // Special case: column p just scales by 1/R
             for (std::size_t j = 0; j < N; ++j) {
-                inv_det[index(j, k, N)] = inv_d_col[j] * inv_ratio;
+                inv_det[index(k, j, N)] = inv_d_col[j] * inv_ratio;
             }
         } else {
             // Compute s_k = Σ_m new_row[m] * (D⁻¹_old)[m, k]
             double s_k{};
             for (std::size_t m = 0; m < N; ++m) {
-                s_k += new_row[m] * inv_det[index(m, k, N)];
+                s_k += new_row[m] * inv_det[index(k, m, N)];
             }
 
             const double factor{s_k * inv_ratio};
             for (std::size_t j = 0; j < N; ++j) {
-                inv_det[index(j, k, N)] -= inv_d_col[j] * factor;
+                inv_det[index(k, j, N)] -= inv_d_col[j] * factor;
             }
         }
     }
@@ -408,7 +408,7 @@ void SlaterPlaneWave::add_derivatives(double* RESTRICT grad_x, double* RESTRICT 
             dD_dz = k_z_orbital * grad_factor;
             lap_D = k_sq * lap_factor;
 
-            const double weight{inv_det[index(orbital, particle, N)]};
+            const double weight{inv_det[index(particle, orbital, N)]};
 
             d_log_det_dx += weight * dD_dx;
             d_log_det_dy += weight * dD_dy;

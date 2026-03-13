@@ -70,7 +70,7 @@ TEST_CASE("log_abs_det computes an inverse satisfying D*invD = I", "[slater]") {
             double value{};
             for (std::size_t k = 0; k < N; ++k) {
                 value += slater.determinant_get()[matrixIndex(row, k, N)] *
-                         slater.inv_determinant_get()[matrixIndex(k, col, N)];
+                         slater.inv_determinant_get()[matrixIndex(col, k, N)];
             }
             const double expected{row == col ? 1.0 : 0.0};
             requireNearSlater(value, expected, 1e-9);
@@ -155,7 +155,7 @@ TEST_CASE("N=7 determinant is nonzero with cos/sin basis", "[slater]") {
             double value{};
             for (std::size_t k = 0; k < N; ++k) {
                 value += slater.determinant_get()[matrixIndex(row, k, N)] *
-                         slater.inv_determinant_get()[matrixIndex(k, col, N)];
+                         slater.inv_determinant_get()[matrixIndex(col, k, N)];
             }
             const double expected{row == col ? 1.0 : 0.0};
             requireNearSlater(value, expected, 1e-9);
