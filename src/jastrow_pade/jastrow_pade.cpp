@@ -99,8 +99,8 @@ void JastrowPade::add_derivatives(const Particles& particles, double* RESTRICT g
             const double grad_factor{mask * first_deriv * inv_dist};
 
             d_grad_x += grad_factor * displ_x;
-            d_grad_x += grad_factor * displ_y;
-            d_grad_x += grad_factor * displ_z;
+            d_grad_y += grad_factor * displ_y;
+            d_grad_z += grad_factor * displ_z;
 
             grad_x[j] -= grad_factor * displ_x;
             grad_y[j] -= grad_factor * displ_y;

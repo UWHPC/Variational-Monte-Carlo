@@ -20,19 +20,20 @@ void BlockingAnalysis::add(double local_energy) {
 
     // When the block is full, calculate its average and save it
     if (in_block_ == block_size_) {
-        const double inv_block_size{1.0 / static_cast<double>(block_size_)};
-        const double inv_num_blocks{1.0 / static_cast<double>(num_blocks_)};
+        const double block_mean{block_sum_ / static_cast<double>(block_size_)};
 
-        // Welford's online algorithm:
-        const double block_mean{block_sum_ * inv_block_size};
+        // Increment first to prevent division by zero
         ++num_blocks_;
-        const double delta{block_mean - running_mean_};
 
-        running_mean_ += delta * inv_num_blocks;
+        // Welford's online algorithm using the NEW num_blocks_:
+        const double delta{block_mean - running_mean_};
+        running_mean_ += delta / static_cast<double>(num_blocks_);
+
+        // m2 updates using delta * (block_mean - NEW_running_mean)
         running_m2_ += delta * (block_mean - running_mean_);
 
         // Reset for the next block
-        block_sum_ = 0;
+        block_sum_ = 0.0;
         in_block_ = 0;
     }
 }

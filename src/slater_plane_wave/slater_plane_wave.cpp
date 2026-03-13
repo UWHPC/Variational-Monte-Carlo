@@ -311,7 +311,7 @@ double SlaterPlaneWave::determinant_ratio(std::size_t particle,
     const double* RESTRICT inv_det{inv_determinant_get()};
 
     double ratio{};
-#pragma omp simd
+#pragma omp simd reduction(+ : ratio)
     for (std::size_t j = 0; j < N; ++j) {
         ratio += new_row[j] * inv_det[particle * N + j];
     }
@@ -346,7 +346,7 @@ void SlaterPlaneWave::accept_move(std::size_t particle, const double* new_row,
         double s_k{};
 
 // Compiler can now easily auto-vectorize this
-#pragma omp simd
+#pragma omp simd reduction(+ : s_k)
         for (std::size_t m = 0; m < N; ++m) {
             s_k += new_row[m] * inv_det[k_offset + m];
         }
