@@ -52,7 +52,9 @@ void JastrowPade::add_derivatives(const Particles& particles, double* RESTRICT g
     // NOTE: assumes gradX/gradY/gradZ/lap are zero-initialized by caller
     const std::size_t num_particles{particles.num_particles_get()};
     const double L{box_length_};
+    const double neg_L{-1.0 * L};
     const double half_L{0.5 * L};
+    const double neg_half_L{-1.0 * half_L};
 
     const double* RESTRICT pos_x{particles.pos_x_get()};
     const double* RESTRICT pos_y{particles.pos_y_get()};
@@ -67,15 +69,17 @@ void JastrowPade::add_derivatives(const Particles& particles, double* RESTRICT g
         double d_grad_x{}, d_grad_y{}, d_grad_z{}, d_lap{};
 
 #pragma omp simd reduction(+ : d_grad_x, d_grad_y, d_grad_z, d_lap)
-        for (std::size_t j = i + 1; j < num_particles; ++j) {
+        for (std::size_t j = 0; j < num_particles; ++j) {
+            const bool valid_idx{i == j ? 0.0 : 1.0};
+
             double displ_x{pos_x[i] - pos_x[j]};
             double displ_y{pos_y[i] - pos_y[j]};
             double displ_z{pos_z[i] - pos_z[j]};
 
             // Boolean masks - reduce to 0 if false, and 1 if true.
-            displ_x += L * (displ_x <= -half_L) - L * (displ_x > half_L);
-            displ_y += L * (displ_y <= -half_L) - L * (displ_y > half_L);
-            displ_z += L * (displ_z <= -half_L) - L * (displ_z > half_L);
+            displ_x += L * (displ_x <= neg_half_L) + neg_L * (displ_x > half_L);
+            displ_y += L * (displ_y <= neg_half_L) + neg_L * (displ_y > half_L);
+            displ_z += L * (displ_z <= neg_half_L) + neg_L * (displ_z > half_L);
 
             const double dist_sq{displ_x * displ_x + displ_y * displ_y + displ_z * displ_z};
             const double dist{std::sqrt(dist_sq)};
@@ -83,7 +87,7 @@ void JastrowPade::add_derivatives(const Particles& particles, double* RESTRICT g
             // mask to get around if statement:
             const bool degenerate{dist < 1e-12};
             const double inv_dist{degenerate ? 1.0 : 1.0 / dist};
-            const double mask{degenerate ? 0.0 : 1.0};
+            const double mask{degenerate ? 0.0 : valid_idx};
 
             // u(r) = a*r / (1 + b*r)
             // u'(r) = a / (1 + b*r)^2
@@ -98,19 +102,14 @@ void JastrowPade::add_derivatives(const Particles& particles, double* RESTRICT g
             // ∇_i u(r_ij) = u'(r) * (r_vec / r)
             const double grad_factor{mask * first_deriv * inv_dist};
 
+            // ∇^2 u(r) = u''(r) + (2/r) u'(r)
+            const double laplacian_pair{mask * (second_deriv + 2.0 * first_deriv * inv_dist)};
+
             d_grad_x += grad_factor * displ_x;
             d_grad_y += grad_factor * displ_y;
             d_grad_z += grad_factor * displ_z;
 
-            grad_x[j] -= grad_factor * displ_x;
-            grad_y[j] -= grad_factor * displ_y;
-            grad_z[j] -= grad_factor * displ_z;
-
-            // ∇^2 u(r) = u''(r) + (2/r) u'(r)
-            const double laplacian_pair{mask * second_deriv + 2.0 * first_deriv * inv_dist};
-
             d_lap += laplacian_pair;
-            laplacian[j] += laplacian_pair;
         }
 
         // Apply the i values once per row
