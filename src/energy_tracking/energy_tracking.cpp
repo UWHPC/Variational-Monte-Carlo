@@ -215,8 +215,10 @@ void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, doub
                                        double old_z, const Particles& particles) noexcept {
     const std::size_t N{particles.num_particles_get()};
     const double L{box_length_};
+    const double neg_L{-1.0 * L};
 
     const double half_L{0.5 * L};
+    const double neg_half_L{-1.0 * half_L};
     const double alpha{ewald_alpha_};
 
     const double* RESTRICT p_x{particles.pos_x_get()};
@@ -239,9 +241,9 @@ void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, doub
         double dy_old{old_y - p_y[j]};
         double dz_old{old_z - p_z[j]};
 
-        dx_old += L * (dx_old <= -half_L) + -L * (dx_old > half_L);
-        dy_old += L * (dy_old <= -half_L) + -L * (dy_old > half_L);
-        dz_old += L * (dz_old <= -half_L) + -L * (dz_old > half_L);
+        dx_old += L * (dx_old <= neg_half_L) + neg_L * (dx_old > half_L);
+        dy_old += L * (dy_old <= neg_half_L) + neg_L * (dy_old > half_L);
+        dz_old += L * (dz_old <= neg_half_L) + neg_L * (dz_old > half_L);
 
         const double r_old{std::sqrt(dx_old * dx_old + dy_old * dy_old + dz_old * dz_old)};
 
@@ -253,9 +255,9 @@ void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, doub
         double dy_new{new_y - p_y[j]};
         double dz_new{new_z - p_z[j]};
 
-        dx_new += L * (dx_new <= -half_L) + -L * (dx_new > half_L);
-        dy_new += L * (dy_new <= -half_L) + -L * (dy_new > half_L);
-        dz_new += L * (dz_new <= -half_L) + -L * (dz_new > half_L);
+        dx_new += L * (dx_new <= neg_half_L) + neg_L * (dx_new > half_L);
+        dy_new += L * (dy_new <= neg_half_L) + neg_L * (dy_new > half_L);
+        dz_new += L * (dz_new <= neg_half_L) + neg_L * (dz_new > half_L);
 
         const double r_new{std::sqrt(dx_new * dx_new + dy_new * dy_new + dz_new * dz_new)};
 

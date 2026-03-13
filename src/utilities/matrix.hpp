@@ -65,7 +65,8 @@ solve (P^-1)LU x = b. given combined LU and pivot permutation piv.
 piv encodes the row permutation applied during LU so that
 we first permute b: y = P b, then solve L z = y, then U x = z.
 */
-void solve_lower_upper(const double* LU, const int* pivot, const double* b, double* x, std::size_t N) {
+void solve_lower_upper(const double* LU, const int* pivot, const double* b, double* x,
+                       std::size_t N) {
     // Apply permutation: x = Pb
     // store y in x temporarily
     for (std::size_t row = 0; row < N; ++row) {

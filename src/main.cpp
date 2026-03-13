@@ -37,8 +37,9 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     static constexpr std::size_t BLOCK_SIZE{500U}; // Size of block
 
     // DO NOT EDIT - these parameters change based on parameters above:
-    static constexpr std::size_t WARM_STEPS{N * WARMUP_SWEEPS};     // Total number of warmup steps
-    static constexpr std::size_t MEASURE_STEPS{N * MEASURE_SWEEPS}; // Number of steps to measure system
+    static constexpr std::size_t WARM_STEPS{N * WARMUP_SWEEPS}; // Total number of warmup steps
+    static constexpr std::size_t MEASURE_STEPS{N *
+                                               MEASURE_SWEEPS}; // Number of steps to measure system
 
     static constexpr double STEP_SIZE{BOX_LENGTH / 10.0}; // Default step size
 

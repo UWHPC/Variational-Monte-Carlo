@@ -190,7 +190,10 @@ void JastrowPade::update_derivatives_for_move(const Particles& particles, std::s
 
     const std::size_t num_particles{particles.num_particles_get()};
     const double L{box_length_};
+    const double neg_L{-1.0 * L};
+
     const double half_L{0.5 * L};
+    const double neg_half_L{-1.0 * half_L};
 
     const double* RESTRICT pos_x{particles.pos_x_get()};
     const double* RESTRICT pos_y{particles.pos_y_get()};
@@ -217,9 +220,9 @@ void JastrowPade::update_derivatives_for_move(const Particles& particles, std::s
         double displ_old_y{old_y - pos_y[j]};
         double displ_old_z{old_z - pos_z[j]};
 
-        displ_old_x += L * (displ_old_x <= -half_L) - L * (displ_old_x > half_L);
-        displ_old_y += L * (displ_old_y <= -half_L) - L * (displ_old_y > half_L);
-        displ_old_z += L * (displ_old_z <= -half_L) - L * (displ_old_z > half_L);
+        displ_old_x += L * (displ_old_x <= neg_half_L) + neg_L * (displ_old_x > half_L);
+        displ_old_y += L * (displ_old_y <= neg_half_L) + neg_L * (displ_old_y > half_L);
+        displ_old_z += L * (displ_old_z <= neg_half_L) + neg_L * (displ_old_z > half_L);
 
         const double dist_old{std::sqrt(displ_old_x * displ_old_x + displ_old_y * displ_old_y +
                                         displ_old_z * displ_old_z)};
@@ -242,9 +245,9 @@ void JastrowPade::update_derivatives_for_move(const Particles& particles, std::s
         double displ_new_y{new_y - pos_y[j]};
         double displ_new_z{new_z - pos_z[j]};
 
-        displ_new_x += L * (displ_new_x <= -half_L) - L * (displ_new_x > half_L);
-        displ_new_y += L * (displ_new_y <= -half_L) - L * (displ_new_y > half_L);
-        displ_new_z += L * (displ_new_z <= -half_L) - L * (displ_new_z > half_L);
+        displ_new_x += L * (displ_new_x <= neg_half_L) + neg_L * (displ_new_x > half_L);
+        displ_new_y += L * (displ_new_y <= neg_half_L) + neg_L * (displ_new_y > half_L);
+        displ_new_z += L * (displ_new_z <= neg_half_L) + neg_L * (displ_new_z > half_L);
 
         const double dist_new{std::sqrt(displ_new_x * displ_new_x + displ_new_y * displ_new_y +
                                         displ_new_z * displ_new_z)};

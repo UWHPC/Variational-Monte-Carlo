@@ -30,13 +30,15 @@ public:
      add jastrow contributions into provided derivative buffers:
      grad X/Y/Z is ∇_i J, lap is ∇_i^2 J (per particle i)
     */
-    void add_derivatives(const Particles& particles, double* RESTRICT grad_x, double* RESTRICT grad_y,
-                         double* RESTRICT grad_z, double* RESTRICT laplacian) const noexcept;
+    void add_derivatives(const Particles& particles, double* RESTRICT grad_x,
+                         double* RESTRICT grad_y, double* RESTRICT grad_z,
+                         double* RESTRICT laplacian) const noexcept;
 
-    [[nodiscard]] double delta_value(const Particles& particles, std::size_t moved, double old_x, double old_y,
-                                     double old_z) const noexcept;
+    [[nodiscard]] double delta_value(const Particles& particles, std::size_t moved, double old_x,
+                                     double old_y, double old_z) const noexcept;
 
-    void update_derivatives_for_move(const Particles& particles, std::size_t moved, double old_x, double old_y,
-                                     double old_z, double* RESTRICT grad_x, double* RESTRICT grad_y,
-                                     double* RESTRICT grad_z, double* RESTRICT laplacian) const noexcept;
+    void update_derivatives_for_move(const Particles& particles, std::size_t moved, double old_x,
+                                     double old_y, double old_z, double* RESTRICT grad_x,
+                                     double* RESTRICT grad_y, double* RESTRICT grad_z,
+                                     double* RESTRICT laplacian) const noexcept;
 };

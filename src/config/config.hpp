@@ -93,7 +93,8 @@ struct RawConfigValues {
     throw std::logic_error{"Unknown option id"};
 }
 
-[[nodiscard]] std::optional<std::string_view> get_option_value(const RawConfigValues& raw, OptionId id) {
+[[nodiscard]] std::optional<std::string_view> get_option_value(const RawConfigValues& raw,
+                                                               OptionId id) {
     switch (id) {
     case OptionId::NUM_PARTICLES:
         return raw.num_particles;
@@ -140,14 +141,15 @@ void set_option_value(RawConfigValues& raw, OptionId id, std::string_view value)
     throw std::logic_error{"Unknown option id"};
 }
 
-template <typename T> [[nodiscard]] T parse_integer(std::string_view text, std::string_view option_name) {
+template <typename T>
+[[nodiscard]] T parse_integer(std::string_view text, std::string_view option_name) {
     T value{};
     const char* const begin{text.data()};
     const char* const end{text.data() + text.size()};
     const auto [ptr, ec]{std::from_chars(begin, end, value)};
     if (ec != std::errc{} || ptr != end) {
-        throw std::invalid_argument{"Invalid integer value for --" + std::string{option_name} + ": '" +
-                                    std::string{text} + "'"};
+        throw std::invalid_argument{"Invalid integer value for --" + std::string{option_name} +
+                                    ": '" + std::string{text} + "'"};
     }
     return value;
 }
@@ -158,8 +160,8 @@ template <typename T> [[nodiscard]] T parse_integer(std::string_view text, std::
     const char* const end{text.data() + text.size()};
     const auto [ptr, ec]{std::from_chars(begin, end, value)};
     if (ec != std::errc{} || ptr != end) {
-        throw std::invalid_argument{"Invalid floating-point value for --" + std::string{option_name} + ": '" +
-                                    std::string{text} + "'"};
+        throw std::invalid_argument{"Invalid floating-point value for --" +
+                                    std::string{option_name} + ": '" + std::string{text} + "'"};
     }
     return value;
 }
@@ -185,10 +187,12 @@ void validate_config(const Config& config) {
 [[maybe_unused]] void print_usage(const char* program_name) {
     std::cout << "Usage:\n"
               << "  " << program_name
-              << " --num_particles N --box_length L --warmup_steps W --measure_steps M --step_size S --seed R "
+              << " --num_particles N --box_length L --warmup_steps W --measure_steps M --step_size "
+                 "S --seed R "
                  "--block_size B\n\n"
               << "Aliases:\n"
-              << "  --num-particles, --box-length, --warmup-steps, --measure-steps, --step-size, --block-size\n";
+              << "  --num-particles, --box-length, --warmup-steps, --measure-steps, --step-size, "
+                 "--block-size\n";
 }
 
 [[maybe_unused]] [[nodiscard]] Config parse_args(int argc, char** argv) {
@@ -201,7 +205,8 @@ void validate_config(const Config& config) {
         std::string_view token{argv[idx]};
 
         if (token.empty() || token[0] != '-') {
-            throw std::invalid_argument{"Unexpected positional argument: '" + std::string{token} + "'"};
+            throw std::invalid_argument{"Unexpected positional argument: '" + std::string{token} +
+                                        "'"};
         }
         if (token == "--help" || token == "-h") {
             throw HelpRequested{};
@@ -221,7 +226,8 @@ void validate_config(const Config& config) {
         if (equals_pos == std::string_view::npos) {
             option_name = token;
             if (idx + 1 >= argc) {
-                throw std::invalid_argument{"Missing value for option --" + std::string{option_name}};
+                throw std::invalid_argument{"Missing value for option --" +
+                                            std::string{option_name}};
             }
             ++idx;
             option_value = argv[idx];
@@ -239,15 +245,17 @@ void validate_config(const Config& config) {
                                         std::string{canonical_option_name(*parsed_option)}};
         }
         if (get_option_value(raw, *parsed_option).has_value()) {
-            throw std::invalid_argument{"Duplicate option: --" + std::string{canonical_option_name(*parsed_option)}};
+            throw std::invalid_argument{"Duplicate option: --" +
+                                        std::string{canonical_option_name(*parsed_option)}};
         }
 
         set_option_value(raw, *parsed_option, option_value);
     }
 
     constexpr std::array<OptionId, 7> all_options{
-        OptionId::NUM_PARTICLES, OptionId::BOX_LENGTH, OptionId::WARMUP_STEPS, OptionId::MEASURE_STEPS,
-        OptionId::STEP_SIZE,     OptionId::SEED,       OptionId::BLOCK_SIZE,
+        OptionId::NUM_PARTICLES, OptionId::BOX_LENGTH, OptionId::WARMUP_STEPS,
+        OptionId::MEASURE_STEPS, OptionId::STEP_SIZE,  OptionId::SEED,
+        OptionId::BLOCK_SIZE,
     };
 
     std::string missing{};

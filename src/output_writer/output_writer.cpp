@@ -71,8 +71,8 @@ void JsonOutputWriter::write_init(const InitData& data) {
     write_json_string(out_, data.run_id);
     out_ << ",\"numParticles\":" << data.num_particles << ",\"boxLength\":" << data.box_length
          << ",\"warmupSteps\":" << data.warmup_steps << ",\"measureSteps\":" << data.measure_steps
-         << ",\"stepSize\":" << data.step_size << ",\"blockSize\":" << data.block_size << ",\"seed\":" << data.seed
-         << "}\n";
+         << ",\"stepSize\":" << data.step_size << ",\"blockSize\":" << data.block_size
+         << ",\"seed\":" << data.seed << "}\n";
 }
 
 void JsonOutputWriter::write_frame(const FrameData& data) {
@@ -93,11 +93,13 @@ void JsonOutputWriter::write_frame(const FrameData& data) {
 
 void JsonOutputWriter::write_done(const DoneData& data) {
     out_ << "{\"type\":\"done\",\"totalAccepted\":" << data.total_accepted
-         << ",\"totalProposed\":" << data.total_proposed << ",\"finalAcceptanceRate\":" << data.final_acceptance_rate
+         << ",\"totalProposed\":" << data.total_proposed
+         << ",\"finalAcceptanceRate\":" << data.final_acceptance_rate
          << ",\"finalMeanEnergy\":" << data.final_mean_energy;
 
     if (data.final_standard_error.has_value()) {
-        out_ << ",\"finalStandardErrorAvailable\":true,\"finalStandardError\":" << *data.final_standard_error;
+        out_ << ",\"finalStandardErrorAvailable\":true,\"finalStandardError\":"
+             << *data.final_standard_error;
     } else {
         out_ << ",\"finalStandardErrorAvailable\":false,\"finalStandardError\":0";
     }

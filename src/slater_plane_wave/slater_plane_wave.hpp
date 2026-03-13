@@ -28,7 +28,16 @@ private:
     AlignedSoA<int> int_vectors_;
 
     // Double vectors (k-vectors sized to num_unique_k_; rest to num_orbitals_):
-    enum VectorIndex : std::size_t { K_X_, K_Y_, K_Z_, RHS_, SOLUTION_, NEW_ROW_, INV_D_COL_, NUM_DOUBLE_VECTORS_ };
+    enum VectorIndex : std::size_t {
+        K_X_,
+        K_Y_,
+        K_Z_,
+        RHS_,
+        SOLUTION_,
+        NEW_ROW_,
+        INV_D_COL_,
+        NUM_DOUBLE_VECTORS_
+    };
     AlignedSoA<double> double_vectors_;
 
     // Trig cache array - size of N * num_k-vectors
@@ -60,12 +69,18 @@ public:
     [[nodiscard]] double box_length_get() const noexcept { return box_length_; }
 
     // Per-orbital k-vector index
-    [[nodiscard]] std::vector<std::size_t>& orbital_k_index_get() noexcept { return orbital_k_index_; }
-    [[nodiscard]] const std::vector<std::size_t>& orbital_k_index_get() const noexcept { return orbital_k_index_; }
+    [[nodiscard]] std::vector<std::size_t>& orbital_k_index_get() noexcept {
+        return orbital_k_index_;
+    }
+    [[nodiscard]] const std::vector<std::size_t>& orbital_k_index_get() const noexcept {
+        return orbital_k_index_;
+    }
 
     // Per-orbital type (0=cos, 1=sin)
     [[nodiscard]] std::vector<std::uint8_t>& orbital_type_get() noexcept { return orbital_type_; }
-    [[nodiscard]] const std::vector<std::uint8_t>& orbital_type_get() const noexcept { return orbital_type_; }
+    [[nodiscard]] const std::vector<std::uint8_t>& orbital_type_get() const noexcept {
+        return orbital_type_;
+    }
 
     // Det. matrix
     [[nodiscard]] double* determinant_get() noexcept { return matrices_[D_]; }
@@ -134,7 +149,8 @@ public:
     double* build_row(std::size_t particle) noexcept;
 
     // Call after build_row. O(N).
-    [[nodiscard]] double determinant_ratio(std::size_t particle, const double* new_row) const noexcept;
+    [[nodiscard]] double determinant_ratio(std::size_t particle,
+                                           const double* new_row) const noexcept;
 
     // Applies the Sherman-Morrison inverse update and patches D.
     // Call only after accepting a move. O(N^2).

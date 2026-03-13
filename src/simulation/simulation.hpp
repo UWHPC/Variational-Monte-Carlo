@@ -39,7 +39,9 @@ private:
     [[nodiscard]] std::mt19937_64& rng() { return rng_; }
     [[nodiscard]] std::uniform_real_distribution<double>& uniform01() { return uniform01_; }
     [[nodiscard]] std::uniform_real_distribution<double>& proposal() { return proposal_; }
-    [[nodiscard]] std::uniform_int_distribution<std::size_t>& pick_particle() { return pick_particle_; }
+    [[nodiscard]] std::uniform_int_distribution<std::size_t>& pick_particle() {
+        return pick_particle_;
+    }
 
     [[nodiscard]] Particles& particles_get() { return particles_; }
     [[nodiscard]] WaveFunction& wave_function_get() { return wave_function_; }

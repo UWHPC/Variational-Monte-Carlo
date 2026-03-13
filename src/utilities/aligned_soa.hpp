@@ -32,7 +32,8 @@ public:
 
     // Non-Default:
     AlignedSoA(std::size_t num_elements, std::size_t num_arrays)
-        : num_elements_{num_elements}, stride_length_{round_up(num_elements)}, num_arrays_{num_arrays} {
+        : num_elements_{num_elements}, stride_length_{round_up(num_elements)},
+          num_arrays_{num_arrays} {
         // Determine the total elements and bytes needed for padded memory block:
         const std::size_t total_elements{num_arrays_ * stride_length_};
         const std::size_t total_bytes{total_elements * sizeof(T)};
@@ -59,5 +60,7 @@ public:
     T* operator[](std::size_t array_index) { return memory_block_.get() + array_index * stride(); }
 
     // Immutable:
-    const T* operator[](std::size_t array_index) const { return memory_block_.get() + array_index * stride(); }
+    const T* operator[](std::size_t array_index) const {
+        return memory_block_.get() + array_index * stride();
+    }
 };

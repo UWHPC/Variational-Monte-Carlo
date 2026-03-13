@@ -22,8 +22,8 @@ Particles copyParticlePositions(const Particles& source) {
     return copy;
 }
 
-double valueAtOffset(const JastrowPade& jastrow, const Particles& reference, std::size_t particle, double dx, double dy,
-                     double dz) {
+double valueAtOffset(const JastrowPade& jastrow, const Particles& reference, std::size_t particle,
+                     double dx, double dy, double dz) {
     Particles shifted{copyParticlePositions(reference)};
     shifted.pos_x_get()[particle] += dx;
     shifted.pos_y_get()[particle] += dy;
@@ -34,7 +34,7 @@ double valueAtOffset(const JastrowPade& jastrow, const Particles& reference, std
 } // namespace
 
 TEST_CASE("Jastrow value uses minimum-image pair distances", "[jastrow]") {
-    const JastrowPade jastrow{10.0, 0.5, 1.0};
+    const JastrowPade jastrow{10.0, 0.25, 1.0};
     Particles particles{2U};
 
     particles.pos_x_get()[0] = 0.1;
@@ -46,12 +46,12 @@ TEST_CASE("Jastrow value uses minimum-image pair distances", "[jastrow]") {
     particles.pos_z_get()[1] = 0.0;
 
     const double r{0.2};
-    const double expected{(0.5 * r) / (1.0 + r)};
+    const double expected{(0.25 * r) / (1.0 + r)};
     requireNearJastrow(jastrow.value(particles), expected);
 }
 
 TEST_CASE("Jastrow value skips degenerate pairs", "[jastrow]") {
-    const JastrowPade jastrow{10.0, 0.5, 1.0};
+    const JastrowPade jastrow{10.0, 0.25, 1.0};
     Particles particles{2U};
 
     particles.pos_x_get()[0] = 1.0;
@@ -66,7 +66,7 @@ TEST_CASE("Jastrow value skips degenerate pairs", "[jastrow]") {
 }
 
 TEST_CASE("Jastrow derivatives match the analytic two-particle result", "[jastrow]") {
-    const JastrowPade jastrow{100.0, 0.5, 1.0};
+    const JastrowPade jastrow{100.0, 0.25, 1.0};
     Particles particles{2U};
 
     particles.pos_x_get()[0] = 0.0;
@@ -106,7 +106,7 @@ TEST_CASE("Jastrow derivatives match the analytic two-particle result", "[jastro
 }
 
 TEST_CASE("Jastrow derivatives are unchanged for degenerate pairs", "[jastrow]") {
-    const JastrowPade jastrow{10.0, 0.5, 1.0};
+    const JastrowPade jastrow{10.0, 0.25, 1.0};
     Particles particles{2U};
 
     particles.pos_x_get()[0] = 4.0;
@@ -159,15 +159,15 @@ TEST_CASE("Jastrow derivatives match finite-difference gradients and Laplacians"
     const double h{1e-5};
     const double valueCenter{jastrow.value(particles)};
 
-    const double dJdx{
-        (valueAtOffset(jastrow, particles, 0U, h, 0.0, 0.0) - valueAtOffset(jastrow, particles, 0U, -h, 0.0, 0.0)) /
-        (2.0 * h)};
-    const double dJdy{
-        (valueAtOffset(jastrow, particles, 0U, 0.0, h, 0.0) - valueAtOffset(jastrow, particles, 0U, 0.0, -h, 0.0)) /
-        (2.0 * h)};
-    const double dJdz{
-        (valueAtOffset(jastrow, particles, 0U, 0.0, 0.0, h) - valueAtOffset(jastrow, particles, 0U, 0.0, 0.0, -h)) /
-        (2.0 * h)};
+    const double dJdx{(valueAtOffset(jastrow, particles, 0U, h, 0.0, 0.0) -
+                       valueAtOffset(jastrow, particles, 0U, -h, 0.0, 0.0)) /
+                      (2.0 * h)};
+    const double dJdy{(valueAtOffset(jastrow, particles, 0U, 0.0, h, 0.0) -
+                       valueAtOffset(jastrow, particles, 0U, 0.0, -h, 0.0)) /
+                      (2.0 * h)};
+    const double dJdz{(valueAtOffset(jastrow, particles, 0U, 0.0, 0.0, h) -
+                       valueAtOffset(jastrow, particles, 0U, 0.0, 0.0, -h)) /
+                      (2.0 * h)};
 
     const double d2Jdx2{(valueAtOffset(jastrow, particles, 0U, h, 0.0, 0.0) - 2.0 * valueCenter +
                          valueAtOffset(jastrow, particles, 0U, -h, 0.0, 0.0)) /

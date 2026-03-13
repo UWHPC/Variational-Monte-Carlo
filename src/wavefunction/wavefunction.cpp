@@ -33,7 +33,8 @@ void WaveFunction::evaluate_derivatives(Particles& particles) noexcept {
     std::fill_n(jastrow_lap, padded_stride, 0.0);
 
     slater_plane_wave_.add_derivatives(log_grad_x, log_grad_y, log_grad_z, log_lap);
-    jastrow_pade_.add_derivatives(particles, jastrow_grad_x, jastrow_grad_y, jastrow_grad_z, jastrow_lap);
+    jastrow_pade_.add_derivatives(particles, jastrow_grad_x, jastrow_grad_y, jastrow_grad_z,
+                                  jastrow_lap);
 
 #pragma omp simd
     for (std::size_t i = 0; i < padded_stride; ++i) {
@@ -46,8 +47,8 @@ void WaveFunction::evaluate_derivatives(Particles& particles) noexcept {
     steps_since_refresh_set(0);
 }
 
-void WaveFunction::evaluate_derivatives(Particles& particles, bool move_accepted, std::size_t moved, double old_x,
-                                        double old_y, double old_z) noexcept {
+void WaveFunction::evaluate_derivatives(Particles& particles, bool move_accepted, std::size_t moved,
+                                        double old_x, double old_y, double old_z) noexcept {
     if (!jastrow_cache_valid_get()) {
         evaluate_derivatives(particles);
         return;
@@ -73,8 +74,8 @@ void WaveFunction::evaluate_derivatives(Particles& particles, bool move_accepted
     double* RESTRICT jastrow_grad_z{jastrow_grad_z_get()};
     double* RESTRICT jastrow_lap{jastrow_lap_get()};
 
-    jastrow_pade_.update_derivatives_for_move(particles, moved, old_x, old_y, old_z, jastrow_grad_x, jastrow_grad_y,
-                                              jastrow_grad_z, jastrow_lap);
+    jastrow_pade_.update_derivatives_for_move(particles, moved, old_x, old_y, old_z, jastrow_grad_x,
+                                              jastrow_grad_y, jastrow_grad_z, jastrow_lap);
 
     std::fill_n(log_grad_x, padded_stride, 0.0);
     std::fill_n(log_grad_y, padded_stride, 0.0);

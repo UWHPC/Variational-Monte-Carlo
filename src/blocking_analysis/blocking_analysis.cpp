@@ -1,7 +1,8 @@
 #include "blocking_analysis.hpp"
 
 BlockingAnalysis::BlockingAnalysis(std::size_t block_size)
-    : num_blocks_{0}, running_mean_{0.0}, running_m2_{0.0}, block_size_{block_size}, in_block_{0}, block_sum_{0.0} {}
+    : num_blocks_{}, running_mean_{}, running_m2_{}, block_size_{block_size}, in_block_{},
+      block_sum_{} {}
 
 std::pair<double, double> BlockingAnalysis::mean_and_standard_error() const {
     if (num_blocks_ < 2) {
@@ -19,12 +20,15 @@ void BlockingAnalysis::add(double local_energy) {
 
     // When the block is full, calculate its average and save it
     if (in_block_ == block_size_) {
+        const double inv_block_size{1.0 / static_cast<double>(block_size_)};
+        const double inv_num_blocks{1.0 / static_cast<double>(num_blocks_)};
+
         // Welford's online algorithm:
-        const double block_mean{block_sum_ / static_cast<double>(block_size_)};
+        const double block_mean{block_sum_ * inv_block_size};
         ++num_blocks_;
         const double delta{block_mean - running_mean_};
 
-        running_mean_ += delta / static_cast<double>(num_blocks_);
+        running_mean_ += delta * inv_num_blocks;
         running_m2_ += delta * (block_mean - running_mean_);
 
         // Reset for the next block
