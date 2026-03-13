@@ -87,7 +87,6 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
     const std::size_t N{particles.num_particles_get()};
     const double L{box_length_};
     const double half_L{0.5 * L};
-    const double inv_L{1.0 / L};
     const double alpha{ewald_alpha_};
 
     const double* RESTRICT p_x{particles.pos_x_get()};
@@ -207,7 +206,6 @@ void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, doub
     const std::size_t N{particles.num_particles_get()};
     const double L{box_length_};
     const double half_L{0.5 * L};
-    const double inv_L{1.0 / L};
     const double alpha{ewald_alpha_};
 
     const double* RESTRICT p_x{particles.pos_x_get()};

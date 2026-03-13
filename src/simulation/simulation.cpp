@@ -1,14 +1,15 @@
 #include "simulation.hpp"
 
 #include <cmath>
+#include <iomanip>
 #include <iostream>
 #include <optional>
 #include <string>
 #include <utility>
 
 Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_writer)
-    : config_{std::move(config)}, particles_{config_.num_particles},
-      wave_function_{particles_, config_.box_length}, blocking_analysis_{config_.block_size},
+    : config_{std::move(config)}, particles_{config_.num_particles}, wave_function_{particles_, config_.box_length},
+      blocking_analysis_{config_.block_size},
       energy_tracker_{config_.box_length, static_cast<double>(config_.num_particles)},
       output_writer_{std::move(output_writer)}, proposed_{}, accepted_{}, log_psi_current_{}, rng_{config_.seed},
       proposal_{-config_.step_size, config_.step_size}, pick_particle_{0, config_.num_particles - 1} {}
@@ -64,46 +65,37 @@ Simulation::StepResult Simulation::metropolis_step() {
     // Local random vars:
     const std::size_t rand_particle{rand_particle_get()};
     const double L{config_.box_length};
-    const double inv_L{1.0 / L};
 
     // Old positions:
     const double old_x{p_x[rand_particle]};
     const double old_y{p_y[rand_particle]};
     const double old_z{p_z[rand_particle]};
 
-
     // Add randomness:
     p_x[rand_particle] += rand_proposal_double();
     p_y[rand_particle] += rand_proposal_double();
     p_z[rand_particle] += rand_proposal_double();
 
-    // Wrapping logic:
-    const double K_x{std::floor(p_x[rand_particle] * inv_L)};
-    const double K_y{std::floor(p_y[rand_particle] * inv_L)};
-    const double K_z{std::floor(p_z[rand_particle] * inv_L)};
+    // Branchless wrapping for [0, L)
+    p_x[rand_particle] += L * (p_x[rand_particle] < 0.0) - L * (p_x[rand_particle] >= L);
+    p_y[rand_particle] += L * (p_y[rand_particle] < 0.0) - L * (p_y[rand_particle] >= L);
+    p_z[rand_particle] += L * (p_z[rand_particle] < 0.0) - L * (p_z[rand_particle] >= L);
 
-    p_x[rand_particle] -= K_x * L;
-    p_y[rand_particle] -= K_y * L;
-    p_z[rand_particle] -= K_z * L;
-
-    // Boolean mask to avoid branches:
-    p_x[rand_particle] += -L * (p_x[rand_particle] >= L) + L * (p_x[rand_particle] < 0.0);
-    p_y[rand_particle] += -L * (p_y[rand_particle] >= L) + L * (p_y[rand_particle] < 0.0);
-    p_z[rand_particle] += -L * (p_z[rand_particle] >= L) + L * (p_z[rand_particle] < 0.0);
-
-    
     // Build new Slater row for moved particle and compute determinant ratio - O(N):
     auto& slater{wave_function_get().slater_plane_wave_get()};
 
+    // Save trig in case need to revert:
     slater.save_trig_row(rand_particle);
+
+    // Update it to proceed:
     slater.update_trig_cache(rand_particle, particles_get());
 
     const double* new_row{slater.build_row(rand_particle)};
     const double slater_ratio{slater.determinant_ratio(rand_particle, new_row)};
 
     // Compute new Jastrow value:
-    const double delta_jastrow{wave_function_get().jastrow_pade_get().delta_value(
-    particles_get(), rand_particle, old_x, old_y, old_z)};
+    const double delta_jastrow{
+        wave_function_get().jastrow_pade_get().delta_value(particles_get(), rand_particle, old_x, old_y, old_z)};
     const double log_ratio_sq{2.0 * std::log(std::abs(slater_ratio)) + 2.0 * delta_jastrow};
 
     const double log_u{std::log(rand_uniform_double())};
@@ -126,11 +118,11 @@ Simulation::StepResult Simulation::metropolis_step() {
         return StepResult{true, rand_particle, old_x, old_y, old_z};
     }
 
+    // Restore positions and trig if rejected:
+    slater.restore_trig_row(rand_particle);
     p_x[rand_particle] = old_x;
     p_y[rand_particle] = old_y;
     p_z[rand_particle] = old_z;
-
-    slater.restore_trig_row(rand_particle);
 
     return StepResult{false, rand_particle, old_x, old_y, old_z};
 }
@@ -147,7 +139,7 @@ void Simulation::warmup() {
 
     double acceptance_rate_window{};
     const double acceptance_target{0.5}; // Currently targeting a 50% acceptance rate
-    const double gain{0.05};             // This limits making large changes to step size
+    const double gain{0.5};              // This limits making large changes to step size
 
     for (std::size_t i{}; i < warmup_steps; i++) {
         window_proposed++;
@@ -188,8 +180,8 @@ Simulation::MeasurementSummary Simulation::measure() {
             ++accepted_;
         }
 
-        wavefunction.evaluate_derivatives(particles, result.accepted, result.moved_particle,
-                                  result.old_x, result.old_y, result.old_z);
+        wavefunction.evaluate_derivatives(particles, result.accepted, result.moved_particle, result.old_x, result.old_y,
+                                          result.old_z);
 
         const double E_local{energy_tracker.eval_total_energy(particles)};
         running_energy_sum += E_local;
@@ -216,16 +208,22 @@ Simulation::MeasurementSummary Simulation::measure() {
                                                   .standard_error = frame_standard_error,
                                                   .positions = positions_snapshot()});
         }
+
+        if ((i & 127) == 0 || i == measure_steps) {
+            std::cout << "\rProgress: " << (i * 100 / measure_steps) << "%" << std::flush;
+        }
     }
+    // Clear the progress bar:
+    std::cout << "\r" << std::string(20, ' ') << "\r";
 
     if (!output_writer_ && blocking_analysis.ready()) {
         // Pair of the mean and standard deviation:
         const auto [mean, stand_error]{blocking_analysis.mean_and_standard_error()};
-        std::cout << "Energy: " << mean << " +/- " << stand_error << std::endl;
+        std::cout << std::fixed << std::setprecision(6) << "Energy: " << mean << " +/- " << stand_error << " J\n";
     }
 
     if (!output_writer_) {
-        std::cout << "Acceptance Rate: " << acceptance_rate() << std::endl;
+        std::cout << "Acceptance Rate: " << 100.0 * acceptance_rate() << "%\n";
     }
 
     return MeasurementSummary{.mean_energy = final_mean_energy, .standard_error = final_standard_error};
