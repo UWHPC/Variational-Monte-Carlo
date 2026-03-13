@@ -2,13 +2,9 @@
 
 #include <cmath>
 #include <cstddef>
+#include <utility> // Added for std::swap
 
 namespace {
-
-// @brief helper function to convert i-jth indices -> n
-// @param stride is the difference between the row and the column.
-// @return the appropriate i-th row j-th column as a size_t.
-inline std::size_t index(std::size_t row, std::size_t col, std::size_t stride) noexcept { return row * stride + col; }
 
 /*
 see https://www.geeksforgeeks.org/dsa/doolittle-algorithm-lu-decomposition/
@@ -27,14 +23,14 @@ int lower_upper_decomp(double* lowerUpper, int* pivot, std::size_t N) {
         // Pivot selection
         // Find row >= col maximizing |LU(row, col)|
         std::size_t pivotRow{col};
-        double maxAbs{std::abs(lowerUpper[index(col, col, N)])};
+        double maxAbs{std::abs(lowerUpper[col * N + col])};
 
         for (std::size_t row = col + 1; row < N; ++row) {
-            const double value = std::abs(lowerUpper[index(row, col, N)]);
+            const double value = std::abs(lowerUpper[row * N + col]);
             if (value > maxAbs) {
                 maxAbs = value;
                 pivotRow = row;
-            };
+            }
         }
 
         // max abs = 0.0 implies the pivot column is 0 & det = 0.
@@ -43,19 +39,19 @@ int lower_upper_decomp(double* lowerUpper, int* pivot, std::size_t N) {
 
         if (pivotRow != col) {
             for (std::size_t col2 = 0; col2 < N; ++col2) {
-                std::swap(lowerUpper[index(col, col2, N)], lowerUpper[index(pivotRow, col2, N)]);
+                std::swap(lowerUpper[col * N + col2], lowerUpper[pivotRow * N + col2]);
             }
             std::swap(pivot[col], pivot[pivotRow]);
             ++swapCount;
         }
 
         // eliminate
-        const double pivotValue{lowerUpper[index(col, col, N)]};
+        const double pivotValue{lowerUpper[col * N + col]};
         for (std::size_t row = col + 1; row < N; ++row) {
-            lowerUpper[index(row, col, N)] /= pivotValue; // L (i,k)
-            const double multiplier{lowerUpper[index(row, col, N)]};
+            lowerUpper[row * N + col] /= pivotValue; // L (i,k)
+            const double multiplier{lowerUpper[row * N + col]};
             for (std::size_t col2 = col + 1; col2 < N; ++col2) {
-                lowerUpper[index(row, col2, N)] -= multiplier * lowerUpper[index(col, col2, N)];
+                lowerUpper[row * N + col2] -= multiplier * lowerUpper[col * N + col2];
             }
         }
     }
@@ -81,7 +77,7 @@ void solve_lower_upper(const double* LU, const int* pivot, const double* b, doub
     for (std::size_t row = 0; row < N; ++row) {
         double sum = x[row];
         for (std::size_t col = 0; col < row; ++col) {
-            sum -= LU[index(row, col, N)] * x[col];
+            sum -= LU[row * N + col] * x[col];
         }
         x[row] = sum;
     }
@@ -91,9 +87,9 @@ void solve_lower_upper(const double* LU, const int* pivot, const double* b, doub
         const std::size_t row = N - 1 - rev;
         double sum = x[row];
         for (std::size_t col = row + 1; col < N; ++col) {
-            sum -= LU[index(row, col, N)] * x[col];
+            sum -= LU[row * N + col] * x[col];
         }
-        x[row] = sum / LU[index(row, row, N)];
+        x[row] = sum / LU[row * N + row];
     }
 }
 

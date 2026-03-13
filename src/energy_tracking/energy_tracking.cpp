@@ -5,9 +5,11 @@
 #include <omp.h>
 
 EnergyTracker::EnergyTracker(double box_length, double num_particles)
-    : box_length_{box_length}, ewald_alpha_{6.0 / box_length},                              // 6.0 / L
-      ewald_correction_{-6.0 * num_particles / (std::sqrt(std::numbers::pi) * box_length)}, // -6.0 * N / (sqrt(pi) * L)
-      ewald_background_{-std::numbers::pi * num_particles * num_particles / (72.0 * box_length)}, // -pi * N^2 / (72L)
+    : box_length_{box_length}, ewald_alpha_{6.0 / box_length}, // 6.0 / L
+      ewald_correction_{-6.0 * num_particles /
+                        (std::sqrt(std::numbers::pi) * box_length)}, // -6.0 * N / (sqrt(pi) * L)
+      ewald_background_{-std::numbers::pi * num_particles * num_particles /
+                        (72.0 * box_length)}, // -pi * N^2 / (72L)
       V_recip_{}, V_real_{}, num_g_vectors_{}, data_{} {
 
     // Constants:
@@ -43,7 +45,8 @@ EnergyTracker::EnergyTracker(double box_length, double num_particles)
                 const double g_cand_x{two_pi_over_L * static_cast<double>(m_x)};
                 const double g_cand_y{two_pi_over_L * static_cast<double>(m_y)};
                 const double g_cand_z{two_pi_over_L * static_cast<double>(m_z)};
-                const double g_cand_mag_sq{g_cand_x * g_cand_x + g_cand_y * g_cand_y + g_cand_z * g_cand_z};
+                const double g_cand_mag_sq{g_cand_x * g_cand_x + g_cand_y * g_cand_y +
+                                           g_cand_z * g_cand_z};
 
                 if (g_cand_mag_sq > g_max_mag_sq)
                     continue;
@@ -77,6 +80,7 @@ void EnergyTracker::initialize_reciprocal_energy() noexcept {
     const double* RESTRICT sum_imag{sum_imag_get()};
 
     double sum{};
+#pragma omp simd reduction(+ : sum)
     for (std::size_t g = 0; g < num_G; ++g) {
         sum += g_weights[g] * (sum_real[g] * sum_real[g] + sum_imag[g] * sum_imag[g]);
     }
@@ -95,6 +99,9 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
 
     double sum{};
     for (std::size_t i = 0; i < N; ++i) {
+        double local_sum{};
+
+#pragma omp simd reduction(+ : local_sum)
         for (std::size_t j = i + 1; j < N; ++j) {
             double dx{p_x[i] - p_x[j]};
             double dy{p_y[i] - p_y[j]};
@@ -107,8 +114,9 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
             const double r{std::sqrt(dx * dx + dy * dy + dz * dz)};
             const double inv_r{1.0 / r};
 
-            sum += std::erfc(alpha * r) * inv_r;
+            local_sum += std::erfc(alpha * r) * inv_r;
         }
+        sum += local_sum;
     }
     V_real_set() = sum;
 }
@@ -132,7 +140,7 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
         double cos_sum{};
         double sin_sum{};
 
-#pragma omp simd
+#pragma omp simd reduction(+ : cos_sum, sin_sum)
         for (std::size_t j = 0; j < N; ++j) {
             const double G_dot_r{g_x[g] * p_x[j] + g_y[g] * p_y[j] + g_z[g] * p_z[j]};
 
@@ -145,8 +153,8 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
     }
 }
 
-void EnergyTracker::update_structure_factors(double old_x, double old_y, double old_z, double new_x, double new_y,
-                                             double new_z) noexcept {
+void EnergyTracker::update_structure_factors(double old_x, double old_y, double old_z, double new_x,
+                                             double new_y, double new_z) noexcept {
     const double L{box_length_};
 
     const std::size_t num_G{num_g_vectors_get()};
@@ -162,7 +170,7 @@ void EnergyTracker::update_structure_factors(double old_x, double old_y, double 
 
     double delta{};
 
-#pragma omp simd
+#pragma omp simd reduction(+ : delta)
     for (std::size_t g = 0; g < num_G; ++g) {
         const double old_dot{g_x[g] * old_x + g_y[g] * old_y + g_z[g] * old_z};
         const double new_dot{g_x[g] * new_x + g_y[g] * new_y + g_z[g] * new_z};
@@ -171,8 +179,8 @@ void EnergyTracker::update_structure_factors(double old_x, double old_y, double 
         const double d_imag{std::sin(new_dot) - std::sin(old_dot)};
 
         // |a+d|^2 - |a|^2 = 2*a*d + d^2
-        delta +=
-            g_weights[g] * (2.0 * (sum_real[g] * d_real + sum_imag[g] * d_imag) + d_real * d_real + d_imag * d_imag);
+        delta += g_weights[g] * (2.0 * (sum_real[g] * d_real + sum_imag[g] * d_imag) +
+                                 d_real * d_real + d_imag * d_imag);
 
         sum_real[g] += d_real;
         sum_imag[g] += d_imag;
@@ -190,6 +198,8 @@ double EnergyTracker::kinetic_energy(const Particles& particles) const noexcept 
     // Kinetic
     double T_sum{};
     const std::size_t N{particles.num_particles_get()};
+
+#pragma omp simd reduction(+ : T_sum)
     for (std::size_t i = 0; i < N; ++i) {
         // Computes ||Grad(logPsi)||^2
         const double grad_sq{grad_x[i] * grad_x[i] + grad_y[i] * grad_y[i] + grad_z[i] * grad_z[i]};
@@ -201,10 +211,11 @@ double EnergyTracker::kinetic_energy(const Particles& particles) const noexcept 
     return -0.5 * T_sum;
 }
 
-void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, double old_y, double old_z,
-                                       const Particles& particles) noexcept {
+void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, double old_y,
+                                       double old_z, const Particles& particles) noexcept {
     const std::size_t N{particles.num_particles_get()};
     const double L{box_length_};
+
     const double half_L{0.5 * L};
     const double alpha{ewald_alpha_};
 
@@ -212,43 +223,48 @@ void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, doub
     const double* RESTRICT p_y{particles.pos_y_get()};
     const double* RESTRICT p_z{particles.pos_z_get()};
 
-    // particles already has the NEW position at moved_idx
     const double new_x{p_x[moved_idx]};
     const double new_y{p_y[moved_idx]};
     const double new_z{p_z[moved_idx]};
 
     double delta{};
-    for (std::size_t j = 0; j < N; ++j) {
-        if (j == moved_idx)
-            continue;
 
-        // Subtract old pair:
+#pragma omp simd reduction(+ : delta)
+    for (std::size_t j = 0; j < N; ++j) {
+        // Branchless mask to safely skip the moved particle
+        const double valid_mask{(j == moved_idx) ? 0.0 : 1.0};
+
+        // Old pair
         double dx_old{old_x - p_x[j]};
         double dy_old{old_y - p_y[j]};
         double dz_old{old_z - p_z[j]};
 
-        dx_old += L * (dx_old <= -half_L) - L * (dx_old > half_L);
-        dy_old += L * (dy_old <= -half_L) - L * (dy_old > half_L);
-        dz_old += L * (dz_old <= -half_L) - L * (dz_old > half_L);
+        dx_old += L * (dx_old <= -half_L) + -L * (dx_old > half_L);
+        dy_old += L * (dy_old <= -half_L) + -L * (dy_old > half_L);
+        dz_old += L * (dz_old <= -half_L) + -L * (dz_old > half_L);
 
         const double r_old{std::sqrt(dx_old * dx_old + dy_old * dy_old + dz_old * dz_old)};
-        const double inv_r_old{1.0 / r_old};
 
-        delta -= std::erfc(alpha * r_old) * inv_r_old;
+        // Protect against 1.0 / 0.0 generating NaN
+        const double inv_r_old{(r_old < 1e-12) ? 1.0 : 1.0 / r_old};
 
-        // Add new pair:
+        // New pair
         double dx_new{new_x - p_x[j]};
         double dy_new{new_y - p_y[j]};
         double dz_new{new_z - p_z[j]};
 
-        dx_new += L * (dx_new <= -half_L) - L * (dx_new > half_L);
-        dy_new += L * (dy_new <= -half_L) - L * (dy_new > half_L);
-        dz_new += L * (dz_new <= -half_L) - L * (dz_new > half_L);
+        dx_new += L * (dx_new <= -half_L) + -L * (dx_new > half_L);
+        dy_new += L * (dy_new <= -half_L) + -L * (dy_new > half_L);
+        dz_new += L * (dz_new <= -half_L) + -L * (dz_new > half_L);
 
         const double r_new{std::sqrt(dx_new * dx_new + dy_new * dy_new + dz_new * dz_new)};
-        const double inv_r_new{1.0 / r_new};
 
-        delta += std::erfc(alpha * r_new) * inv_r_new;
+        // Protect against 1.0 / 0.0 generating NaN
+        const double inv_r_new{(r_new < 1e-12) ? 1.0 : 1.0 / r_new};
+
+        // Combine operations and apply the mask
+        delta += valid_mask *
+                 (std::erfc(alpha * r_new) * inv_r_new - std::erfc(alpha * r_old) * inv_r_old);
     }
 
     V_real_ += delta;

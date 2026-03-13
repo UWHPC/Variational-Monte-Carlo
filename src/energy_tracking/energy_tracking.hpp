@@ -42,8 +42,8 @@ public:
     void initialize_structure_factors(const Particles& particles) noexcept;
 
     // O(num_G) calculation - called for after positions are first initialized
-    void update_structure_factors(double old_x, double old_y, double old_z, double new_x, double new_y,
-                                  double new_z) noexcept;
+    void update_structure_factors(double old_x, double old_y, double old_z, double new_x,
+                                  double new_y, double new_z) noexcept;
 
     // Updates the real energy term
     void update_real_energy(std::size_t moved_idx, double old_x, double old_y, double old_z,

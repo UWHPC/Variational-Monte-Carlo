@@ -6,8 +6,8 @@
 
 #include <cstddef>
 #include <cstdlib>
-#include <numbers>
 #include <cstring>
+#include <numbers>
 #include <vector>
 
 class SlaterPlaneWave {
@@ -31,6 +31,7 @@ private:
     enum VectorIndex : std::size_t { K_X_, K_Y_, K_Z_, RHS_, SOLUTION_, NEW_ROW_, INV_D_COL_, NUM_DOUBLE_VECTORS_ };
     AlignedSoA<double> double_vectors_;
 
+    // Trig cache array - size of N * num_k-vectors
     enum TrigIndex : std::size_t { SIN_CACHE_, COS_CACHE_, NUM_TRIG_ARRAYS_ };
     AlignedSoA<double> trig_cache_;
 
@@ -140,8 +141,8 @@ public:
     void accept_move(std::size_t particle, const double* new_row, double ratio) noexcept;
 
     // Accumulates Slater contributions into grad/lap (length = stride/at least N).
-    void add_derivatives(double* RESTRICT grad_x, double* RESTRICT grad_y,
-                         double* RESTRICT grad_z, double* RESTRICT laplacian) const noexcept;
+    void add_derivatives(double* RESTRICT grad_x, double* RESTRICT grad_y, double* RESTRICT grad_z,
+                         double* RESTRICT laplacian) const noexcept;
 
 private:
     // Scratch buffer: new Slater row for moved particle

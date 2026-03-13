@@ -226,7 +226,7 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
             const double type{static_cast<double>(orb_type[orbital])};
             const double cos_term{cos_cache[offset + k_idx]};
             const double sin_term{sin_cache[offset + k_idx]};
-            det_matrix[index(particle, orbital, N)] = cos_term + type * (sin_term - cos_term);
+            det_matrix[particle * N + orbital] = cos_term + type * (sin_term - cos_term);
         }
     }
 
@@ -240,7 +240,7 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     double log_abs_det = 0.0;
 
     for (std::size_t diag = 0; diag < N; ++diag) {
-        const double U_ii = lower_upper_matrix[index(diag, diag, N)];
+        const double U_ii = lower_upper_matrix[diag * N + diag];
 
         const double abs_U_ii = std::abs(U_ii);
 
@@ -261,7 +261,7 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
         solve_lower_upper(lower_upper_matrix, pivot_vector, rhs, solution, N);
 
         for (std::size_t row = 0; row < N; ++row) {
-            inv_det_matrix[index(column, row, N)] = solution[row];
+            inv_det_matrix[column * N + row] = solution[row];
         }
     }
 
@@ -270,11 +270,14 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
 
 double* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
     const std::size_t N{num_orbitals_get()};
+    const std::size_t num_K{num_unique_k_get()};
 
     const auto& k_index{orbital_k_index_get()};
     const auto& orb_type{orbital_type_get()};
 
     double* RESTRICT row{new_row_get()};
+    double* RESTRICT sin_cache{sin_cache_get()};
+    double* RESTRICT cos_cache{cos_cache_get()};
 
 #pragma omp simd
     for (std::size_t orbital = 0; orbital < N; ++orbital) {
@@ -282,8 +285,8 @@ double* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
 
         const double type{static_cast<double>(orb_type[orbital])};
 
-        const double cos_term{cos_cache_get()[particle * num_unique_k_get() + k_idx]};
-        const double sin_term{sin_cache_get()[particle * num_unique_k_get() + k_idx]};
+        const double cos_term{cos_cache[particle * num_K + k_idx]};
+        const double sin_term{sin_cache[particle * num_K + k_idx]};
 
         row[orbital] = cos_term + type * (sin_term - cos_term);
     }
@@ -297,7 +300,7 @@ double SlaterPlaneWave::determinant_ratio(std::size_t particle, const double* ne
 
     double ratio{};
     for (std::size_t j = 0; j < N; ++j) {
-        ratio += new_row[j] * inv_det[index(particle, j, N)];
+        ratio += new_row[j] * inv_det[particle * N + j];
     }
 
     return ratio;
@@ -311,36 +314,42 @@ void SlaterPlaneWave::accept_move(std::size_t particle, const double* new_row, d
     double* RESTRICT inv_d_col{inv_d_col_get()};
 
     const double inv_ratio{1.0 / ratio};
+    const std::size_t p_offset{particle * N}; // Pre-calculate particle row offset
 
     // Cache particle row column j for inv_D before changing
     for (std::size_t j = 0; j < N; ++j) {
-        inv_d_col[j] = inv_det[index(particle, j, N)];
+        inv_d_col[j] = inv_det[p_offset + j];
     }
 
-    // Follows Sherman-Morrison update:
+    // Follows Sherman-Morrison update (branchless)
     for (std::size_t k = 0; k < N; ++k) {
-        if (k == particle) {
-            // Special case: column p just scales by 1/R
-            for (std::size_t j = 0; j < N; ++j) {
-                inv_det[index(k, j, N)] = inv_d_col[j] * inv_ratio;
-            }
-        } else {
-            // Compute s_k = Σ_m new_row[m] * (D⁻¹_old)[m, k]
-            double s_k{};
-            for (std::size_t m = 0; m < N; ++m) {
-                s_k += new_row[m] * inv_det[index(k, m, N)];
-            }
+        // Skip the special row for now
+        if (k == particle)
+            continue;
 
-            const double factor{s_k * inv_ratio};
-            for (std::size_t j = 0; j < N; ++j) {
-                inv_det[index(k, j, N)] -= inv_d_col[j] * factor;
-            }
+        const std::size_t k_offset{k * N}; // Pre-calculate row offset
+        double s_k{};
+
+        // Compiler can now easily auto-vectorize this
+        for (std::size_t m = 0; m < N; ++m) {
+            s_k += new_row[m] * inv_det[k_offset + m];
         }
+
+        const double factor{s_k * inv_ratio};
+
+        for (std::size_t j = 0; j < N; ++j) {
+            inv_det[k_offset + j] -= inv_d_col[j] * factor;
+        }
+    }
+
+    // Special case: handle the particle row outside the loop
+    for (std::size_t j = 0; j < N; ++j) {
+        inv_det[p_offset + j] = inv_d_col[j] * inv_ratio;
     }
 
     // Patch row `particle` of D to match the new positions:
     for (std::size_t j = 0; j < N; ++j) {
-        det_matrix[index(particle, j, N)] = new_row[j];
+        det_matrix[p_offset + j] = new_row[j];
     }
 }
 
@@ -364,13 +373,13 @@ void SlaterPlaneWave::add_derivatives(double* RESTRICT grad_x, double* RESTRICT 
 
     for (std::size_t particle = 0; particle < N; ++particle) {
         double d_log_det_dx{}, d_log_det_dy{}, d_log_det_dz{};
-
-        // Σ_j (D^{-1})_{j,particle} * (∇^2 D_{particle,j})
         double laplace_det_term{};
 
         const std::size_t offset{particle * num_k};
+        const std::size_t p_offset{particle * N};
 
-#pragma omp simd
+        // Added reduction clauses so the compiler can safely vectorize the accumulators
+#pragma omp simd reduction(+ : d_log_det_dx, d_log_det_dy, d_log_det_dz, laplace_det_term)
         for (std::size_t orbital = 0; orbital < N; ++orbital) {
             const std::size_t k_idx{k_index[orbital]};
 
@@ -380,18 +389,6 @@ void SlaterPlaneWave::add_derivatives(double* RESTRICT grad_x, double* RESTRICT 
 
             const double k_sq{k_x_orbital * k_x_orbital + k_y_orbital * k_y_orbital + k_z_orbital * k_z_orbital};
 
-            // ∇_i log|det D| = Σ_j (D⁻¹)_{j,i} · ∇_i D_{i,j}
-            //
-            // ∇²_i log|det D| = Σ_j (D⁻¹)_{j,i} · ∇²_i D_{i,j}
-            //                    - ||∇_i log|det D|||²
-            //
-            // The cross term arises from d/dx (f'/f) = f''/f - (f'/f)²
-            // applied to each component of the gradient.
-
-            double dD_dx{}, dD_dy{}, dD_dz{};
-            double lap_D{};
-
-            // Replaces the old if else branch with branchless math
             const double type{static_cast<double>(o_type[orbital])};
 
             const double cos_term{cos_cache[offset + k_idx]};
@@ -400,29 +397,20 @@ void SlaterPlaneWave::add_derivatives(double* RESTRICT grad_x, double* RESTRICT 
             const double grad_factor{-sin_term + type * (sin_term + cos_term)};
             const double lap_factor{-cos_term + type * (cos_term - sin_term)};
 
-            // D =       (o_type[orbital] == 0) ? cos(k dot r)          : sin(k dot r)
-            // grad(D) = (o_type[orbital] == 0) ? -sin(k dot r) * k     : cos(k dot r) * k
-            // lap (D) = (o_type[orbital] == 0) ? -cos(k dot r) * |k|^2 : -sin(k dor r) * |k|^2
-            dD_dx = k_x_orbital * grad_factor;
-            dD_dy = k_y_orbital * grad_factor;
-            dD_dz = k_z_orbital * grad_factor;
-            lap_D = k_sq * lap_factor;
+            const double weight{inv_det[p_offset + orbital]};
 
-            const double weight{inv_det[index(particle, orbital, N)]};
-
-            d_log_det_dx += weight * dD_dx;
-            d_log_det_dy += weight * dD_dy;
-            d_log_det_dz += weight * dD_dz;
-
-            laplace_det_term += weight * lap_D;
+            d_log_det_dx += weight * k_x_orbital * grad_factor;
+            d_log_det_dy += weight * k_y_orbital * grad_factor;
+            d_log_det_dz += weight * k_z_orbital * grad_factor;
+            laplace_det_term += weight * k_sq * lap_factor;
         }
+
         const double grad_sq{d_log_det_dx * d_log_det_dx + d_log_det_dy * d_log_det_dy + d_log_det_dz * d_log_det_dz};
-        const double lap_log_det{laplace_det_term - grad_sq};
 
         grad_x[particle] += d_log_det_dx;
         grad_y[particle] += d_log_det_dy;
         grad_z[particle] += d_log_det_dz;
 
-        laplacian[particle] += lap_log_det;
+        laplacian[particle] += (laplace_det_term - grad_sq);
     }
 }
