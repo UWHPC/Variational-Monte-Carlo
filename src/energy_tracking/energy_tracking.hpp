@@ -29,7 +29,7 @@ private:
     // Cached structure factors: Sum(G) = sum_j exp(i G dot r_j)
     // sum_real_[g] = sum_j cos(G_g dot r_j)
     // sum_imag_[g] = sum_j sin(G_g dot r_j)
-    enum ArrayIndex : std::size_t { G_X_, G_Y_, G_Z_, G_WEIGHTS_, S_REAL_, S_IMAG_, NUM_ARRAYS_ };
+    enum ArrayIndex : std::size_t { G_X_, G_Y_, G_Z_, G_WEIGHTS_, S_REAL_, S_IMAG_, D_REAL_TEMP_, D_IMAG_TEMP_, NUM_ARRAYS_ };
     AlignedSoA<double> data_;
 
 public:
@@ -72,6 +72,13 @@ private:
 
     [[nodiscard]] const double* sum_real_get() const noexcept { return data_[S_REAL_]; }
     [[nodiscard]] const double* sum_imag_get() const noexcept { return data_[S_IMAG_]; }
+
+    [[nodiscard]] const double* d_imag_temp_get() const noexcept { return data_[D_IMAG_TEMP_]; }
+    [[nodiscard]] const double* d_real_temp_get() const noexcept { return data_[D_REAL_TEMP_]; }
+
+    
+    [[nodiscard]] double* d_imag_temp_get() noexcept { return data_[D_IMAG_TEMP_]; }
+    [[nodiscard]] double* d_real_temp_get() noexcept { return data_[D_REAL_TEMP_]; }
 
     [[nodiscard]] std::size_t num_g_vectors_get() const noexcept { return num_g_vectors_; }
     [[nodiscard]] std::size_t& num_g_vectors_set() noexcept { return num_g_vectors_; }

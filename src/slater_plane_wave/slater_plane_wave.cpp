@@ -173,7 +173,7 @@ void SlaterPlaneWave::update_trig_cache(std::size_t particle, const Particles& p
     for (std::size_t k = 0; k < num_k; ++k) {
         const double dot{kx[k] * px + ky[k] * py + kz[k] * pz};
 
-        PORTABLE_SINCOS(dot, s_row[k], c_row[k]);
+        PORTABLE_SINCOS(dot, &s_row[k], &c_row[k]);
     }
 }
 
@@ -220,12 +220,13 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
         const double p_z{pos_z[particle]};
 
         const std::size_t offset{particle * num_k};
+        
 #pragma omp simd
         for (std::size_t k = 0; k < num_k; ++k) {
             const double dot{k_x_comp[k] * p_x + k_y_comp[k] * p_y + k_z_comp[k] * p_z};
             const std::size_t i{offset + k};
 
-            PORTABLE_SINCOS(dot, sin_cache[i], cos_cache[i]);
+            PORTABLE_SINCOS(dot, &sin_cache[i], &cos_cache[i]);
         }
 
 // Build D from cache

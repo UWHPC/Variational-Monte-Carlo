@@ -15,13 +15,18 @@
 
 // Sincos support for all compilers
 #if defined(__APPLE__)
-#define PORTABLE_SINCOS(theta, sin, cos) __sincos((theta), &(sin), &(cos))
+inline void PORTABLE_SINCOS(double theta, double* s, double* c) {
+    __sincos(theta, s, c);
+}
 #elif defined(__GNUC__) || defined(__clang__)
-#define PORTABLE_SINCOS(theta, sin, cos) sincos((theta), &(sin), &(cos))
+#include <math.h>
+inline void PORTABLE_SINCOS(double theta, double* s, double* c) {
+    sincos(theta, s, c);
+}
 #else
-#define PORTABLE_SINCOS(theta, sin, cos) \
-    do { \
-        (sin) = std::sin(theta); \
-        (cos) = std::cos(theta); \
-    } while (0)
+inline void PORTABLE_SINCOS(double theta, double* s, double* c) {
+#include <cmath>
+    *s = std::sin(theta);
+    *c = std::cos(theta);
+}
 #endif

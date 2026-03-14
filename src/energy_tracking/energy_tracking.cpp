@@ -89,7 +89,9 @@ void EnergyTracker::initialize_reciprocal_energy() noexcept {
 void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept {
     const std::size_t N{particles.num_particles_get()};
     const double L{box_length_};
+    const double neg_L{-1.0 * L};
     const double half_L{0.5 * L};
+    const double neg_half_L{-1.0 * half_L};
     const double alpha{ewald_alpha_};
 
     const double* RESTRICT p_x{particles.pos_x_get()};
@@ -106,14 +108,14 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
             double dy{p_y[i] - p_y[j]};
             double dz{p_z[i] - p_z[j]};
 
-            dx += L * (dx <= -half_L) - L * (dx > half_L);
-            dy += L * (dy <= -half_L) - L * (dy > half_L);
-            dz += L * (dz <= -half_L) - L * (dz > half_L);
+            dx += L * (dx <= neg_half_L) + neg_L * (dx > half_L);
+            dy += L * (dy <= neg_half_L) + neg_L * (dy > half_L);
+            dz += L * (dz <= neg_half_L) + neg_L * (dz > half_L);
 
             const double r{std::sqrt(dx * dx + dy * dy + dz * dz)};
             const double inv_r{1.0 / r};
 
-            local_sum += std::erfc(alpha * r) * inv_r;
+            local_sum += erfc_approx(alpha * r) * inv_r;
         }
         sum += local_sum;
     }
@@ -145,7 +147,7 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
             double cos_temp{};
             double sin_temp{};
 
-            PORTABLE_SINCOS(G_dot_r, sin_temp, cos_temp);
+            PORTABLE_SINCOS(G_dot_r, &sin_temp, &cos_temp);
 
             cos_sum += cos_temp;
             sin_sum += sin_temp;
@@ -170,10 +172,12 @@ void EnergyTracker::update_structure_factors(double old_x, double old_y, double 
 
     double* RESTRICT sum_real{sum_real_get()};
     double* RESTRICT sum_imag{sum_imag_get()};
+    double* RESTRICT d_imag_temp{d_imag_temp_get()};
+    double* RESTRICT d_real_temp{d_real_temp_get()};
 
     double delta{};
-
-#pragma omp simd reduction(+ : delta)
+    
+#pragma omp simd
     for (std::size_t g = 0; g < num_G; ++g) {
         const double old_dot{g_x[g] * old_x + g_y[g] * old_y + g_z[g] * old_z};
         const double new_dot{g_x[g] * new_x + g_y[g] * new_y + g_z[g] * new_z};
@@ -181,18 +185,24 @@ void EnergyTracker::update_structure_factors(double old_x, double old_y, double 
         double new_sin{}, new_cos{};
         double old_sin{}, old_cos{};
 
-        PORTABLE_SINCOS(new_dot, new_sin, new_cos);
-        PORTABLE_SINCOS(old_dot, old_sin, old_cos);
+        PORTABLE_SINCOS(new_dot, &new_sin, &new_cos);
+        PORTABLE_SINCOS(old_dot, &old_sin, &old_cos);
 
-        const double d_real{new_cos - old_cos};
-        const double d_imag{new_sin - old_sin};
+        d_real_temp[g] = new_cos - old_cos;
+        d_imag_temp[g] = new_sin - old_sin;
+    }
 
-        // |a+d|^2 - |a|^2 = 2*a*d + d^2
-        delta += g_weights[g] * (2.0 * (sum_real[g] * d_real + sum_imag[g] * d_imag) +
-                                 d_real * d_real + d_imag * d_imag);
+   // Accumulate delta and update sum_real / sum_imag
+#pragma omp simd reduction(+ : delta)
+    for (std::size_t g = 0; g < num_G; ++g) {
+        const double dr{d_real_temp[g]};
+        const double di{d_imag_temp[g]};
 
-        sum_real[g] += d_real;
-        sum_imag[g] += d_imag;
+        delta += g_weights[g] * (2.0 * (sum_real[g] * dr + sum_imag[g] * di) +
+                                 dr * dr + di * di);
+
+        sum_real[g] += dr;
+        sum_imag[g] += di;
     }
 
     V_recip_set() += prefactor * delta;
