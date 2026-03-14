@@ -29,8 +29,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     // EDIT - feel free to edit these parameters:
     static constexpr std::size_t N{485U}; // Number of particles in the system
 
-    static constexpr std::size_t WARMUP_SWEEPS{50U};  // Number of sweeps for warmup
-    static constexpr std::size_t MEASURE_SWEEPS{10U}; // Number of sweeps for measure
+    static constexpr std::size_t WARMUP_SWEEPS{200U};  // Number of sweeps for warmup
+    static constexpr std::size_t MEASURE_SWEEPS{200U}; // Number of sweeps for measure
 
     static constexpr double BOX_LENGTH{9.0};       // Length of the system box
     static constexpr std::size_t SEED{123456U};    // Default random seed
