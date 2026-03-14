@@ -22,7 +22,9 @@ double JastrowPade::value(const Particles& particles) const noexcept {
         double local_jastrow{};
 
 #pragma omp simd reduction(+ : local_jastrow)
-        for (std::size_t j = i + 1; j < num_particles; ++j) {
+        for (std::size_t j = 0; j < num_particles; ++j) {
+            const double mask{i == j ? 0.0 : 1.0};
+
             double displ_x{pos_x[i] - pos_x[j]};
             double displ_y{pos_y[i] - pos_y[j]};
             double displ_z{pos_z[i] - pos_z[j]};
@@ -39,11 +41,12 @@ double JastrowPade::value(const Particles& particles) const noexcept {
             const double denom{1.0 + b_local * dist};
             const double inv_denom{1.0 / denom};
 
-            local_jastrow += a_local * dist * inv_denom;
+            local_jastrow += mask * a_local * dist * inv_denom;
         }
         jastrow_pade += local_jastrow;
     }
-    return jastrow_pade;
+    // Computed full N x N matrix - jastrow pade was calculated twice
+    return 0.5 * jastrow_pade;
 }
 
 void JastrowPade::add_derivatives(const Particles& particles, double* RESTRICT grad_x,
@@ -70,7 +73,7 @@ void JastrowPade::add_derivatives(const Particles& particles, double* RESTRICT g
 
 #pragma omp simd reduction(+ : d_grad_x, d_grad_y, d_grad_z, d_lap)
         for (std::size_t j = 0; j < num_particles; ++j) {
-            const bool valid_idx{i == j ? 0.0 : 1.0};
+            const double valid_idx{i == j ? 0.0 : 1.0};
 
             double displ_x{pos_x[i] - pos_x[j]};
             double displ_y{pos_y[i] - pos_y[j]};
@@ -124,7 +127,9 @@ double JastrowPade::delta_value(const Particles& particles, std::size_t moved, d
                                 double old_y, double old_z) const noexcept {
     const std::size_t num_particles{particles.num_particles_get()};
     const double L{box_length_};
+    const double neg_L{-1.0 * L};
     const double half_L{0.5 * L};
+    const double neg_half_L{1.0 * half_L};
 
     const double* RESTRICT pos_x{particles.pos_x_get()};
     const double* RESTRICT pos_y{particles.pos_y_get()};
@@ -149,9 +154,9 @@ double JastrowPade::delta_value(const Particles& particles, std::size_t moved, d
         double displ_old_y{old_y - pos_y[j]};
         double displ_old_z{old_z - pos_z[j]};
 
-        displ_old_x += L * (displ_old_x <= -half_L) - L * (displ_old_x > half_L);
-        displ_old_y += L * (displ_old_y <= -half_L) - L * (displ_old_y > half_L);
-        displ_old_z += L * (displ_old_z <= -half_L) - L * (displ_old_z > half_L);
+        displ_old_x += L * (displ_old_x <= neg_half_L) + neg_L * (displ_old_x > half_L);
+        displ_old_y += L * (displ_old_y <= neg_half_L) + neg_L * (displ_old_y > half_L);
+        displ_old_z += L * (displ_old_z <= neg_half_L) + neg_L * (displ_old_z > half_L);
 
         const double dist_old{std::sqrt(displ_old_x * displ_old_x + displ_old_y * displ_old_y +
                                         displ_old_z * displ_old_z)};
@@ -162,9 +167,9 @@ double JastrowPade::delta_value(const Particles& particles, std::size_t moved, d
         double displ_new_y{new_y - pos_y[j]};
         double displ_new_z{new_z - pos_z[j]};
 
-        displ_new_x += L * (displ_new_x <= -half_L) - L * (displ_new_x > half_L);
-        displ_new_y += L * (displ_new_y <= -half_L) - L * (displ_new_y > half_L);
-        displ_new_z += L * (displ_new_z <= -half_L) - L * (displ_new_z > half_L);
+        displ_new_x += L * (displ_new_x <= neg_half_L) + neg_L * (displ_new_x > half_L);
+        displ_new_y += L * (displ_new_y <= neg_half_L) + neg_L * (displ_new_y > half_L);
+        displ_new_z += L * (displ_new_z <= neg_half_L) + neg_L * (displ_new_z > half_L);
 
         const double dist_new{std::sqrt(displ_new_x * displ_new_x + displ_new_y * displ_new_y +
                                         displ_new_z * displ_new_z)};

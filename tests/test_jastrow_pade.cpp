@@ -85,8 +85,8 @@ TEST_CASE("Jastrow derivatives match the analytic two-particle result", "[jastro
 
     jastrow.add_derivatives(particles, gradX.data(), gradY.data(), gradZ.data(), lap.data());
 
-    requireNearJastrow(gradX[0], -0.125);
-    requireNearJastrow(gradX[1], 0.125);
+    requireNearJastrow(gradX[0], -0.0625);
+    requireNearJastrow(gradX[1], 0.0625);
     requireNearJastrow(gradX[0] + gradX[1], 0.0);
 
     requireNearJastrow(gradY[0], 0.0);
@@ -94,8 +94,9 @@ TEST_CASE("Jastrow derivatives match the analytic two-particle result", "[jastro
     requireNearJastrow(gradZ[0], 0.0);
     requireNearJastrow(gradZ[1], 0.0);
 
-    requireNearJastrow(lap[0], 0.125);
-    requireNearJastrow(lap[1], 0.125);
+    // ∇²u = u'' + (2/r)u' = -0.0625 + 2(0.0625) = 0.0625
+    requireNearJastrow(lap[0], 0.0625);
+    requireNearJastrow(lap[1], 0.0625);
 
     for (std::size_t i = 2; i < stride; ++i) {
         requireNearJastrow(gradX[i], 0.0);

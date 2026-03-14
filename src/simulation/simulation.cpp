@@ -141,7 +141,7 @@ void Simulation::warmup() {
 
     double acceptance_rate_window{};
     const double acceptance_target{0.5}; // Currently targeting a 50% acceptance rate
-    const double gain{0.5};              // This limits making large changes to step size
+    const double gain{0.25};             // This limits making large changes to step size
 
     for (std::size_t i{}; i < warmup_steps; i++) {
         window_proposed++;
