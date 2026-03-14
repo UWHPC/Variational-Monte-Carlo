@@ -1,10 +1,49 @@
 #pragma once
 
-#include "memory.hpp"
+#include "macros.hpp"
 
 #include <algorithm>
 #include <cstddef>
 #include <memory>
+
+// Aligned allocation:
+#if defined(_WIN32)
+#include <malloc.h>
+inline void* AlignedAlloc(std::size_t alignment, std::size_t size) {
+    return _aligned_malloc(size, alignment);
+}
+inline void AlignedFree(void* ptr) { _aligned_free(ptr); }
+#elif defined(__APPLE__)
+inline void* AlignedAlloc(std::size_t alignment, std::size_t size) {
+    void* ptr{nullptr};
+    // posix_memalign requires alignment >= sizeof(void*) and a power of two
+    alignment = std::max(alignment, sizeof(void*));
+    posix_memalign(&ptr, alignment, size);
+    return ptr;
+}
+inline void AlignedFree(void* ptr) { std::free(ptr); }
+#else
+inline void* AlignedAlloc(std::size_t alignment, std::size_t size) {
+    return std::aligned_alloc(alignment, size);
+}
+inline void AlignedFree(void* ptr) { std::free(ptr); }
+#endif
+
+// Deletion of memory for aligned_alloc:
+struct AlignedDeleter {
+    template <typename T> void operator()(T* ptr) const { AlignedFree(ptr); }
+};
+
+// Detect SIMD width:
+#if defined(__AVX512F__)
+constexpr std::size_t SIMD_BYTES{64};
+#elif defined(__AVX2__) || defined(__AVX__)
+constexpr std::size_t SIMD_BYTES{32};
+#elif defined(__SSE2__)
+constexpr std::size_t SIMD_BYTES{16};
+#else
+constexpr std::size_t SIMD_BYTES{sizeof(double)};
+#endif
 
 template <typename T> class AlignedSoA {
 private:

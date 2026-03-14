@@ -3,6 +3,7 @@
 #include "../particles/particles.hpp"
 #include "../utilities/aligned_soa.hpp"
 
+#include <cmath>
 #include <cstddef>
 #include <vector>
 
@@ -83,4 +84,18 @@ private:
 
     double kinetic_energy(const Particles& particles) const noexcept;
     double potential_energy() const noexcept;
+
+    // Abramowitz & Stegun formula
+    double erfc_approx(const double arg) {
+        const double p{0.3275911};
+        const double a1{0.254829592};
+        const double a2{-0.284496736};
+        const double a3{1.421413741};
+        const double a4{-1.453152027};
+        const double a5{1.061405429};
+
+        const double t{1.0 / (1.0 + p * arg)};
+        const double tau{t * (a1 + t * (a2 + t * (a3 + t * (a4 + t * a5))))};
+        return tau * std::exp(-arg * arg);
+    }
 };

@@ -2,7 +2,7 @@
 
 #include "../particles/particles.hpp"
 #include "../utilities/aligned_soa.hpp"
-#include "../utilities/memory.hpp"
+#include "../utilities/macros.hpp"
 
 #include <cstddef>
 #include <cstdlib>

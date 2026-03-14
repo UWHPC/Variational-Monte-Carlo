@@ -1,6 +1,5 @@
 #include "energy_tracking.hpp"
 
-#include <cmath>
 #include <numbers>
 #include <omp.h>
 
@@ -143,9 +142,13 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
 #pragma omp simd reduction(+ : cos_sum, sin_sum)
         for (std::size_t j = 0; j < N; ++j) {
             const double G_dot_r{g_x[g] * p_x[j] + g_y[g] * p_y[j] + g_z[g] * p_z[j]};
+            double cos_temp{};
+            double sin_temp{};
 
-            cos_sum += std::cos(G_dot_r);
-            sin_sum += std::sin(G_dot_r);
+            PORTABLE_SINCOS(G_dot_r, sin_temp, cos_temp);
+
+            cos_sum += cos_temp;
+            sin_sum += sin_temp;
         }
 
         sum_real[g] = cos_sum;
@@ -175,8 +178,14 @@ void EnergyTracker::update_structure_factors(double old_x, double old_y, double 
         const double old_dot{g_x[g] * old_x + g_y[g] * old_y + g_z[g] * old_z};
         const double new_dot{g_x[g] * new_x + g_y[g] * new_y + g_z[g] * new_z};
 
-        const double d_real{std::cos(new_dot) - std::cos(old_dot)};
-        const double d_imag{std::sin(new_dot) - std::sin(old_dot)};
+        double new_sin{}, new_cos{};
+        double old_sin{}, old_cos{};
+
+        PORTABLE_SINCOS(new_dot, new_sin, new_cos);
+        PORTABLE_SINCOS(old_dot, old_sin, old_cos);
+
+        const double d_real{new_cos - old_cos};
+        const double d_imag{new_sin - old_sin};
 
         // |a+d|^2 - |a|^2 = 2*a*d + d^2
         delta += g_weights[g] * (2.0 * (sum_real[g] * d_real + sum_imag[g] * d_imag) +
@@ -266,7 +275,7 @@ void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, doub
 
         // Combine operations and apply the mask
         delta += valid_mask *
-                 (std::erfc(alpha * r_new) * inv_r_new - std::erfc(alpha * r_old) * inv_r_old);
+                 (erfc_approx(alpha * r_new) * inv_r_new - erfc_approx(alpha * r_old) * inv_r_old);
     }
 
     V_real_ += delta;
