@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <memory>
+#include <math.h>
 
 // Restrict pointers:
 #if defined(__GNUC__) || defined(__clang__)
