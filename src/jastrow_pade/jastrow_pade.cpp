@@ -7,7 +7,9 @@
 double JastrowPade::value(const Particles& particles) const noexcept {
     const std::size_t num_particles{particles.num_particles_get()};
     const double L{box_length_};
+    const double neg_L{-1.0 * L};
     const double half_L{0.5 * L};
+    const double neg_half_L{-1.0 * half_L};
 
     const double* RESTRICT pos_x{particles.pos_x_get()};
     const double* RESTRICT pos_y{particles.pos_y_get()};
@@ -30,9 +32,9 @@ double JastrowPade::value(const Particles& particles) const noexcept {
             double displ_z{pos_z[i] - pos_z[j]};
 
             // Boolean masks - reduce to 0 if false, and 1 if true.
-            displ_x += L * (displ_x <= -half_L) - L * (displ_x > half_L);
-            displ_y += L * (displ_y <= -half_L) - L * (displ_y > half_L);
-            displ_z += L * (displ_z <= -half_L) - L * (displ_z > half_L);
+            displ_x += L * (displ_x <= neg_half_L) + neg_L * (displ_x > half_L);
+            displ_y += L * (displ_y <= neg_half_L) + neg_L * (displ_y > half_L);
+            displ_z += L * (displ_z <= neg_half_L) + neg_L * (displ_z > half_L);
 
             const double dist_sq{displ_x * displ_x + displ_y * displ_y + displ_z * displ_z};
             const double dist{std::sqrt(dist_sq)};
@@ -129,7 +131,7 @@ double JastrowPade::delta_value(const Particles& particles, std::size_t moved, d
     const double L{box_length_};
     const double neg_L{-1.0 * L};
     const double half_L{0.5 * L};
-    const double neg_half_L{1.0 * half_L};
+    const double neg_half_L{-1.0 * half_L};
 
     const double* RESTRICT pos_x{particles.pos_x_get()};
     const double* RESTRICT pos_y{particles.pos_y_get()};

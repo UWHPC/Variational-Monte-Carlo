@@ -224,7 +224,7 @@ Simulation::MeasurementSummary Simulation::measure() {
         // Pair of the mean and standard deviation:
         const auto [mean, stand_error]{blocking_analysis.mean_and_standard_error()};
         std::cout << std::fixed << std::setprecision(6) << "Energy: " << mean << " +/- "
-                  << stand_error << " J\n";
+                  << stand_error << " Ha\n";
     }
 
     if (!output_writer_) {

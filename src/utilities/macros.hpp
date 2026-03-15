@@ -25,7 +25,6 @@ inline void PORTABLE_SINCOS(double theta, double* s, double* c) {
 }
 #else
 inline void PORTABLE_SINCOS(double theta, double* s, double* c) {
-#include <cmath>
     *s = std::sin(theta);
     *c = std::cos(theta);
 }
