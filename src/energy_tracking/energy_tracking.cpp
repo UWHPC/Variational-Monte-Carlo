@@ -94,6 +94,14 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
     const double neg_half_L{-1.0 * half_L};
     const double alpha{ewald_alpha_};
 
+    // Fast erfc constants
+    const double p{0.3275911};
+    const double a1{0.254829592};
+    const double a2{-0.284496736};
+    const double a3{1.421413741};
+    const double a4{-1.453152027};
+    const double a5{1.061405429};
+
     const double* RESTRICT p_x{particles.pos_x_get()};
     const double* RESTRICT p_y{particles.pos_y_get()};
     const double* RESTRICT p_z{particles.pos_z_get()};
@@ -117,14 +125,6 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
 
             // Abramowitz & Stegun formula for fast std::erfc approx.
             const double erfc_arg{alpha * r};
-
-            const double p{0.3275911};
-            const double a1{0.254829592};
-            const double a2{-0.284496736};
-            const double a3{1.421413741};
-            const double a4{-1.453152027};
-            const double a5{1.061405429};
-
             const double t{1.0 / (1.0 + p * erfc_arg)};
             const double tau{t * (a1 + t * (a2 + t * (a3 + t * (a4 + t * a5))))};
 
@@ -248,10 +248,18 @@ void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, doub
     const std::size_t N{particles.num_particles_get()};
     const double L{box_length_};
     const double neg_L{-1.0 * L};
-
     const double half_L{0.5 * L};
     const double neg_half_L{-1.0 * half_L};
+
     const double alpha{ewald_alpha_};
+
+    // Fast erfc constants
+    const double p{0.3275911};
+    const double a1{0.254829592};
+    const double a2{-0.284496736};
+    const double a3{1.421413741};
+    const double a4{-1.453152027};
+    const double a5{1.061405429};
 
     const double* RESTRICT p_x{particles.pos_x_get()};
     const double* RESTRICT p_y{particles.pos_y_get()};
@@ -282,6 +290,13 @@ void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, doub
         // Protect against 1.0 / 0.0 generating NaN
         const double inv_r_old{(r_old < 1e-12) ? 1.0 : 1.0 / r_old};
 
+        // Abramowitz & Stegun formula for fast std::erfc approx.
+        const double erfc_arg_old{alpha * r_old};
+        const double t_old{1.0 / (1.0 + p * erfc_arg_old)};
+        const double tau_old{t_old * (a1 + t_old * (a2 + t_old * (a3 + t_old * (a4 + t_old * a5))))};
+
+        double const erfc_old{tau_old * std::exp(-erfc_arg_old * erfc_arg_old) * inv_r_old};
+
         // New pair
         double dx_new{new_x - p_x[j]};
         double dy_new{new_y - p_y[j]};
@@ -297,8 +312,15 @@ void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, doub
         const double inv_r_new{(r_new < 1e-12) ? 1.0 : 1.0 / r_new};
 
         // Combine operations and apply the mask
-        delta += valid_mask *
-                 (erfc_approx(alpha * r_new) * inv_r_new - erfc_approx(alpha * r_old) * inv_r_old);
+
+        // Abramowitz & Stegun formula for fast std::erfc approx.
+        const double erfc_arg_new{alpha * r_new};
+        const double t_new{1.0 / (1.0 + p * erfc_arg_new)};
+        const double tau_new{t_new * (a1 + t_new * (a2 + t_new * (a3 + t_new * (a4 + t_new * a5))))};
+
+        double const erfc_new{tau_new * std::exp(-erfc_arg_new * erfc_arg_new) * inv_r_new};
+
+        delta += valid_mask * (erfc_new - erfc_old);
     }
 
     V_real_ += delta;
