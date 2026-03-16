@@ -235,7 +235,7 @@ Simulation::MeasurementSummary Simulation::measure() {
                               .standard_error = final_standard_error};
 }
 
-void Simulation::run() {
+Simulation::MeasurementSummary Simulation::run() {
     initialize_positions();
 
     if (output_writer_) {
@@ -259,4 +259,6 @@ void Simulation::run() {
                                             .final_mean_energy = summary.mean_energy,
                                             .final_standard_error = summary.standard_error});
     }
+
+    return summary;
 }
