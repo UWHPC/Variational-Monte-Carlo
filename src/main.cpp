@@ -7,6 +7,7 @@
 #include <iostream>
 #include <future>
 #include <thread>
+#include <iomanip>
 #include <memory>
 #include <omp.h>
 
@@ -31,8 +32,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     // EDIT - feel free to edit these parameters:
     static constexpr std::size_t N{485U}; // Number of particles in the system
 
-    static constexpr std::size_t WARMUP_SWEEPS{50U};  // Number of sweeps for warmup
-    static constexpr std::size_t MEASURE_SWEEPS{10U}; // Number of sweeps for measure
+    static constexpr std::size_t WARMUP_SWEEPS{200U};  // Number of sweeps for warmup
+    static constexpr std::size_t MEASURE_SWEEPS{200U}; // Number of sweeps for measure
 
     static constexpr double BOX_LENGTH{9.0};       // Length of the system box
     static constexpr std::size_t MASTER_SEED{123456U};    // Default random seed
@@ -52,7 +53,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
                         .measure_steps = MEASURE_STEPS,
                         .step_size = STEP_SIZE,
                         .seed = MASTER_SEED,
-                        .block_size = BLOCK_SIZE};
+                        .block_size = BLOCK_SIZE
+                    };
 
     // const Config config{parse_args(argc, argv)};
     // std::ofstream out_file{"data/run.jsonl"};
@@ -65,7 +67,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
 
     try {
         std::size_t num_threads = std::thread::hardware_concurrency();
-        if (num_threads == 0) num_threads = 4;
+        // if (num_threads == 0) 
+        num_threads = 4;
 
         std::mt19937_64 master_rng(master_config.seed);
         std::uniform_int_distribution<uint64_t> seedDist;
@@ -77,6 +80,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
         for (std::size_t thread{}; thread < num_threads; ++thread) {
             Config thread_config = master_config;
             thread_config.seed = seedDist(master_rng);
+            thread_config.is_master_thread = (thread == 0);
 
             futures.push_back(std::async(std::launch::async, [thread_config]() {
                 Simulation sim{thread_config};
@@ -86,23 +90,28 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
         
         double global_energy_sum{};
         double global_variance_sum{};
+        double global_acceptance_sum{};
 
         for (auto& f : futures) {
             Simulation::MeasurementSummary summary = f.get();
             global_energy_sum += summary.mean_energy;
             global_variance_sum += (*summary.standard_error) * (*summary.standard_error);
+            global_acceptance_sum += summary.acceptance_rate;
         }
 
         double final_mean = global_energy_sum / num_threads;
         double final_se = std::sqrt(global_variance_sum) / num_threads;
+        double final_acceptance_rate = global_acceptance_sum / num_threads * 100;
 
-        std::cout << "Final Aggregated Energy: " << final_mean
-                  << " +/- " << final_se << std::endl;
+        std::cout << "Final Aggregated Energy: " << std::setprecision(6)
+                  << final_mean << " +/- " << final_se << std::endl;
 
         auto end{std::chrono::steady_clock::now()};
 
         std::chrono::duration<double> elapsed{end - start};
         std::cout << "Elapsed: " << elapsed.count() << " s" << std::endl;
+
+        std::cout << "Acceptance Rate: " << final_acceptance_rate << "%" << std::endl;
 
         return 0;
     } catch (const std::exception& e) {

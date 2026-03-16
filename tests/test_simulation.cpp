@@ -58,7 +58,7 @@ public:
 
 TEST_CASE("Simulation API is present", "[simulation]") {
     REQUIRE(std::is_constructible_v<Simulation, Config>);
-    REQUIRE(std::is_same_v<decltype(std::declval<Simulation&>().run()), void>);
+    REQUIRE(std::is_same_v<decltype(std::declval<Simulation&>().run()), Simulation::MeasurementSummary>);
 }
 
 TEST_CASE("Simulation emits consistent init/frame/done records through OutputWriter", "[simulation]") {
