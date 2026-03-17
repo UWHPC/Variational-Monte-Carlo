@@ -107,6 +107,7 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
     const double* RESTRICT p_z{particles.pos_z_get()};
 
     double sum{};
+    #pragma omp parallel for schedule(static) reduction(+ : sum)
     for (std::size_t i = 0; i < N; ++i) {
         double local_sum{};
 

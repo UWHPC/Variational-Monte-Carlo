@@ -68,7 +68,8 @@ void JastrowPade::add_derivatives(const Particles& particles, double* RESTRICT g
     const double a_local{a_get()};
     const double b_local{b_get()};
     const double neg_two_a_b{-2.0 * a_local * b_local};
-
+    
+    #pragma omp parallel for schedule(static)                                
     for (std::size_t i = 0; i < num_particles; ++i) {
         // i accumulators to prevent SIMD lane collisions
         double d_grad_x{}, d_grad_y{}, d_grad_z{}, d_lap{};

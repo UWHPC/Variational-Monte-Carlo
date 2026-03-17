@@ -30,14 +30,14 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     // 9435, 9459, 9627, 9771, 9795, 9843, 9939, 10059
 
     // EDIT - feel free to edit these parameters:
-    static constexpr std::size_t N{485U}; // Number of particles in the system
+    static constexpr std::size_t N{1021U}; // Number of particles in the system
 
-    static constexpr std::size_t WARMUP_SWEEPS{200U};  // Number of sweeps for warmup
-    static constexpr std::size_t MEASURE_SWEEPS{200U}; // Number of sweeps for measure
+    static constexpr std::size_t WARMUP_SWEEPS{50U};  // Number of sweeps for warmup
+    static constexpr std::size_t MEASURE_SWEEPS{10U}; // Number of sweeps for measure
 
-    static constexpr double BOX_LENGTH{9.0};       // Length of the system box
-    static constexpr std::size_t MASTER_SEED{123456U};    // Default random seed
-    static constexpr std::size_t BLOCK_SIZE{500U}; // Size of block
+    static constexpr double BOX_LENGTH{9.0};            // Length of the system box
+    static constexpr std::size_t MASTER_SEED{123456U};  // Default random seed
+    static constexpr std::size_t BLOCK_SIZE{500U};      // Size of block
 
     // DO NOT EDIT - these parameters change based on parameters above:
     static constexpr std::size_t WARM_STEPS{N * WARMUP_SWEEPS}; // Total number of warmup steps
@@ -63,12 +63,16 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     //     return 1;
     // }
     // std::unique_ptr<OutputWriter> writer{make_output_writer(OutputFormat::JSON, out_file)};
-    
 
     try {
-        std::size_t num_threads = std::thread::hardware_concurrency();
-        // if (num_threads == 0) 
-        num_threads = 4;
+        std::size_t num_simulations = std::thread::hardware_concurrency();
+        // if (num_simulations == 0)
+        num_simulations = 4;
+
+        // Balance OpenMP threads per simulation against number of parallel runs
+        // to avoid over-subscribing the CPU (e.g. 16 cores / 4 runs = 4 OMP threads each)
+        const int omp_threads{std::max(1, static_cast<int>(std::thread::hardware_concurrency()) / static_cast<int>(num_simulations))};
+        omp_set_num_threads(omp_threads);
 
         std::mt19937_64 master_rng(master_config.seed);
         std::uniform_int_distribution<uint64_t> seedDist;
@@ -77,7 +81,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
 
         auto start{std::chrono::steady_clock::now()};
 
-        for (std::size_t thread{}; thread < num_threads; ++thread) {
+        for (std::size_t thread{}; thread < num_simulations; ++thread) {
             Config thread_config = master_config;
             thread_config.seed = seedDist(master_rng);
             thread_config.is_master_thread = (thread == 0);
@@ -86,8 +90,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
                 Simulation sim{thread_config};
                 return sim.run();
             }));
-        } 
-        
+        }
+
         double global_energy_sum{};
         double global_variance_sum{};
         double global_acceptance_sum{};
@@ -99,9 +103,9 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
             global_acceptance_sum += summary.acceptance_rate;
         }
 
-        double final_mean = global_energy_sum / num_threads;
-        double final_se = std::sqrt(global_variance_sum) / num_threads;
-        double final_acceptance_rate = global_acceptance_sum / num_threads * 100;
+        double final_mean = global_energy_sum / num_simulations;
+        double final_se = std::sqrt(global_variance_sum) / num_simulations;
+        double final_acceptance_rate = global_acceptance_sum / num_simulations * 100;
 
         std::cout << "Final Aggregated Energy: " << std::setprecision(6)
                   << final_mean << " +/- " << final_se << std::endl;
@@ -117,7 +121,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     } catch (const std::exception& e) {
         std::cout << "Exception: " << e.what() << std::endl;
         std::exit(-1);
-    }  
+    }
 
     return 0;
 }

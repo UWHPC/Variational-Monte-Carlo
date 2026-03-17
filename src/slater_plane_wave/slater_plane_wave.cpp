@@ -391,7 +391,8 @@ void SlaterPlaneWave::add_derivatives(double* RESTRICT grad_x, double* RESTRICT 
 
     const double* RESTRICT cos_cache{cos_cache_get()};
     const double* RESTRICT sin_cache{sin_cache_get()};
-
+    
+    #pragma omp parallel for schedule(static)                                    
     for (std::size_t particle = 0; particle < N; ++particle) {
         double d_log_det_dx{}, d_log_det_dy{}, d_log_det_dz{};
         double laplace_det_term{};
