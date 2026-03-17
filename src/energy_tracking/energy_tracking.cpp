@@ -78,6 +78,10 @@ void EnergyTracker::initialize_reciprocal_energy() noexcept {
     const double* RESTRICT sum_real{sum_real_get()};
     const double* RESTRICT sum_imag{sum_imag_get()};
 
+    ASSUME_ALIGNED(g_weights, SIMD_BYTES);
+    ASSUME_ALIGNED(sum_real, SIMD_BYTES);
+    ASSUME_ALIGNED(sum_imag, SIMD_BYTES);
+
     double sum{};
 #pragma omp simd reduction(+ : sum)
     for (std::size_t g = 0; g < num_G; ++g) {
@@ -105,6 +109,10 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
     const double* RESTRICT p_x{particles.pos_x_get()};
     const double* RESTRICT p_y{particles.pos_y_get()};
     const double* RESTRICT p_z{particles.pos_z_get()};
+
+    ASSUME_ALIGNED(p_x, SIMD_BYTES);
+    ASSUME_ALIGNED(p_y, SIMD_BYTES);
+    ASSUME_ALIGNED(p_z, SIMD_BYTES);
 
     double sum{};
     for (std::size_t i = 0; i < N; ++i) {
@@ -150,6 +158,17 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
     double* RESTRICT sum_real{sum_real_get()};
     double* RESTRICT sum_imag{sum_imag_get()};
 
+    ASSUME_ALIGNED(p_x, SIMD_BYTES);
+    ASSUME_ALIGNED(p_y, SIMD_BYTES);
+    ASSUME_ALIGNED(p_z, SIMD_BYTES);
+
+    ASSUME_ALIGNED(g_x, SIMD_BYTES);
+    ASSUME_ALIGNED(g_y, SIMD_BYTES);
+    ASSUME_ALIGNED(g_z, SIMD_BYTES);
+
+    ASSUME_ALIGNED(sum_real, SIMD_BYTES);
+    ASSUME_ALIGNED(sum_imag, SIMD_BYTES);
+
     for (std::size_t g = 0; g < num_G; ++g) {
         double cos_sum{};
         double sin_sum{};
@@ -187,6 +206,16 @@ void EnergyTracker::update_structure_factors(double old_x, double old_y, double 
     double* RESTRICT sum_imag{sum_imag_get()};
     double* RESTRICT d_imag_temp{d_imag_temp_get()};
     double* RESTRICT d_real_temp{d_real_temp_get()};
+
+    ASSUME_ALIGNED(g_weights, SIMD_BYTES);
+    ASSUME_ALIGNED(g_x, SIMD_BYTES);
+    ASSUME_ALIGNED(g_y, SIMD_BYTES);
+    ASSUME_ALIGNED(g_z, SIMD_BYTES);
+
+    ASSUME_ALIGNED(sum_real, SIMD_BYTES);
+    ASSUME_ALIGNED(sum_imag, SIMD_BYTES);
+    ASSUME_ALIGNED(d_imag_temp, SIMD_BYTES);
+    ASSUME_ALIGNED(d_real_temp, SIMD_BYTES);
 
     double delta{};
     
@@ -227,6 +256,11 @@ double EnergyTracker::kinetic_energy(const Particles& particles) const noexcept 
     const double* RESTRICT grad_z{particles.grad_log_psi_z_get()};
     const double* RESTRICT lap{particles.lap_log_psi_get()};
 
+    ASSUME_ALIGNED(grad_x, SIMD_BYTES);
+    ASSUME_ALIGNED(grad_y, SIMD_BYTES);
+    ASSUME_ALIGNED(grad_z, SIMD_BYTES);
+    ASSUME_ALIGNED(lap, SIMD_BYTES);
+
     // Kinetic
     double T_sum{};
     const std::size_t N{particles.num_particles_get()};
@@ -264,6 +298,10 @@ void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, doub
     const double* RESTRICT p_x{particles.pos_x_get()};
     const double* RESTRICT p_y{particles.pos_y_get()};
     const double* RESTRICT p_z{particles.pos_z_get()};
+
+    ASSUME_ALIGNED(p_x, SIMD_BYTES);
+    ASSUME_ALIGNED(p_y, SIMD_BYTES);
+    ASSUME_ALIGNED(p_z, SIMD_BYTES);
 
     const double new_x{p_x[moved_idx]};
     const double new_y{p_y[moved_idx]};

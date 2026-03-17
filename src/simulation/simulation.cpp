@@ -21,6 +21,10 @@ std::vector<double> Simulation::positions_snapshot() const {
     const double* RESTRICT p_y{particles_.pos_y_get()};
     const double* RESTRICT p_z{particles_.pos_z_get()};
 
+    ASSUME_ALIGNED(p_x, SIMD_BYTES);
+    ASSUME_ALIGNED(p_y, SIMD_BYTES);
+    ASSUME_ALIGNED(p_z, SIMD_BYTES);
+
     std::vector<double> positions{};
     positions.reserve(N * 3U);
 
@@ -38,6 +42,10 @@ void Simulation::initialize_positions() {
     double* RESTRICT p_x{particles_.pos_x_get()};
     double* RESTRICT p_y{particles_.pos_y_get()};
     double* RESTRICT p_z{particles_.pos_z_get()};
+
+    ASSUME_ALIGNED(p_x, SIMD_BYTES);
+    ASSUME_ALIGNED(p_y, SIMD_BYTES);
+    ASSUME_ALIGNED(p_z, SIMD_BYTES);
 
     const std::size_t N{particles_.num_particles_get()};
     const double length{config_.box_length};
@@ -62,6 +70,10 @@ Simulation::StepResult Simulation::metropolis_step() {
     double* RESTRICT p_x{particles_.pos_x_get()};
     double* RESTRICT p_y{particles_.pos_y_get()};
     double* RESTRICT p_z{particles_.pos_z_get()};
+
+    ASSUME_ALIGNED(p_x, SIMD_BYTES);
+    ASSUME_ALIGNED(p_y, SIMD_BYTES);
+    ASSUME_ALIGNED(p_z, SIMD_BYTES);
 
     // Local random vars:
     const std::size_t rand_particle{rand_particle_get()};

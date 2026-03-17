@@ -87,6 +87,11 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, double box_lengthL)
     int* RESTRICT n_y{n_vector_y_get()};
     int* RESTRICT n_z{n_vector_z_get()};
 
+    ASSUME_ALIGNED(n_x, SIMD_BYTES);
+    ASSUME_ALIGNED(n_y, SIMD_BYTES);
+    ASSUME_ALIGNED(n_z, SIMD_BYTES);
+
+
     auto& orb_k_idx{orbital_k_index_get()};
     auto& orb_type{orbital_type_get()};
 
@@ -121,6 +126,10 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, double box_lengthL)
     double* RESTRICT k_x{k_vector_x_get()};
     double* RESTRICT k_y{k_vector_y_get()};
     double* RESTRICT k_z{k_vector_z_get()};
+
+    ASSUME_ALIGNED(k_x, SIMD_BYTES);
+    ASSUME_ALIGNED(k_y, SIMD_BYTES);
+    ASSUME_ALIGNED(k_z, SIMD_BYTES);
 
     const double inv_L{1.0 / box_length_get()};
 
@@ -169,6 +178,13 @@ void SlaterPlaneWave::update_trig_cache(std::size_t particle, const Particles& p
     double* RESTRICT c_row{cos_cache_get() + particle * num_k};
     double* RESTRICT s_row{sin_cache_get() + particle * num_k};
 
+    ASSUME_ALIGNED(kx, SIMD_BYTES);
+    ASSUME_ALIGNED(ky, SIMD_BYTES);
+    ASSUME_ALIGNED(kz, SIMD_BYTES);
+
+    ASSUME_ALIGNED(c_row, SIMD_BYTES);
+    ASSUME_ALIGNED(s_row, SIMD_BYTES);
+
 #pragma omp simd
     for (std::size_t k = 0; k < num_k; ++k) {
         const double dot{kx[k] * px + ky[k] * py + kz[k] * pz};
@@ -212,6 +228,27 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     const std::size_t num_k{num_unique_k_get()};
     double* RESTRICT cos_cache{cos_cache_get()};
     double* RESTRICT sin_cache{sin_cache_get()};
+
+    ASSUME_ALIGNED(pos_x, SIMD_BYTES);
+    ASSUME_ALIGNED(pos_y, SIMD_BYTES);
+    ASSUME_ALIGNED(pos_z, SIMD_BYTES);
+
+    ASSUME_ALIGNED(k_x_comp, SIMD_BYTES);
+    ASSUME_ALIGNED(k_y_comp, SIMD_BYTES);
+    ASSUME_ALIGNED(k_z_comp, SIMD_BYTES);
+
+    ASSUME_ALIGNED(det_matrix, SIMD_BYTES);
+    ASSUME_ALIGNED(lower_upper_matrix, SIMD_BYTES);
+    ASSUME_ALIGNED(inv_det_matrix, SIMD_BYTES);
+
+    ASSUME_ALIGNED(pivot_vector, SIMD_BYTES);
+
+    ASSUME_ALIGNED(rhs, SIMD_BYTES);
+    ASSUME_ALIGNED(solution, SIMD_BYTES);
+
+    ASSUME_ALIGNED(cos_cache, SIMD_BYTES);
+    ASSUME_ALIGNED(sin_cache, SIMD_BYTES);
+
 
     // Build determinant matrix D
     for (std::size_t particle = 0; particle < N; ++particle) {
@@ -291,6 +328,11 @@ double* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
     double* RESTRICT sin_cache{sin_cache_get()};
     double* RESTRICT cos_cache{cos_cache_get()};
 
+    ASSUME_ALIGNED(row, SIMD_BYTES);
+    ASSUME_ALIGNED(sin_cache, SIMD_BYTES);
+    ASSUME_ALIGNED(cos_cache, SIMD_BYTES);
+
+
 #pragma omp simd
     for (std::size_t orbital = 0; orbital < N; ++orbital) {
         const std::size_t k_idx{k_index[orbital]};
@@ -310,6 +352,7 @@ double SlaterPlaneWave::determinant_ratio(std::size_t particle,
                                           const double* new_row) const noexcept {
     const std::size_t N{num_orbitals_get()};
     const double* RESTRICT inv_det{inv_determinant_get()};
+    ASSUME_ALIGNED(inv_det, SIMD_BYTES);
 
     double ratio{};
 #pragma omp simd reduction(+ : ratio)
@@ -327,6 +370,10 @@ void SlaterPlaneWave::accept_move(std::size_t particle, const double* new_row,
     double* RESTRICT inv_det{inv_determinant_get()};
     double* RESTRICT det_matrix{determinant_get()};
     double* RESTRICT inv_d_col{inv_d_col_get()};
+
+    ASSUME_ALIGNED(inv_det, SIMD_BYTES);
+    ASSUME_ALIGNED(det_matrix, SIMD_BYTES);
+    ASSUME_ALIGNED(inv_d_col, SIMD_BYTES);
 
     const double inv_ratio{1.0 / ratio};
     const std::size_t p_offset{particle * N}; // Pre-calculate particle row offset
@@ -391,6 +438,19 @@ void SlaterPlaneWave::add_derivatives(double* RESTRICT grad_x, double* RESTRICT 
 
     const double* RESTRICT cos_cache{cos_cache_get()};
     const double* RESTRICT sin_cache{sin_cache_get()};
+
+    ASSUME_ALIGNED(k_x, SIMD_BYTES);
+    ASSUME_ALIGNED(k_y, SIMD_BYTES);
+    ASSUME_ALIGNED(k_z, SIMD_BYTES);
+
+    ASSUME_ALIGNED(inv_det, SIMD_BYTES);
+    ASSUME_ALIGNED(cos_cache, SIMD_BYTES);
+    ASSUME_ALIGNED(sin_cache, SIMD_BYTES);
+
+    ASSUME_ALIGNED(grad_x, SIMD_BYTES);
+    ASSUME_ALIGNED(grad_y, SIMD_BYTES);
+    ASSUME_ALIGNED(grad_z, SIMD_BYTES);
+    ASSUME_ALIGNED(laplacian, SIMD_BYTES);
 
     for (std::size_t particle = 0; particle < N; ++particle) {
         double d_log_det_dx{}, d_log_det_dy{}, d_log_det_dz{};
