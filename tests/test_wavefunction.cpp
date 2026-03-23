@@ -1,5 +1,8 @@
-#include "../src/wavefunction/wavefunction.hpp"
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_message.hpp>
+
+#include "../src/wavefunction/wavefunction.hpp"
+
 #include <cmath>
 #include <vector>
 
@@ -67,4 +70,18 @@ TEST_CASE("WaveFunction evaluate_log_psi returns finite for N=1", "[wavefunction
 
     const double logPsi{waveFunction.evaluate_log_psi(particles)};
     requireNearWave(logPsi, 0.0);
+}
+
+TEST_CASE("WaveFunction default Jastrow parameter matches fully polarized cusp choice",
+          "[wavefunction]") {
+    Particles particles{2U};
+    WaveFunction waveFunction{particles, 9.0};
+
+    const double actualA{waveFunction.jastrow_pade_get().a_get()};
+    const double actualB{waveFunction.jastrow_pade_get().b_get()};
+
+    INFO("Default WaveFunction Jastrow parameters should match the fully polarized HEG choice.");
+    CAPTURE(actualA, actualB);
+    requireNearWave(actualA, 0.25);
+    requireNearWave(actualB, 1.0);
 }

@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_message.hpp>
 
 #include "particles/particles.hpp"
 #include "slater_plane_wave/slater_plane_wave.hpp"
@@ -15,6 +16,12 @@ void requireNearSlater(double actual, double expected, double tolerance = 1e-10)
 }
 
 std::size_t matrixIndex(std::size_t row, std::size_t col, std::size_t n) { return row * n + col; }
+
+static double determinant3x3(const double* matrix) {
+    return matrix[0] * (matrix[4] * matrix[8] - matrix[5] * matrix[7]) -
+           matrix[1] * (matrix[3] * matrix[8] - matrix[5] * matrix[6]) +
+           matrix[2] * (matrix[3] * matrix[7] - matrix[4] * matrix[6]);
+}
 
 } // namespace
 
@@ -75,6 +82,118 @@ TEST_CASE("log_abs_det computes an inverse satisfying D*invD = I", "[slater]") {
             const double expected{row == col ? 1.0 : 0.0};
             requireNearSlater(value, expected, 1e-9);
         }
+    }
+}
+
+TEST_CASE("SlaterPlaneWave zero-initializes the full trig cache span", "[slater]") {
+    constexpr std::size_t N{7U};
+    Particles particles{N};
+    SlaterPlaneWave slater{particles, 9.0};
+
+    const std::size_t numK{slater.num_unique_k_get()};
+    const std::size_t cacheLength{N * numK};
+
+    INFO("Checking full trig-cache initialization across all particle/k entries.");
+    CAPTURE(N, numK, cacheLength);
+
+    for (std::size_t idx = 0; idx < cacheLength; ++idx) {
+        CAPTURE(idx);
+        REQUIRE(slater.sin_cache_get()[idx] == 0.0);
+        REQUIRE(slater.cos_cache_get()[idx] == 0.0);
+    }
+}
+
+TEST_CASE("determinant_ratio matches exact determinant ratio for a moved row", "[slater]") {
+    constexpr std::size_t N{3U};
+    constexpr double L{12.0};
+    Particles particles{N};
+
+    particles.pos_x_get()[0] = 0.8;
+    particles.pos_y_get()[0] = 1.1;
+    particles.pos_z_get()[0] = 0.3;
+
+    particles.pos_x_get()[1] = 2.7;
+    particles.pos_y_get()[1] = 0.4;
+    particles.pos_z_get()[1] = 1.9;
+
+    particles.pos_x_get()[2] = 4.2;
+    particles.pos_y_get()[2] = 3.5;
+    particles.pos_z_get()[2] = 2.6;
+
+    SlaterPlaneWave slater{particles, L};
+    const double logDetOld{slater.log_abs_det(particles)};
+    REQUIRE(std::isfinite(logDetOld));
+
+    const double detOld{determinant3x3(slater.determinant_get())};
+    REQUIRE(std::abs(detOld) > 1e-12);
+
+    constexpr std::size_t moved{1U};
+    particles.pos_x_get()[moved] += 0.35;
+    particles.pos_y_get()[moved] -= 0.20;
+    particles.pos_z_get()[moved] += 0.15;
+
+    slater.update_trig_cache(moved, particles);
+    const double* const newRow{slater.build_row(moved)};
+    const double ratio{slater.determinant_ratio(moved, newRow)};
+
+    SlaterPlaneWave exactSlater{particles, L};
+    const double logDetNew{exactSlater.log_abs_det(particles)};
+    REQUIRE(std::isfinite(logDetNew));
+
+    const double detNew{determinant3x3(exactSlater.determinant_get())};
+    const double exactRatio{detNew / detOld};
+
+    INFO("Trial-move determinant ratio should equal det(D_new) / det(D_old).");
+    CAPTURE(detOld, detNew, ratio, exactRatio, moved);
+    requireNearSlater(ratio, exactRatio, 1e-10);
+}
+
+TEST_CASE("accept_move matches a fresh full rebuild after an accepted row update", "[slater]") {
+    constexpr std::size_t N{3U};
+    constexpr double L{10.5};
+    Particles particles{N};
+
+    particles.pos_x_get()[0] = 0.4;
+    particles.pos_y_get()[0] = 1.5;
+    particles.pos_z_get()[0] = 2.7;
+
+    particles.pos_x_get()[1] = 3.1;
+    particles.pos_y_get()[1] = 2.2;
+    particles.pos_z_get()[1] = 0.9;
+
+    particles.pos_x_get()[2] = 4.8;
+    particles.pos_y_get()[2] = 0.7;
+    particles.pos_z_get()[2] = 3.3;
+
+    SlaterPlaneWave updated{particles, L};
+    const double logDetInitial{updated.log_abs_det(particles)};
+    REQUIRE(std::isfinite(logDetInitial));
+
+    constexpr std::size_t moved{2U};
+    particles.pos_x_get()[moved] -= 0.28;
+    particles.pos_y_get()[moved] += 0.19;
+    particles.pos_z_get()[moved] += 0.41;
+
+    updated.update_trig_cache(moved, particles);
+    const double* const newRow{updated.build_row(moved)};
+    const double ratio{updated.determinant_ratio(moved, newRow)};
+
+    INFO("Accepted-move update should preserve determinant/inverse consistency.");
+    CAPTURE(moved, ratio);
+    REQUIRE(std::isfinite(ratio));
+    REQUIRE(std::abs(ratio) > 1e-10);
+
+    updated.accept_move(moved, newRow, ratio);
+
+    SlaterPlaneWave rebuilt{particles, L};
+    const double logDetRebuilt{rebuilt.log_abs_det(particles)};
+    REQUIRE(std::isfinite(logDetRebuilt));
+
+    for (std::size_t idx = 0; idx < N * N; ++idx) {
+        CAPTURE(idx);
+        requireNearSlater(updated.determinant_get()[idx], rebuilt.determinant_get()[idx], 1e-12);
+        requireNearSlater(updated.inv_determinant_get()[idx], rebuilt.inv_determinant_get()[idx],
+                          1e-9);
     }
 }
 

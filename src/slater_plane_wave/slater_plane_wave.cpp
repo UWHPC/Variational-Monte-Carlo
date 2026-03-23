@@ -144,8 +144,9 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, double box_lengthL)
     trig_cache_ = AlignedSoA<double>(num_particles * num_unique_k_get(), NUM_TRIG_ARRAYS_);
     trig_scratch_ = AlignedSoA<double>(num_unique_k_get(), NUM_SCRATCH_TRIG_);
 
-    std::fill_n(sin_cache_get(), particles.padding_stride_get(), 0.0);
-    std::fill_n(cos_cache_get(), particles.padding_stride_get(), 0.0);
+    std::size_t trig_size{trig_cache_.num_elements()};
+    std::fill_n(sin_cache_get(), trig_size, 0.0);
+    std::fill_n(cos_cache_get(), trig_size, 0.0);
 };
 
 void SlaterPlaneWave::save_trig_row(std::size_t particle) noexcept {

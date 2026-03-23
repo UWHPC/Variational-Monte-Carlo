@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_message.hpp>
 
 #include "energy_tracking/energy_tracking.hpp"
 
@@ -167,4 +168,55 @@ TEST_CASE("EnergyTracker handles degenerate positions and permutation symmetry",
 
     const double permuted_energy{tracker.eval_total_energy(permuted)};
     require_near_energy(permuted_energy, degenerate_energy, 1e-10);
+}
+
+TEST_CASE("EnergyTracker incremental reciprocal and real-energy updates match full recomputation",
+          "[energy]") {
+    constexpr std::size_t n{3U};
+    constexpr double L{8.5};
+    constexpr std::size_t moved{1U};
+
+    Particles initial{n};
+    initial.pos_x_get()[0] = 0.7;
+    initial.pos_y_get()[0] = 1.1;
+    initial.pos_z_get()[0] = 2.3;
+    initial.pos_x_get()[1] = 3.2;
+    initial.pos_y_get()[1] = 2.7;
+    initial.pos_z_get()[1] = 1.4;
+    initial.pos_x_get()[2] = 5.6;
+    initial.pos_y_get()[2] = 0.9;
+    initial.pos_z_get()[2] = 4.8;
+
+    EnergyTracker incremental{L, static_cast<double>(n)};
+    incremental.initialize_structure_factors(initial);
+    incremental.initialize_reciprocal_energy();
+    incremental.initialize_real_energy(initial);
+
+    Particles moved_particles{n};
+    copy_positions(initial, moved_particles);
+
+    const double old_x{moved_particles.pos_x_get()[moved]};
+    const double old_y{moved_particles.pos_y_get()[moved]};
+    const double old_z{moved_particles.pos_z_get()[moved]};
+
+    moved_particles.pos_x_get()[moved] = old_x + 0.21;
+    moved_particles.pos_y_get()[moved] = old_y - 0.17;
+    moved_particles.pos_z_get()[moved] = old_z + 0.33;
+
+    incremental.update_structure_factors(old_x, old_y, old_z, moved_particles.pos_x_get()[moved],
+                                         moved_particles.pos_y_get()[moved],
+                                         moved_particles.pos_z_get()[moved]);
+    incremental.update_real_energy(moved, old_x, old_y, old_z, moved_particles);
+
+    EnergyTracker rebuilt{L, static_cast<double>(n)};
+    rebuilt.initialize_structure_factors(moved_particles);
+    rebuilt.initialize_reciprocal_energy();
+    rebuilt.initialize_real_energy(moved_particles);
+
+    const double incremental_total{incremental.eval_total_energy(moved_particles)};
+    const double rebuilt_total{rebuilt.eval_total_energy(moved_particles)};
+
+    INFO("Incremental Ewald updates should agree with a full reinitialization after one move.");
+    CAPTURE(moved, old_x, old_y, old_z, incremental_total, rebuilt_total);
+    require_near_energy(incremental_total, rebuilt_total, 1e-9);
 }
