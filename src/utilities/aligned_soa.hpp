@@ -58,12 +58,12 @@ private:
     std::size_t num_arrays_;
     std::unique_ptr<T[], AlignedDeleter> memory_block_;
 
+public:
     // Round up to nearest factor of SIMD bytes:
-    std::size_t round_up(std::size_t unpadded) const {
+    static std::size_t round_up(std::size_t unpadded) {
         return (unpadded + elements_per_alignment - 1) & ~(elements_per_alignment - 1);
     }
 
-public:
     // Defaults:
     AlignedSoA() : num_elements_{}, stride_length_{}, num_arrays_{}, memory_block_{nullptr} {}
     AlignedSoA(AlignedSoA&&) noexcept = default;

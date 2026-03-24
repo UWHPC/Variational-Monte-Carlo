@@ -46,7 +46,7 @@ void WaveFunction::evaluate_derivatives(Particles& particles) noexcept {
     jastrow_pade_.add_derivatives(particles, jastrow_grad_x, jastrow_grad_y, jastrow_grad_z,
                                   jastrow_lap);
 
-#pragma omp simd
+    #pragma omp simd
     for (std::size_t i = 0; i < padded_stride; ++i) {
         log_grad_x[i] += jastrow_grad_x[i];
         log_grad_y[i] += jastrow_grad_y[i];
@@ -104,7 +104,7 @@ void WaveFunction::evaluate_derivatives(Particles& particles, bool move_accepted
 
     slater_plane_wave_.add_derivatives(log_grad_x, log_grad_y, log_grad_z, log_lap);
 
-#pragma omp simd
+    #pragma omp simd
     for (std::size_t i = 0; i < padded_stride; ++i) {
         log_grad_x[i] += jastrow_grad_x[i];
         log_grad_y[i] += jastrow_grad_y[i];

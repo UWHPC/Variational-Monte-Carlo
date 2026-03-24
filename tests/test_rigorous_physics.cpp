@@ -641,3 +641,4 @@ TEST_CASE("EnergyTracker remains close to the exact Ewald reference across many 
         REQUIRE(std::abs(tracker_total - exact_total) <= 8e-6);
     }
 }
+

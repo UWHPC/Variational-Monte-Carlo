@@ -14,6 +14,7 @@ class SlaterPlaneWave {
 private:
     std::size_t num_orbitals_;
     std::size_t num_unique_k_;
+    std::size_t trig_row_stride_;
     std::size_t matrix_size_;
     double box_length_;
 
@@ -61,6 +62,9 @@ public:
     // Number of unique k-vectors (after +-n deduplication)
     [[nodiscard]] std::size_t num_unique_k_get() const noexcept { return num_unique_k_; }
     [[nodiscard]] std::size_t& num_unique_k_set() noexcept { return num_unique_k_; }
+
+    // Padded row stride for trig cache (aligned to SIMD boundary)
+    [[nodiscard]] std::size_t trig_row_stride_get() const noexcept { return trig_row_stride_; }
 
     // Matrix size - N^2
     [[nodiscard]] std::size_t matrix_size_get() const noexcept { return matrix_size_; }

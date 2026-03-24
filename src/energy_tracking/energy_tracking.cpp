@@ -83,7 +83,7 @@ void EnergyTracker::initialize_reciprocal_energy() noexcept {
     ASSUME_ALIGNED(sum_imag, SIMD_BYTES);
 
     double sum{};
-#pragma omp simd reduction(+ : sum)
+    #pragma omp simd reduction(+ : sum)
     for (std::size_t g = 0; g < num_G; ++g) {
         sum += g_weights[g] * (sum_real[g] * sum_real[g] + sum_imag[g] * sum_imag[g]);
     }
@@ -115,10 +115,11 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
     ASSUME_ALIGNED(p_z, SIMD_BYTES);
 
     double sum{};
+    #pragma omp parallel for reduction(+ : sum) schedule(dynamic)
     for (std::size_t i = 0; i < N; ++i) {
         double local_sum{};
 
-#pragma omp simd reduction(+ : local_sum)
+        #pragma omp simd reduction(+ : local_sum)
         for (std::size_t j = i + 1; j < N; ++j) {
             double dx{p_x[i] - p_x[j]};
             double dy{p_y[i] - p_y[j]};
@@ -129,7 +130,7 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
             dz += L * (dz <= neg_half_L) + neg_L * (dz > half_L);
 
             const double r{std::sqrt(dx * dx + dy * dy + dz * dz)};
-            const double inv_r{1.0 / r};
+            const double inv_r{(r < 1e-12) ? 1.0 : 1.0 / r};
 
             // Abramowitz & Stegun formula for fast std::erfc approx.
             const double erfc_arg{alpha * r};
@@ -169,11 +170,12 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
     ASSUME_ALIGNED(sum_real, SIMD_BYTES);
     ASSUME_ALIGNED(sum_imag, SIMD_BYTES);
 
+    #pragma omp parallel for
     for (std::size_t g = 0; g < num_G; ++g) {
         double cos_sum{};
         double sin_sum{};
 
-#pragma omp simd reduction(+ : cos_sum, sin_sum)
+        #pragma omp simd reduction(+ : cos_sum, sin_sum)
         for (std::size_t j = 0; j < N; ++j) {
             const double G_dot_r{g_x[g] * p_x[j] + g_y[g] * p_y[j] + g_z[g] * p_z[j]};
             double cos_temp{};
@@ -219,7 +221,7 @@ void EnergyTracker::update_structure_factors(double old_x, double old_y, double 
 
     double delta{};
     
-#pragma omp simd
+    #pragma omp simd
     for (std::size_t g = 0; g < num_G; ++g) {
         const double old_dot{g_x[g] * old_x + g_y[g] * old_y + g_z[g] * old_z};
         const double new_dot{g_x[g] * new_x + g_y[g] * new_y + g_z[g] * new_z};
@@ -235,7 +237,7 @@ void EnergyTracker::update_structure_factors(double old_x, double old_y, double 
     }
 
    // Accumulate delta and update sum_real / sum_imag
-#pragma omp simd reduction(+ : delta)
+    #pragma omp simd reduction(+ : delta)
     for (std::size_t g = 0; g < num_G; ++g) {
         const double dr{d_real_temp[g]};
         const double di{d_imag_temp[g]};
@@ -265,7 +267,7 @@ double EnergyTracker::kinetic_energy(const Particles& particles) const noexcept 
     double T_sum{};
     const std::size_t N{particles.num_particles_get()};
 
-#pragma omp simd reduction(+ : T_sum)
+    #pragma omp simd reduction(+ : T_sum)
     for (std::size_t i = 0; i < N; ++i) {
         // Computes ||Grad(logPsi)||^2
         const double grad_sq{grad_x[i] * grad_x[i] + grad_y[i] * grad_y[i] + grad_z[i] * grad_z[i]};
@@ -309,7 +311,7 @@ void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, doub
 
     double delta{};
 
-#pragma omp simd reduction(+ : delta)
+    #pragma omp simd reduction(+ : delta)
     for (std::size_t j = 0; j < N; ++j) {
         // Branchless mask to safely skip the moved particle
         const double valid_mask{(j == moved_idx) ? 0.0 : 1.0};
