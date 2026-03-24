@@ -2,7 +2,7 @@
 
 #include <cmath>
 #include <cstddef>
-#include <utility> // Added for std::swap
+#include <utility>
 
 namespace {
 
@@ -35,8 +35,10 @@ int lower_upper_decomp(double* lowerUpper, int* pivot, std::size_t N) {
 
         // max abs = 0.0 implies the pivot column is 0 & det = 0.
         constexpr double PIVOT_TOLERANCE{1e-12};
-        if (maxAbs < PIVOT_TOLERANCE)
+        if (maxAbs < PIVOT_TOLERANCE) {
+            lowerUpper[col * N + col] = 0.0;
             continue;
+        }
 
         if (pivotRow != col) {
             for (std::size_t col2 = 0; col2 < N; ++col2) {
