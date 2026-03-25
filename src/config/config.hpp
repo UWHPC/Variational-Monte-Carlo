@@ -1,299 +1,168 @@
 #pragma once
 
-#include <array>
-#include <charconv>
-#include <cmath>
 #include <cstddef>
-#include <cstdint>
-#include <exception>
+#include <cmath>
+#include <fstream>
 #include <iostream>
-#include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
-#include <string_view>
+#include <unordered_map>
 
-struct Config {
-    std::size_t num_particles; // Number of particles
-    double box_length;         // Length of box (grid)
-    std::size_t warmup_steps;  // Warm up
-    std::size_t measure_steps; // M
-    double step_size;          // proposal half-width s
-    uint64_t seed;             // Random seed
-    std::size_t block_size;    // Size of block
+// // Closed shells (up to 10k):
+// N = 1, 7, 19, 27, 33, 57, 81, 93, 123, 147, 171, 179,
+// 203, 251, 257, 305, 341, 365, 389, 437, 461, 485, 515, 587,
+// 619, 691, 739, 751, 799, 847, 895, 925, 949, 1021, 1045, 1141,
+// 1189, 1213, 1237, 1309, 1357, 1365, 1419, 1503, 1551, 1575, 1647, 1743,
+// 1791, 1839, 1863, 1935, 2007, 2103, 2109, 2205, 2301, 2325, 2373, 2469,
+// 2517, 2553, 2601, 2721, 2777, 2801, 2897, 2945, 2969, 3071, 3119, 3191,
+// 3239, 3287, 3407, 3431, 3575, 3695, 3743, 3791, 3887, 3911, 3959, 4067,
+// 4139, 4169, 4337, 4385, 4457, 4553, 4625, 4697, 4729, 4801, 4945, 5041,
+// 5137, 5185, 5257, 5377, 5449, 5497, 5575, 5695, 5743, 5887, 6031, 6043,
+// 6187, 6235, 6355, 6403, 6451, 6619, 6667, 6763, 6859, 6931, 6979, 7075,
+// 7123, 7153, 7249, 7441, 7497, 7521, 7689, 7809, 7881, 8025, 8121, 8217,
+// 8289, 8385, 8409, 8601, 8709, 8733, 8829, 8925, 9045, 9093, 9171, 9315,
+// 9435, 9459, 9627, 9771, 9795, 9843, 9939, 10059
+
+class Config {
+public:
+    // Independent parameters defaults; overridable in config.cfg:
+    std::size_t num_threads{1}; // Number of threads used
+    std::size_t num_particles{7U}; // Number of particles
+    std::size_t warmup_sweeps{100U}; // Number of sweeps for warmup
+    std::size_t measure_sweeps{100U}; // Number of sweeps for measuring
+    double box_length{10.0};         // Length of box (grid)
+    std::size_t block_size{100U};    // Size of block
+    uint64_t master_seed{42U};      // Random seed
     bool is_master_thread{};   // Is the Master Thread
-};
 
-namespace {
+    // Derived (computed from above):
+    std::size_t warmup_steps;  // Warmup steps
+    std::size_t measure_steps; // Measure steps
+    double step_size;          // proposal half-width s
 
-struct HelpRequested final : std::exception {
-    [[nodiscard]] const char* what() const noexcept override { return "Help requested"; }
-};
+    // Default constructor uses hardcoded defaults:
+    Config() { compute_derived(); }
 
-enum class OptionId {
-    NUM_PARTICLES,
-    BOX_LENGTH,
-    WARMUP_STEPS,
-    MEASURE_STEPS,
-    STEP_SIZE,
-    SEED,
-    BLOCK_SIZE,
-};
+    // Load from file, falling back to defaults for missing keys:
+    [[nodiscard]] static Config from_file( std::string const &path ) {
+        Config cfg{};
 
-struct RawConfigValues {
-    std::optional<std::string_view> num_particles;
-    std::optional<std::string_view> box_length;
-    std::optional<std::string_view> warmup_steps;
-    std::optional<std::string_view> measure_steps;
-    std::optional<std::string_view> step_size;
-    std::optional<std::string_view> seed;
-    std::optional<std::string_view> block_size;
-};
-
-[[nodiscard]] std::optional<OptionId> parse_option_name(std::string_view name) {
-    if (name == "num_particles" || name == "num-particles") {
-        return OptionId::NUM_PARTICLES;
-    }
-    if (name == "box_length" || name == "box-length") {
-        return OptionId::BOX_LENGTH;
-    }
-    if (name == "warmup_steps" || name == "warmup-steps") {
-        return OptionId::WARMUP_STEPS;
-    }
-    if (name == "measure_steps" || name == "measure-steps") {
-        return OptionId::MEASURE_STEPS;
-    }
-    if (name == "step_size" || name == "step-size") {
-        return OptionId::STEP_SIZE;
-    }
-    if (name == "seed") {
-        return OptionId::SEED;
-    }
-    if (name == "block_size" || name == "block-size") {
-        return OptionId::BLOCK_SIZE;
-    }
-    return std::nullopt;
-}
-
-[[nodiscard]] std::string_view canonical_option_name(OptionId id) {
-    switch (id) {
-    case OptionId::NUM_PARTICLES:
-        return "num_particles";
-    case OptionId::BOX_LENGTH:
-        return "box_length";
-    case OptionId::WARMUP_STEPS:
-        return "warmup_steps";
-    case OptionId::MEASURE_STEPS:
-        return "measure_steps";
-    case OptionId::STEP_SIZE:
-        return "step_size";
-    case OptionId::SEED:
-        return "seed";
-    case OptionId::BLOCK_SIZE:
-        return "block_size";
-    }
-    throw std::logic_error{"Unknown option id"};
-}
-
-[[nodiscard]] std::optional<std::string_view> get_option_value(const RawConfigValues& raw,
-                                                               OptionId id) {
-    switch (id) {
-    case OptionId::NUM_PARTICLES:
-        return raw.num_particles;
-    case OptionId::BOX_LENGTH:
-        return raw.box_length;
-    case OptionId::WARMUP_STEPS:
-        return raw.warmup_steps;
-    case OptionId::MEASURE_STEPS:
-        return raw.measure_steps;
-    case OptionId::STEP_SIZE:
-        return raw.step_size;
-    case OptionId::SEED:
-        return raw.seed;
-    case OptionId::BLOCK_SIZE:
-        return raw.block_size;
-    }
-    throw std::logic_error{"Unknown option id"};
-}
-
-void set_option_value(RawConfigValues& raw, OptionId id, std::string_view value) {
-    switch (id) {
-    case OptionId::NUM_PARTICLES:
-        raw.num_particles = value;
-        return;
-    case OptionId::BOX_LENGTH:
-        raw.box_length = value;
-        return;
-    case OptionId::WARMUP_STEPS:
-        raw.warmup_steps = value;
-        return;
-    case OptionId::MEASURE_STEPS:
-        raw.measure_steps = value;
-        return;
-    case OptionId::STEP_SIZE:
-        raw.step_size = value;
-        return;
-    case OptionId::SEED:
-        raw.seed = value;
-        return;
-    case OptionId::BLOCK_SIZE:
-        raw.block_size = value;
-        return;
-    }
-    throw std::logic_error{"Unknown option id"};
-}
-
-template <typename T>
-[[nodiscard]] T parse_integer(std::string_view text, std::string_view option_name) {
-    T value{};
-    const char* const begin{text.data()};
-    const char* const end{text.data() + text.size()};
-    const auto [ptr, ec]{std::from_chars(begin, end, value)};
-    if (ec != std::errc{} || ptr != end) {
-        throw std::invalid_argument{"Invalid integer value for --" + std::string{option_name} +
-                                    ": '" + std::string{text} + "'"};
-    }
-    return value;
-}
-
-[[nodiscard]] double parse_double(std::string_view text, std::string_view option_name) {
-    double value{};
-    const char* const begin{text.data()};
-    const char* const end{text.data() + text.size()};
-    const auto [ptr, ec]{std::from_chars(begin, end, value)};
-    if (ec != std::errc{} || ptr != end) {
-        throw std::invalid_argument{"Invalid floating-point value for --" +
-                                    std::string{option_name} + ": '" + std::string{text} + "'"};
-    }
-    return value;
-}
-
-void validate_config(const Config& config) {
-    if (config.num_particles < 1U) {
-        throw std::invalid_argument{"--num_particles must be >= 1"};
-    }
-    if (!std::isfinite(config.box_length) || config.box_length <= 0.0) {
-        throw std::invalid_argument{"--box_length must be finite and > 0"};
-    }
-    if (!std::isfinite(config.step_size) || config.step_size <= 0.0) {
-        throw std::invalid_argument{"--step_size must be finite and > 0"};
-    }
-    if (config.measure_steps < 1U) {
-        throw std::invalid_argument{"--measure_steps must be >= 1"};
-    }
-    if (config.block_size < 1U) {
-        throw std::invalid_argument{"--block_size must be >= 1"};
-    }
-}
-
-[[maybe_unused]] void print_usage(const char* program_name) {
-    std::cout << "Usage:\n"
-              << "  " << program_name
-              << " --num_particles N --box_length L --warmup_steps W --measure_steps M --step_size "
-                 "S --seed R "
-                 "--block_size B\n\n"
-              << "Aliases:\n"
-              << "  --num-particles, --box-length, --warmup-steps, --measure-steps, --step-size, "
-                 "--block-size\n";
-}
-
-[[maybe_unused]] [[nodiscard]] Config parse_args(int argc, char** argv) {
-    if (argc <= 1) {
-        throw std::invalid_argument{"No arguments provided"};
-    }
-
-    RawConfigValues raw{};
-    for (int idx{1}; idx < argc; ++idx) {
-        std::string_view token{argv[idx]};
-
-        if (token.empty() || token[0] != '-') {
-            throw std::invalid_argument{"Unexpected positional argument: '" + std::string{token} +
-                                        "'"};
-        }
-        if (token == "--help" || token == "-h") {
-            throw HelpRequested{};
-        }
-        if (!token.starts_with("--")) {
-            throw std::invalid_argument{"Unsupported short option: '" + std::string{token} + "'"};
+        std::ifstream file{ path };
+        if ( !file.is_open() ) {
+            std::cout << "[Config] File not found: " << path
+                      << "; using defaults.\n";
+            return cfg;
         }
 
-        token.remove_prefix(2);
-        if (token.empty()) {
-            throw std::invalid_argument{"Invalid empty option name"};
-        }
+        auto map{ parse( file ) };
 
-        std::string_view option_name{};
-        std::string_view option_value{};
-        const std::size_t equals_pos{token.find('=')};
-        if (equals_pos == std::string_view::npos) {
-            option_name = token;
-            if (idx + 1 >= argc) {
-                throw std::invalid_argument{"Missing value for option --" +
-                                            std::string{option_name}};
+        read( map, "Num_Threads", cfg.num_threads );
+        read( map, "Num_Particles", cfg.num_particles );
+        read( map, "Warmup_Sweeps", cfg.warmup_sweeps );
+        read( map, "Measure_Sweeps", cfg.measure_sweeps );
+        read( map, "Box_Length", cfg.box_length );
+        read( map, "Block_Size", cfg.block_size );
+        read( map, "Master_Seed", cfg.master_seed );
+        read( map, "Is_Master_Thread", cfg.is_master_thread );
+
+        if ( !map.empty() ) {
+            std::cout << "[Config] Warning! unknown keys ignored:";
+            for ( auto const &[key, val] : map ) {
+                std::cout << " " << key;
             }
-            ++idx;
-            option_value = argv[idx];
-        } else {
-            option_name = token.substr(0, equals_pos);
-            option_value = token.substr(equals_pos + 1);
+            std::cout << "\n";
         }
 
-        const auto parsed_option{parse_option_name(option_name)};
-        if (!parsed_option.has_value()) {
-            throw std::invalid_argument{"Unknown option: --" + std::string{option_name}};
-        }
-        if (option_value.empty()) {
-            throw std::invalid_argument{"Missing value for option --" +
-                                        std::string{canonical_option_name(*parsed_option)}};
-        }
-        if (get_option_value(raw, *parsed_option).has_value()) {
-            throw std::invalid_argument{"Duplicate option: --" +
-                                        std::string{canonical_option_name(*parsed_option)}};
-        }
-
-        set_option_value(raw, *parsed_option, option_value);
+        cfg.compute_derived();
+        return cfg;
     }
 
-    constexpr std::array<OptionId, 7> all_options{
-        OptionId::NUM_PARTICLES, OptionId::BOX_LENGTH, OptionId::WARMUP_STEPS,
-        OptionId::MEASURE_STEPS, OptionId::STEP_SIZE,  OptionId::SEED,
-        OptionId::BLOCK_SIZE,
-    };
+private:
+    void compute_derived() {
+        this->warmup_steps = num_particles * warmup_sweeps;
+        this->measure_steps = num_particles * measure_sweeps;
+        this->step_size = box_length / 10.0;
+    }
 
-    std::string missing{};
-    for (const OptionId option : all_options) {
-        if (!get_option_value(raw, option).has_value()) {
-            if (!missing.empty()) {
-                missing += ", ";
+    // Because C++ is so ugly:
+    using Map = std::unordered_map<std::string, std::string>;
+
+    // Parser:
+    [[nodiscard]] static Map parse( std::ifstream &file ) {
+        Map map{};
+        std::string line{};
+
+        while ( std::getline( file, line ) ) {
+            // Strip comments:
+            if ( auto pos{ line.find( '#' ) }; pos != std::string::npos ) {
+                line.erase( pos );
             }
-            missing += "--";
-            missing += canonical_option_name(option);
+            // Skip blank lines:
+            if ( line.find_first_not_of( " \t\r" ) == std::string::npos ) {
+                continue;
+            }
+            auto eq{ line.find( '=' ) };
+            if ( eq == std::string::npos ) {
+                continue;
+            }
+            std::string key{ trim( line.substr( 0, eq ) ) };
+            std::string val{ trim( line.substr( eq + 1 ) ) };
+
+            if ( !key.empty() && !val.empty() ) {
+                map[key] = val;
+            }
+        }
+        return map;
+    }
+
+    [[nodiscard]] static std::string trim( std::string s ) {
+        auto const start{ s.find_first_not_of( " \t\r" ) };
+        if ( start == std::string::npos ) return {};
+        auto const end{ s.find_last_not_of( " \t\r" ) };
+        
+        return s.substr( start, end - start + 1 );
+    }
+
+    // Type-specific readers; erase consumed keys so leftovers can be warned:
+
+    static void read( Map &map, std::string const &key, double &out ) {
+        if ( auto it{ map.find( key ) }; it != map.end() ) {
+            out = std::stod( it->second );
+            map.erase( it );
         }
     }
-    if (!missing.empty()) {
-        throw std::invalid_argument{"Missing required options: " + missing};
+
+    static void read( Map &map, std::string const &key, std::size_t &out ) {
+        if ( auto it{ map.find( key ) }; it != map.end() ) {
+            out = static_cast<std::size_t>( std::stoull( it->second ) );
+            map.erase( it );
+        }
     }
 
-    const Config config{
-        .num_particles = parse_integer<std::size_t>(*raw.num_particles, "num_particles"),
-        .box_length = parse_double(*raw.box_length, "box_length"),
-        .warmup_steps = parse_integer<std::size_t>(*raw.warmup_steps, "warmup_steps"),
-        .measure_steps = parse_integer<std::size_t>(*raw.measure_steps, "measure_steps"),
-        .step_size = parse_double(*raw.step_size, "step_size"),
-        .seed = parse_integer<std::uint64_t>(*raw.seed, "seed"),
-        .block_size = parse_integer<std::size_t>(*raw.block_size, "block_size")
-    };
-    validate_config(config);
-    return config;
-}
+    #if UINTPTR_MAX != UINT64_MAX
+    static void read( Map &map, std::string const &key, uint64_t &out ) {
+        if ( auto it{ map.find( key ) }; it != map.end() ) {
+            out = std::stoull( it->second );
+            map.erase( it );
+        }
+    }
+    #endif
 
-[[maybe_unused]] void print_config(const Config& config) {
-    std::cout << "num_particles: " << config.num_particles << '\n'
-              << "box_length: " << config.box_length << '\n'
-              << "warmup_steps: " << config.warmup_steps << '\n'
-              << "measure_steps: " << config.measure_steps << '\n'
-              << "step_size: " << config.step_size << '\n'
-              << "seed: " << config.seed << '\n'
-              << "block_size: " << config.block_size << '\n';
-}
+    static void read( Map &map, std::string const &key, int &out ) {
+        if ( auto it{ map.find( key ) }; it != map.end() ) {
+            out = std::stoi( it->second );
+            map.erase( it );
+        }
+    }
 
-} // Namespace
+    static void read( Map &map, std::string const &key, bool &out ) {
+        if ( auto it{ map.find( key ) }; it != map.end() ) {
+            std::string val{ it->second };
+            // Lowercase for comparison:
+            for ( auto &ch : val ) ch = static_cast<char>( std::tolower( ch ) );
+            out = ( val == "true" || val == "1" );
+            map.erase( it );
+        }
+    }
+};

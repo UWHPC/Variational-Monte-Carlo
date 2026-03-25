@@ -14,7 +14,7 @@ Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_write
       wave_function_{particles_, config_.box_length}, blocking_analysis_{config_.block_size},
       energy_tracker_{config_.box_length, static_cast<double>(config_.num_particles)},
       output_writer_{std::move(output_writer)}, proposed_{}, accepted_{}, log_psi_current_{},
-      rng_{config_.seed}, proposal_{-config_.step_size, config_.step_size},
+      rng_{config_.master_seed}, proposal_{-config_.step_size, config_.step_size},
       pick_particle_{0, config_.num_particles - 1} {}
 
 std::vector<double> Simulation::positions_snapshot() const {
@@ -87,40 +87,40 @@ Simulation::StepResult Simulation::metropolis_step() {
     ASSUME_ALIGNED(p_z, SIMD_BYTES);
 
     // Local random vars:
-    const std::size_t rand_particle{rand_particle_get()};
+    const std::size_t rand{rand_particle_get()};
     const double L{config_.box_length};
     const double inv_L{1.0 / L};
 
     // Old positions:
-    const double old_x{p_x[rand_particle]};
-    const double old_y{p_y[rand_particle]};
-    const double old_z{p_z[rand_particle]};
+    const double old_x{p_x[rand]};
+    const double old_y{p_y[rand]};
+    const double old_z{p_z[rand]};
 
     // Add randomness:
-    p_x[rand_particle] += rand_proposal_double();
-    p_y[rand_particle] += rand_proposal_double();
-    p_z[rand_particle] += rand_proposal_double();
+    p_x[rand] += rand_proposal_double();
+    p_y[rand] += rand_proposal_double();
+    p_z[rand] += rand_proposal_double();
 
     // Branchless wrapping for [0, L)
-    p_x[rand_particle] -= L * std::floor(p_x[rand_particle] * inv_L);
-    p_y[rand_particle] -= L * std::floor(p_y[rand_particle] * inv_L);
-    p_z[rand_particle] -= L * std::floor(p_z[rand_particle] * inv_L);
+    p_x[rand] -= L * std::floor(p_x[rand] * inv_L);
+    p_y[rand] -= L * std::floor(p_y[rand] * inv_L);
+    p_z[rand] -= L * std::floor(p_z[rand] * inv_L);
 
     // Build new Slater row for moved particle and compute determinant ratio - O(N):
     auto& slater{wave_function_get().slater_plane_wave_get()};
 
     // Save trig in case need to revert:
-    slater.save_trig_row(rand_particle);
+    slater.save_trig_row(rand);
 
     // Update it to proceed:
-    slater.update_trig_cache(rand_particle, particles_get());
+    slater.update_trig_cache(rand, particles_get());
 
-    const double* new_row{slater.build_row(rand_particle)};
-    const double slater_ratio{slater.determinant_ratio(rand_particle, new_row)};
+    const double* new_row{slater.build_row(rand)};
+    const double slater_ratio{slater.determinant_ratio(rand, new_row)};
 
     // Compute new Jastrow value:
     const double delta_jastrow{wave_function_get().jastrow_pade_get().delta_value(
-        particles_get(), rand_particle, old_x, old_y, old_z)};
+        particles_get(), rand, old_x, old_y, old_z)};
     const double log_ratio_sq{2.0 * std::log(std::abs(slater_ratio)) + 2.0 * delta_jastrow};
 
     const double u{std::max(rand_uniform_double(), std::numeric_limits<double>::min())};
@@ -134,24 +134,24 @@ Simulation::StepResult Simulation::metropolis_step() {
         log_psi_set() += std::log(std::abs(slater_ratio)) + delta_jastrow;
 
         // Sherman-Morrison inverse update:
-        slater.accept_move(rand_particle, new_row, slater_ratio);
+        slater.accept_move(rand, new_row, slater_ratio);
 
         // Update Ewald structure factors, and potential energies:
-        energy_tracker_get().update_structure_factors(old_x, old_y, old_z, p_x[rand_particle],
-                                                      p_y[rand_particle], p_z[rand_particle]);
-        energy_tracker_get().update_real_energy(rand_particle, old_x, old_y, old_z,
+        energy_tracker_get().update_structure_factors(old_x, old_y, old_z, p_x[rand],
+                                                      p_y[rand], p_z[rand]);
+        energy_tracker_get().update_real_energy(rand, old_x, old_y, old_z,
                                                 particles_get());
 
-        return StepResult{true, rand_particle, old_x, old_y, old_z};
+        return StepResult{true, rand, old_x, old_y, old_z};
     }
 
     // Restore positions and trig if rejected:
-    slater.restore_trig_row(rand_particle);
-    p_x[rand_particle] = old_x;
-    p_y[rand_particle] = old_y;
-    p_z[rand_particle] = old_z;
+    slater.restore_trig_row(rand);
+    p_x[rand] = old_x;
+    p_y[rand] = old_y;
+    p_z[rand] = old_z;
 
-    return StepResult{false, rand_particle, old_x, old_y, old_z};
+    return StepResult{false, rand, old_x, old_y, old_z};
 }
 
 /// @brief Warmup the simulation by processing a small warmup sweep on particles
@@ -165,8 +165,8 @@ void Simulation::warmup() {
     std::size_t window_accepted{};
 
     double acceptance_rate_window{};
-    const double acceptance_target{0.5}; // Currently targeting a 50% acceptance rate
-    const double gain{0.25};             // This limits making large changes to step size
+    const double acceptance_target{0.50}; // Currently targeting a 50% acceptance rate
+    const double gain{0.25};              // This limits making large changes to step size
 
     for (std::size_t i{}; i < warmup_steps; i++) {
         window_proposed++;
@@ -259,13 +259,13 @@ Simulation::MeasurementSummary Simulation::run() {
     initialize_positions();
 
     if (output_writer_) {
-        output_writer_->write_init(InitData{.run_id = "vmc-seed-" + std::to_string(config_.seed),
+        output_writer_->write_init(InitData{.run_id = "vmc-seed-" + std::to_string(config_.master_seed),
                                             .num_particles = config_.num_particles,
                                             .box_length = config_.box_length,
                                             .warmup_steps = config_.warmup_steps,
                                             .measure_steps = config_.measure_steps,
                                             .step_size = config_.step_size,
-                                            .seed = config_.seed,
+                                            .seed = config_.master_seed,
                                             .block_size = config_.block_size});
     }
 
