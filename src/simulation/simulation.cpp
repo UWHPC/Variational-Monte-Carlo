@@ -238,29 +238,24 @@ Simulation::MeasurementSummary Simulation::measure() {
                                                   .positions = positions_snapshot()});
         }
 
-        if ((i & 127) == 0 || (i + 1U) == measure_steps) {
-            std::cout << "\rProgress: " << (i * 100 / measure_steps) << "%" << std::flush;
+        if (config_.is_master_thread) {
+            if ((i & 127) == 0 || i == measure_steps) {
+               std::cout << "\rProgress: " << (i * 100 / measure_steps) << "%" << std::flush;
+            }
         }
+        
     }
-    // Clear the progress bar:
-    std::cout << "\r" << std::string(20, ' ') << "\r";
-
-    if (!output_writer_ && blocking_analysis.ready()) {
-        // Pair of the mean and standard deviation:
-        const auto [mean, stand_error]{blocking_analysis.mean_and_standard_error()};
-        std::cout << std::fixed << std::setprecision(6) << "Energy: " << mean << " +/- "
-                  << stand_error << " Ha\n";
-    }
-
-    if (!output_writer_) {
-        std::cout << "Acceptance Rate: " << 100.0 * acceptance_rate() << "%\n";
+    if (config_.is_master_thread) {
+        // Clear the progress bar:
+        std::cout << "\r" << std::string(20, ' ') << "\r";
     }
 
     return MeasurementSummary{.mean_energy = final_mean_energy,
-                              .standard_error = final_standard_error};
+                              .standard_error = final_standard_error,
+                              .acceptance_rate = acceptance_rate()};
 }
 
-void Simulation::run() {
+Simulation::MeasurementSummary Simulation::run() {
     initialize_positions();
 
     if (output_writer_) {
@@ -284,4 +279,6 @@ void Simulation::run() {
                                             .final_mean_energy = summary.mean_energy,
                                             .final_standard_error = summary.standard_error});
     }
+
+    return summary;
 }

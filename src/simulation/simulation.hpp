@@ -63,11 +63,6 @@ private:
         return static_cast<double>(accepted_) / static_cast<double>(proposed_);
     }
 
-    struct MeasurementSummary {
-        double mean_energy;
-        std::optional<double> standard_error;
-    };
-
     struct StepResult {
         bool accepted;
         std::size_t moved_particle;
@@ -79,8 +74,15 @@ private:
     [[nodiscard]] std::vector<double> positions_snapshot() const;
 
 public:
+    struct MeasurementSummary {
+        double mean_energy;
+        std::optional<double> standard_error;
+        double acceptance_rate;
+    };
+
+public:
     explicit Simulation(Config cfg, std::unique_ptr<OutputWriter> output_writer = nullptr);
-    void run();
+    MeasurementSummary run();
 
 private:
     void initialize_positions();

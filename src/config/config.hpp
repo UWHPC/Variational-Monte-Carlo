@@ -20,6 +20,7 @@ struct Config {
     double step_size;          // proposal half-width s
     uint64_t seed;             // Random seed
     std::size_t block_size;    // Size of block
+    bool is_master_thread{};   // Is the Master Thread
 };
 
 namespace {
@@ -279,7 +280,7 @@ void validate_config(const Config& config) {
         .measure_steps = parse_integer<std::size_t>(*raw.measure_steps, "measure_steps"),
         .step_size = parse_double(*raw.step_size, "step_size"),
         .seed = parse_integer<std::uint64_t>(*raw.seed, "seed"),
-        .block_size = parse_integer<std::size_t>(*raw.block_size, "block_size"),
+        .block_size = parse_integer<std::size_t>(*raw.block_size, "block_size")
     };
     validate_config(config);
     return config;

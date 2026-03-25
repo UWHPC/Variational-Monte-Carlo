@@ -5,6 +5,9 @@
 #include <chrono>
 #include <fstream>
 #include <iostream>
+#include <future>
+#include <thread>
+#include <iomanip>
 #include <memory>
 #include <omp.h>
 
@@ -33,7 +36,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     static constexpr std::size_t MEASURE_SWEEPS{200U}; // Number of sweeps for measure
 
     static constexpr double BOX_LENGTH{9.0};       // Length of the system box
-    static constexpr std::size_t SEED{123456U};    // Default random seed
+    static constexpr std::size_t MASTER_SEED{123456U};    // Default random seed
     static constexpr std::size_t BLOCK_SIZE{500U}; // Size of block
 
     // DO NOT EDIT - these parameters change based on parameters above:
@@ -44,13 +47,14 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     static constexpr double STEP_SIZE{BOX_LENGTH / 10.0}; // Default step size
 
     // Config passed to simulation
-    const Config config{.num_particles = N,
+    const Config master_config{.num_particles = N,
                         .box_length = BOX_LENGTH,
                         .warmup_steps = WARM_STEPS,
                         .measure_steps = MEASURE_STEPS,
                         .step_size = STEP_SIZE,
-                        .seed = SEED,
-                        .block_size = BLOCK_SIZE};
+                        .seed = MASTER_SEED,
+                        .block_size = BLOCK_SIZE
+                    };
 
     // const Config config{parse_args(argc, argv)};
     // std::ofstream out_file{"data/run.jsonl"};
@@ -59,15 +63,61 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     //     return 1;
     // }
     // std::unique_ptr<OutputWriter> writer{make_output_writer(OutputFormat::JSON, out_file)};
+    
 
-    Simulation sim{config};
+    try {
+        std::size_t num_threads = std::thread::hardware_concurrency();
+        // if (num_threads == 0) 
+        num_threads = 4;
 
-    auto start{std::chrono::steady_clock::now()};
-    sim.run();
-    auto end{std::chrono::steady_clock::now()};
+        std::mt19937_64 master_rng(master_config.seed);
+        std::uniform_int_distribution<uint64_t> seedDist;
 
-    std::chrono::duration<double> elapsed{end - start};
-    std::cout << "Elapsed: " << elapsed.count() << " s" << std::endl;
+        std::vector<std::future<Simulation::MeasurementSummary>> futures;
+
+        auto start{std::chrono::steady_clock::now()};
+
+        for (std::size_t thread{}; thread < num_threads; ++thread) {
+            Config thread_config = master_config;
+            thread_config.seed = seedDist(master_rng);
+            thread_config.is_master_thread = (thread == 0);
+
+            futures.push_back(std::async(std::launch::async, [thread_config]() {
+                Simulation sim{thread_config};
+                return sim.run();
+            }));
+        } 
+        
+        double global_energy_sum{};
+        double global_variance_sum{};
+        double global_acceptance_sum{};
+
+        for (auto& f : futures) {
+            Simulation::MeasurementSummary summary = f.get();
+            global_energy_sum += summary.mean_energy;
+            global_variance_sum += (*summary.standard_error) * (*summary.standard_error);
+            global_acceptance_sum += summary.acceptance_rate;
+        }
+
+        double final_mean = global_energy_sum / num_threads;
+        double final_se = std::sqrt(global_variance_sum) / num_threads;
+        double final_acceptance_rate = global_acceptance_sum / num_threads * 100;
+
+        std::cout << "Final Aggregated Energy: " << std::setprecision(6)
+                  << final_mean << " +/- " << final_se << std::endl;
+
+        auto end{std::chrono::steady_clock::now()};
+
+        std::chrono::duration<double> elapsed{end - start};
+        std::cout << "Elapsed: " << elapsed.count() << " s" << std::endl;
+
+        std::cout << "Acceptance Rate: " << final_acceptance_rate << "%" << std::endl;
+
+        return 0;
+    } catch (const std::exception& e) {
+        std::cout << "Exception: " << e.what() << std::endl;
+        std::exit(-1);
+    }  
 
     return 0;
 }
