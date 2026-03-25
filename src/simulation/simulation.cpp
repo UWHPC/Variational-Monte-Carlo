@@ -1,11 +1,13 @@
 #include "simulation.hpp"
 
 #include <cmath>
+#include <limits>
 #include <iomanip>
 #include <iostream>
 #include <optional>
 #include <string>
 #include <utility>
+#include <stdexcept>
 
 Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_writer)
     : config_{std::move(config)}, particles_{config_.num_particles},
@@ -20,6 +22,10 @@ std::vector<double> Simulation::positions_snapshot() const {
     const double* RESTRICT p_x{particles_.pos_x_get()};
     const double* RESTRICT p_y{particles_.pos_y_get()};
     const double* RESTRICT p_z{particles_.pos_z_get()};
+
+    ASSUME_ALIGNED(p_x, SIMD_BYTES);
+    ASSUME_ALIGNED(p_y, SIMD_BYTES);
+    ASSUME_ALIGNED(p_z, SIMD_BYTES);
 
     std::vector<double> positions{};
     positions.reserve(N * 3U);
@@ -39,16 +45,29 @@ void Simulation::initialize_positions() {
     double* RESTRICT p_y{particles_.pos_y_get()};
     double* RESTRICT p_z{particles_.pos_z_get()};
 
+    ASSUME_ALIGNED(p_x, SIMD_BYTES);
+    ASSUME_ALIGNED(p_y, SIMD_BYTES);
+    ASSUME_ALIGNED(p_z, SIMD_BYTES);
+
     const std::size_t N{particles_.num_particles_get()};
     const double length{config_.box_length};
 
-    // Generate Random Starting Positions
-    for (std::size_t i{}; i < N; i++) {
-        p_x[i] = rand_uniform_double() * length;
-        p_y[i] = rand_uniform_double() * length;
-        p_z[i] = rand_uniform_double() * length;
+    constexpr std::size_t MAX_INIT_ATTEMPTS{100};
+
+    for (std::size_t attempt = 0; attempt < MAX_INIT_ATTEMPTS; ++attempt) {
+        for (std::size_t i = 0; i < N; i++) {
+            p_x[i] = rand_uniform_double() * length;
+            p_y[i] = rand_uniform_double() * length;
+            p_z[i] = rand_uniform_double() * length;
+        }
+
+        log_psi_set() = wave_function_get().evaluate_log_psi(particles_get());
+        if (std::isfinite(log_psi_get())) break;
+
+        if (attempt == MAX_INIT_ATTEMPTS - 1) {
+            throw std::runtime_error("Failed to find non-singular initial configuration");
+        }
     }
-    log_psi_set() = wave_function_get().evaluate_log_psi(particles_get());
 
     energy_tracker_get().initialize_structure_factors(particles_get());
     energy_tracker_get().initialize_reciprocal_energy();
@@ -63,9 +82,14 @@ Simulation::StepResult Simulation::metropolis_step() {
     double* RESTRICT p_y{particles_.pos_y_get()};
     double* RESTRICT p_z{particles_.pos_z_get()};
 
+    ASSUME_ALIGNED(p_x, SIMD_BYTES);
+    ASSUME_ALIGNED(p_y, SIMD_BYTES);
+    ASSUME_ALIGNED(p_z, SIMD_BYTES);
+
     // Local random vars:
     const std::size_t rand_particle{rand_particle_get()};
     const double L{config_.box_length};
+    const double inv_L{1.0 / L};
 
     // Old positions:
     const double old_x{p_x[rand_particle]};
@@ -78,9 +102,9 @@ Simulation::StepResult Simulation::metropolis_step() {
     p_z[rand_particle] += rand_proposal_double();
 
     // Branchless wrapping for [0, L)
-    p_x[rand_particle] += L * (p_x[rand_particle] < 0.0) - L * (p_x[rand_particle] >= L);
-    p_y[rand_particle] += L * (p_y[rand_particle] < 0.0) - L * (p_y[rand_particle] >= L);
-    p_z[rand_particle] += L * (p_z[rand_particle] < 0.0) - L * (p_z[rand_particle] >= L);
+    p_x[rand_particle] -= L * std::floor(p_x[rand_particle] * inv_L);
+    p_y[rand_particle] -= L * std::floor(p_y[rand_particle] * inv_L);
+    p_z[rand_particle] -= L * std::floor(p_z[rand_particle] * inv_L);
 
     // Build new Slater row for moved particle and compute determinant ratio - O(N):
     auto& slater{wave_function_get().slater_plane_wave_get()};
@@ -99,7 +123,8 @@ Simulation::StepResult Simulation::metropolis_step() {
         particles_get(), rand_particle, old_x, old_y, old_z)};
     const double log_ratio_sq{2.0 * std::log(std::abs(slater_ratio)) + 2.0 * delta_jastrow};
 
-    const double log_u{std::log(rand_uniform_double())};
+    const double u{std::max(rand_uniform_double(), std::numeric_limits<double>::min())};
+    const double log_u{std::log(u)};
     const double min_term{std::min(0.0, log_ratio_sq)};
 
     const bool accepted{log_u < min_term};

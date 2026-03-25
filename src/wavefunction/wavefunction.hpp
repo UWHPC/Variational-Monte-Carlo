@@ -21,7 +21,7 @@ private:
     AlignedSoA<double> derivatives_;
 
 public:
-    explicit WaveFunction(const Particles& particles, double box_length, double a = 0.5,
+    explicit WaveFunction(const Particles& particles, double box_length, double a = 0.25,
                           double b = 1.0)
         : jastrow_pade_{box_length, a, b}, slater_plane_wave_{particles, box_length},
           jastrow_cache_valid_{}, steps_since_refresh_{},

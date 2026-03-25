@@ -15,15 +15,20 @@ double JastrowPade::value(const Particles& particles) const noexcept {
     const double* RESTRICT pos_y{particles.pos_y_get()};
     const double* RESTRICT pos_z{particles.pos_z_get()};
 
+    ASSUME_ALIGNED(pos_x, SIMD_BYTES);
+    ASSUME_ALIGNED(pos_y, SIMD_BYTES);
+    ASSUME_ALIGNED(pos_z, SIMD_BYTES);
+
     const double a_local{a_get()};
     const double b_local{b_get()};
 
     double jastrow_pade{};
 
+    #pragma omp parallel for reduction(+ : jastrow_pade)
     for (std::size_t i = 0; i < num_particles; ++i) {
         double local_jastrow{};
 
-#pragma omp simd reduction(+ : local_jastrow)
+        #pragma omp simd reduction(+ : local_jastrow)
         for (std::size_t j = 0; j < num_particles; ++j) {
             const double mask{i == j ? 0.0 : 1.0};
 
@@ -65,15 +70,25 @@ void JastrowPade::add_derivatives(const Particles& particles, double* RESTRICT g
     const double* RESTRICT pos_y{particles.pos_y_get()};
     const double* RESTRICT pos_z{particles.pos_z_get()};
 
+    ASSUME_ALIGNED(pos_x, SIMD_BYTES);
+    ASSUME_ALIGNED(pos_y, SIMD_BYTES);
+    ASSUME_ALIGNED(pos_z, SIMD_BYTES);
+
+    ASSUME_ALIGNED(grad_x, SIMD_BYTES);
+    ASSUME_ALIGNED(grad_y, SIMD_BYTES);
+    ASSUME_ALIGNED(grad_z, SIMD_BYTES);
+    ASSUME_ALIGNED(laplacian, SIMD_BYTES);
+
     const double a_local{a_get()};
     const double b_local{b_get()};
     const double neg_two_a_b{-2.0 * a_local * b_local};
 
+    #pragma omp parallel for
     for (std::size_t i = 0; i < num_particles; ++i) {
         // i accumulators to prevent SIMD lane collisions
         double d_grad_x{}, d_grad_y{}, d_grad_z{}, d_lap{};
 
-#pragma omp simd reduction(+ : d_grad_x, d_grad_y, d_grad_z, d_lap)
+        #pragma omp simd reduction(+ : d_grad_x, d_grad_y, d_grad_z, d_lap)
         for (std::size_t j = 0; j < num_particles; ++j) {
             const double valid_idx{i == j ? 0.0 : 1.0};
 
@@ -136,6 +151,10 @@ double JastrowPade::delta_value(const Particles& particles, std::size_t moved, d
     const double* RESTRICT pos_x{particles.pos_x_get()};
     const double* RESTRICT pos_y{particles.pos_y_get()};
     const double* RESTRICT pos_z{particles.pos_z_get()};
+    
+    ASSUME_ALIGNED(pos_x, SIMD_BYTES);
+    ASSUME_ALIGNED(pos_y, SIMD_BYTES);
+    ASSUME_ALIGNED(pos_z, SIMD_BYTES);
 
     const double a_local{a_get()};
     const double b_local{b_get()};
@@ -146,7 +165,7 @@ double JastrowPade::delta_value(const Particles& particles, std::size_t moved, d
 
     double delta{};
 
-#pragma omp simd reduction(+ : delta)
+    #pragma omp simd reduction(+ : delta)
     for (std::size_t j = 0; j < num_particles; ++j) {
         // mask to skip the moved particle safely
         const double valid_mask{(j == moved) ? 0.0 : 1.0};
@@ -205,6 +224,15 @@ void JastrowPade::update_derivatives_for_move(const Particles& particles, std::s
     const double* RESTRICT pos_y{particles.pos_y_get()};
     const double* RESTRICT pos_z{particles.pos_z_get()};
 
+    ASSUME_ALIGNED(pos_x, SIMD_BYTES);
+    ASSUME_ALIGNED(pos_y, SIMD_BYTES);
+    ASSUME_ALIGNED(pos_z, SIMD_BYTES);
+
+    ASSUME_ALIGNED(grad_x, SIMD_BYTES);
+    ASSUME_ALIGNED(grad_y, SIMD_BYTES);
+    ASSUME_ALIGNED(grad_z, SIMD_BYTES);
+    ASSUME_ALIGNED(laplacian, SIMD_BYTES);
+
     const double a_local{a_get()};
     const double b_local{b_get()};
     const double m2ab{-2.0 * a_local * b_local};
@@ -216,7 +244,7 @@ void JastrowPade::update_derivatives_for_move(const Particles& particles, std::s
     // Moved variables out of the loop
     double m_grad_x{}, m_grad_y{}, m_grad_z{}, m_lap{};
 
-#pragma omp simd reduction(+ : m_grad_x, m_grad_y, m_grad_z, m_lap)
+    #pragma omp simd reduction(+ : m_grad_x, m_grad_y, m_grad_z, m_lap)
     for (std::size_t j = 0; j < num_particles; ++j) {
         // Combined branchless masks
         const bool is_moved{j == moved};

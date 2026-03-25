@@ -22,6 +22,16 @@ void WaveFunction::evaluate_derivatives(Particles& particles) noexcept {
     double* RESTRICT jastrow_grad_z{jastrow_grad_z_get()};
     double* RESTRICT jastrow_lap{jastrow_lap_get()};
 
+    ASSUME_ALIGNED(log_grad_x, SIMD_BYTES);
+    ASSUME_ALIGNED(log_grad_y, SIMD_BYTES);
+    ASSUME_ALIGNED(log_grad_z, SIMD_BYTES);
+    ASSUME_ALIGNED(log_lap, SIMD_BYTES);
+
+    ASSUME_ALIGNED(jastrow_grad_x, SIMD_BYTES);
+    ASSUME_ALIGNED(jastrow_grad_y, SIMD_BYTES);
+    ASSUME_ALIGNED(jastrow_grad_z, SIMD_BYTES);
+    ASSUME_ALIGNED(jastrow_lap, SIMD_BYTES);
+
     std::fill_n(log_grad_x, padded_stride, 0.0);
     std::fill_n(log_grad_y, padded_stride, 0.0);
     std::fill_n(log_grad_z, padded_stride, 0.0);
@@ -36,7 +46,7 @@ void WaveFunction::evaluate_derivatives(Particles& particles) noexcept {
     jastrow_pade_.add_derivatives(particles, jastrow_grad_x, jastrow_grad_y, jastrow_grad_z,
                                   jastrow_lap);
 
-#pragma omp simd
+    #pragma omp simd
     for (std::size_t i = 0; i < padded_stride; ++i) {
         log_grad_x[i] += jastrow_grad_x[i];
         log_grad_y[i] += jastrow_grad_y[i];
@@ -74,6 +84,16 @@ void WaveFunction::evaluate_derivatives(Particles& particles, bool move_accepted
     double* RESTRICT jastrow_grad_z{jastrow_grad_z_get()};
     double* RESTRICT jastrow_lap{jastrow_lap_get()};
 
+    ASSUME_ALIGNED(log_grad_x, SIMD_BYTES);
+    ASSUME_ALIGNED(log_grad_y, SIMD_BYTES);
+    ASSUME_ALIGNED(log_grad_z, SIMD_BYTES);
+    ASSUME_ALIGNED(log_lap, SIMD_BYTES);
+
+    ASSUME_ALIGNED(jastrow_grad_x, SIMD_BYTES);
+    ASSUME_ALIGNED(jastrow_grad_y, SIMD_BYTES);
+    ASSUME_ALIGNED(jastrow_grad_z, SIMD_BYTES);
+    ASSUME_ALIGNED(jastrow_lap, SIMD_BYTES);
+
     jastrow_pade_.update_derivatives_for_move(particles, moved, old_x, old_y, old_z, jastrow_grad_x,
                                               jastrow_grad_y, jastrow_grad_z, jastrow_lap);
 
@@ -84,7 +104,7 @@ void WaveFunction::evaluate_derivatives(Particles& particles, bool move_accepted
 
     slater_plane_wave_.add_derivatives(log_grad_x, log_grad_y, log_grad_z, log_lap);
 
-#pragma omp simd
+    #pragma omp simd
     for (std::size_t i = 0; i < padded_stride; ++i) {
         log_grad_x[i] += jastrow_grad_x[i];
         log_grad_y[i] += jastrow_grad_y[i];
