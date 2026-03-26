@@ -1,29 +1,13 @@
-#include <catch2/catch_test_macros.hpp>
+#include "test_utilities.hpp"
+
 #include <catch2/catch_message.hpp>
 
-#include "particles/particles.hpp"
 #include "slater_plane_wave/slater_plane_wave.hpp"
 
 #include <cmath>
 #include <numbers>
 #include <tuple>
 #include <vector>
-
-namespace {
-
-void requireNearSlater(double actual, double expected, double tolerance = 1e-10) {
-    REQUIRE(std::abs(actual - expected) <= tolerance);
-}
-
-std::size_t matrixIndex(std::size_t row, std::size_t col, std::size_t n) { return row * n + col; }
-
-static double determinant3x3(const double* matrix) {
-    return matrix[0] * (matrix[4] * matrix[8] - matrix[5] * matrix[7]) -
-           matrix[1] * (matrix[3] * matrix[8] - matrix[5] * matrix[6]) +
-           matrix[2] * (matrix[3] * matrix[7] - matrix[4] * matrix[6]);
-}
-
-} // namespace
 
 TEST_CASE("SlaterPlaneWave constructor initializes correctly", "[slater]") {
     constexpr std::size_t N{3U};
@@ -46,9 +30,9 @@ TEST_CASE("log_abs_det handles the N=1 constant orbital case", "[slater]") {
 
     const double logDet{slater.log_abs_det(particles)};
 
-    requireNearSlater(logDet, 0.0);
-    requireNearSlater(slater.determinant_get()[0], 1.0);
-    requireNearSlater(slater.inv_determinant_get()[0], 1.0);
+    require_near(logDet, 0.0);
+    require_near(slater.determinant_get()[0], 1.0);
+    require_near(slater.inv_determinant_get()[0], 1.0);
 }
 
 TEST_CASE("log_abs_det computes an inverse satisfying D*invD = I", "[slater]") {
@@ -76,11 +60,11 @@ TEST_CASE("log_abs_det computes an inverse satisfying D*invD = I", "[slater]") {
         for (std::size_t col = 0; col < N; ++col) {
             double value{};
             for (std::size_t k = 0; k < N; ++k) {
-                value += slater.determinant_get()[matrixIndex(row, k, N)] *
-                         slater.inv_determinant_get()[matrixIndex(col, k, N)];
+                value += slater.determinant_get()[matrix_index(row, k, N)] *
+                         slater.inv_determinant_get()[matrix_index(col, k, N)];
             }
             const double expected{row == col ? 1.0 : 0.0};
-            requireNearSlater(value, expected, 1e-9);
+            require_near(value, expected, 1e-9);
         }
     }
 }
@@ -124,7 +108,7 @@ TEST_CASE("determinant_ratio matches exact determinant ratio for a moved row", "
     const double logDetOld{slater.log_abs_det(particles)};
     REQUIRE(std::isfinite(logDetOld));
 
-    const double detOld{determinant3x3(slater.determinant_get())};
+    const double detOld{determinant_3x3(slater.determinant_get())};
     REQUIRE(std::abs(detOld) > 1e-12);
 
     constexpr std::size_t moved{1U};
@@ -140,12 +124,12 @@ TEST_CASE("determinant_ratio matches exact determinant ratio for a moved row", "
     const double logDetNew{exactSlater.log_abs_det(particles)};
     REQUIRE(std::isfinite(logDetNew));
 
-    const double detNew{determinant3x3(exactSlater.determinant_get())};
+    const double detNew{determinant_3x3(exactSlater.determinant_get())};
     const double exactRatio{detNew / detOld};
 
     INFO("Trial-move determinant ratio should equal det(D_new) / det(D_old).");
     CAPTURE(detOld, detNew, ratio, exactRatio, moved);
-    requireNearSlater(ratio, exactRatio, 1e-10);
+    require_near(ratio, exactRatio, 1e-10);
 }
 
 TEST_CASE("accept_move matches a fresh full rebuild after an accepted row update", "[slater]") {
@@ -191,8 +175,8 @@ TEST_CASE("accept_move matches a fresh full rebuild after an accepted row update
 
     for (std::size_t idx = 0; idx < N * N; ++idx) {
         CAPTURE(idx);
-        requireNearSlater(updated.determinant_get()[idx], rebuilt.determinant_get()[idx], 1e-12);
-        requireNearSlater(updated.inv_determinant_get()[idx], rebuilt.inv_determinant_get()[idx],
+        require_near(updated.determinant_get()[idx], rebuilt.determinant_get()[idx], 1e-12);
+        require_near(updated.inv_determinant_get()[idx], rebuilt.inv_determinant_get()[idx],
                           1e-9);
     }
 }
@@ -224,13 +208,13 @@ TEST_CASE("N=3 determinant matrix uses cos/sin basis correctly", "[slater]") {
 
     // Orbital 0 should be cos type with k=0
     REQUIRE(o_type[0] == 0);
-    requireNearSlater(slater.k_vector_x_get()[k_index[0]], 0.0);
-    requireNearSlater(slater.k_vector_y_get()[k_index[0]], 0.0);
-    requireNearSlater(slater.k_vector_z_get()[k_index[0]], 0.0);
+    require_near(slater.k_vector_x_get()[k_index[0]], 0.0);
+    require_near(slater.k_vector_y_get()[k_index[0]], 0.0);
+    require_near(slater.k_vector_z_get()[k_index[0]], 0.0);
 
     // First column should all be 1.0 (cos(0))
     for (std::size_t i = 0; i < N; ++i) {
-        requireNearSlater(slater.determinant_get()[matrixIndex(i, 0, N)], 1.0);
+        require_near(slater.determinant_get()[matrix_index(i, 0, N)], 1.0);
     }
 
     // Orbital 1 should be cos, orbital 2 should be sin, same k-vector
@@ -247,8 +231,8 @@ TEST_CASE("N=3 determinant matrix uses cos/sin basis correctly", "[slater]") {
     for (std::size_t i = 0; i < N; ++i) {
         const double k_dot_r{kx * particles.pos_x_get()[i] + ky * particles.pos_y_get()[i] +
                              kz * particles.pos_z_get()[i]};
-        requireNearSlater(slater.determinant_get()[matrixIndex(i, 1, N)], std::cos(k_dot_r));
-        requireNearSlater(slater.determinant_get()[matrixIndex(i, 2, N)], std::sin(k_dot_r));
+        require_near(slater.determinant_get()[matrix_index(i, 1, N)], std::cos(k_dot_r));
+        require_near(slater.determinant_get()[matrix_index(i, 2, N)], std::sin(k_dot_r));
     }
 }
 
@@ -273,11 +257,11 @@ TEST_CASE("N=7 determinant is nonzero with cos/sin basis", "[slater]") {
         for (std::size_t col = 0; col < N; ++col) {
             double value{};
             for (std::size_t k = 0; k < N; ++k) {
-                value += slater.determinant_get()[matrixIndex(row, k, N)] *
-                         slater.inv_determinant_get()[matrixIndex(col, k, N)];
+                value += slater.determinant_get()[matrix_index(row, k, N)] *
+                         slater.inv_determinant_get()[matrix_index(col, k, N)];
             }
             const double expected{row == col ? 1.0 : 0.0};
-            requireNearSlater(value, expected, 1e-9);
+            require_near(value, expected, 1e-9);
         }
     }
 }
@@ -335,14 +319,12 @@ TEST_CASE("Slater derivatives match finite-difference for N=3 cos/sin basis", "[
         const double fd_ly{(shift_and_eval(p, 0.0, h, 0.0) - 2.0 * center + shift_and_eval(p, 0.0, -h, 0.0)) / (h * h)};
         const double fd_lz{(shift_and_eval(p, 0.0, 0.0, h) - 2.0 * center + shift_and_eval(p, 0.0, 0.0, -h)) / (h * h)};
 
-        requireNearSlater(gradX[p], fd_gx, 1e-6);
-        requireNearSlater(gradY[p], fd_gy, 1e-6);
-        requireNearSlater(gradZ[p], fd_gz, 1e-6);
-        requireNearSlater(lap[p], fd_lx + fd_ly + fd_lz, 5e-4);
+        require_near(gradX[p], fd_gx, 1e-6);
+        require_near(gradY[p], fd_gy, 1e-6);
+        require_near(gradZ[p], fd_gz, 1e-6);
+        require_near(lap[p], fd_lx + fd_ly + fd_lz, 5e-4);
     }
 }
-
-// ── Shell-filling tests ──
 
 TEST_CASE("Shell filling produces (0,0,0) as the first n-vector", "[slater]") {
     Particles p{1U};
@@ -436,8 +418,8 @@ TEST_CASE("Shell filling k-vectors match 2pi/L times n-vectors", "[slater]") {
     const std::size_t num_k{slater.num_unique_k_get()};
 
     for (std::size_t i = 0; i < num_k; ++i) {
-        requireNearSlater(slater.k_vector_x_get()[i], TWO_PI_OVER_L * static_cast<double>(slater.n_vector_x_get()[i]));
-        requireNearSlater(slater.k_vector_y_get()[i], TWO_PI_OVER_L * static_cast<double>(slater.n_vector_y_get()[i]));
-        requireNearSlater(slater.k_vector_z_get()[i], TWO_PI_OVER_L * static_cast<double>(slater.n_vector_z_get()[i]));
+        require_near(slater.k_vector_x_get()[i], TWO_PI_OVER_L * static_cast<double>(slater.n_vector_x_get()[i]));
+        require_near(slater.k_vector_y_get()[i], TWO_PI_OVER_L * static_cast<double>(slater.n_vector_y_get()[i]));
+        require_near(slater.k_vector_z_get()[i], TWO_PI_OVER_L * static_cast<double>(slater.n_vector_z_get()[i]));
     }
 }

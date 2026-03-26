@@ -1,15 +1,8 @@
-#include <catch2/catch_test_macros.hpp>
+#include "test_utilities.hpp"
 
 #include "blocking_analysis/blocking_analysis.hpp"
 
-#include <cmath>
 #include <stdexcept>
-
-namespace {
-void requireNearBlocking(double actual, double expected, double tolerance = 1e-12) {
-    REQUIRE(std::abs(actual - expected) <= tolerance);
-}
-} // namespace
 
 TEST_CASE("BlockingAnalysis readiness requires two complete blocks", "[blocking]") {
     BlockingAnalysis blocking{3U};
@@ -39,8 +32,8 @@ TEST_CASE("BlockingAnalysis computes mean and standard error from block means", 
     blocking.add(7.0);
 
     const auto [mean, standardError]{blocking.mean_and_standard_error()};
-    requireNearBlocking(mean, 4.0);
-    requireNearBlocking(standardError, 2.0);
+    require_near(mean, 4.0);
+    require_near(standardError, 2.0);
 }
 
 TEST_CASE("BlockingAnalysis ignores incomplete trailing blocks", "[blocking]") {
@@ -54,6 +47,6 @@ TEST_CASE("BlockingAnalysis ignores incomplete trailing blocks", "[blocking]") {
     REQUIRE(blocking.ready());
 
     const auto [mean, standardError]{blocking.mean_and_standard_error()};
-    requireNearBlocking(mean, 2.5);
-    requireNearBlocking(standardError, 1.0);
+    require_near(mean, 2.5);
+    require_near(standardError, 1.0);
 }

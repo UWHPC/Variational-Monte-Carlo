@@ -1,34 +1,10 @@
-#include <catch2/catch_test_macros.hpp>
+#include "test_utilities.hpp"
+
 #include <catch2/catch_message.hpp>
 
 #include "energy_tracking/energy_tracking.hpp"
 
-#include <algorithm>
-#include <cmath>
 #include <cstddef>
-
-namespace {
-
-void require_near_energy(double actual, double expected, double tolerance = 1e-10) {
-    REQUIRE(std::abs(actual - expected) <= tolerance);
-}
-
-void copy_positions(const Particles& source, Particles& dest) {
-    const std::size_t n{source.num_particles_get()};
-    std::copy_n(source.pos_x_get(), n, dest.pos_x_get());
-    std::copy_n(source.pos_y_get(), n, dest.pos_y_get());
-    std::copy_n(source.pos_z_get(), n, dest.pos_z_get());
-}
-
-void copy_derivatives(const Particles& source, Particles& dest) {
-    const std::size_t n{source.num_particles_get()};
-    std::copy_n(source.grad_log_psi_x_get(), n, dest.grad_log_psi_x_get());
-    std::copy_n(source.grad_log_psi_y_get(), n, dest.grad_log_psi_y_get());
-    std::copy_n(source.grad_log_psi_z_get(), n, dest.grad_log_psi_z_get());
-    std::copy_n(source.lap_log_psi_get(), n, dest.lap_log_psi_get());
-}
-
-} // namespace
 
 TEST_CASE("EnergyTracker total energy changes by expected kinetic contribution", "[energy]") {
     constexpr std::size_t n{3U};
@@ -76,7 +52,7 @@ TEST_CASE("EnergyTracker total energy changes by expected kinetic contribution",
         expected_kinetic += -0.5 * (lap + gx * gx + gy * gy + gz * gz);
     }
 
-    require_near_energy(energy_with_derivatives - energy_without_derivatives, expected_kinetic);
+    require_near(energy_with_derivatives - energy_without_derivatives, expected_kinetic);
 }
 
 TEST_CASE("EnergyTracker is invariant under box-periodic particle translations", "[energy]") {
@@ -121,7 +97,7 @@ TEST_CASE("EnergyTracker is invariant under box-periodic particle translations",
 
     const double baseline{tracker.eval_total_energy(particles)};
     const double shifted{tracker.eval_total_energy(translated)};
-    require_near_energy(shifted, baseline, 1e-9);
+    require_near(shifted, baseline, 1e-9);
 }
 
 TEST_CASE("EnergyTracker handles degenerate positions and permutation symmetry", "[energy]") {
@@ -167,7 +143,7 @@ TEST_CASE("EnergyTracker handles degenerate positions and permutation symmetry",
     permuted.lap_log_psi_get()[1] = particles.lap_log_psi_get()[0];
 
     const double permuted_energy{tracker.eval_total_energy(permuted)};
-    require_near_energy(permuted_energy, degenerate_energy, 1e-10);
+    require_near(permuted_energy, degenerate_energy, 1e-10);
 }
 
 TEST_CASE("EnergyTracker incremental reciprocal and real-energy updates match full recomputation",
@@ -218,5 +194,5 @@ TEST_CASE("EnergyTracker incremental reciprocal and real-energy updates match fu
 
     INFO("Incremental Ewald updates should agree with a full reinitialization after one move.");
     CAPTURE(moved, old_x, old_y, old_z, incremental_total, rebuilt_total);
-    require_near_energy(incremental_total, rebuilt_total, 1e-9);
+    require_near(incremental_total, rebuilt_total, 1e-9);
 }

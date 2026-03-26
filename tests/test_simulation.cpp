@@ -1,60 +1,12 @@
-#include <catch2/catch_test_macros.hpp>
+#include "test_utilities.hpp"
 
-#include "output_writer/output_writer.hpp"
 #include "simulation/simulation.hpp"
 
-#include <cmath>
 #include <cstddef>
-#include <iostream>
 #include <memory>
-#include <optional>
-#include <sstream>
 #include <string>
 #include <type_traits>
 #include <utility>
-#include <vector>
-
-namespace {
-
-void require_near_simulation(double actual, double expected, double tolerance = 1e-12) {
-    REQUIRE(std::abs(actual - expected) <= tolerance);
-}
-
-template <typename Fn> std::string capture_stdout(Fn&& fn) {
-    std::ostringstream output{};
-    std::streambuf* const old_buffer{std::cout.rdbuf(output.rdbuf())};
-    try {
-        std::forward<Fn>(fn)();
-    } catch (...) {
-        std::cout.rdbuf(old_buffer);
-        throw;
-    }
-    std::cout.rdbuf(old_buffer);
-    return output.str();
-}
-
-class RecordingOutputWriter final : public OutputWriter {
-public:
-    void write_init(const InitData& data) override {
-        init = data;
-        saw_init = true;
-    }
-
-    void write_frame(const FrameData& data) override { frames.push_back(data); }
-
-    void write_done(const DoneData& data) override {
-        done = data;
-        saw_done = true;
-    }
-
-    bool saw_init{false};
-    bool saw_done{false};
-    std::optional<InitData> init{};
-    std::optional<DoneData> done{};
-    std::vector<FrameData> frames{};
-};
-
-} // namespace
 
 TEST_CASE("Simulation API is present", "[simulation]") {
     REQUIRE(std::is_constructible_v<Simulation, Config>);
@@ -99,7 +51,7 @@ TEST_CASE("Simulation emits consistent init/frame/done records through OutputWri
         REQUIRE(frame.step == expected_step);
         REQUIRE(frame.proposed == expected_step);
         REQUIRE(frame.accepted <= frame.proposed);
-        require_near_simulation(frame.acceptance_rate,
+        require_near(frame.acceptance_rate,
                                 static_cast<double>(frame.accepted) / static_cast<double>(frame.proposed));
         REQUIRE(frame.positions.size() == 3U * config.num_particles);
     }
@@ -110,7 +62,7 @@ TEST_CASE("Simulation emits consistent init/frame/done records through OutputWri
     const DoneData& done{*sink->done};
     REQUIRE(done.total_proposed == config.measure_steps);
     REQUIRE(done.total_accepted == sink->frames.back().accepted);
-    require_near_simulation(done.final_acceptance_rate,
+    require_near(done.final_acceptance_rate,
                             static_cast<double>(done.total_accepted) / static_cast<double>(done.total_proposed));
     REQUIRE(done.final_standard_error.has_value());
 }
@@ -173,7 +125,7 @@ TEST_CASE("Simulation accepts zero-step proposals and preserves local energy acr
         const FrameData& frame{sink->frames[i]};
         REQUIRE(frame.accepted == i + 1U);
         REQUIRE(frame.proposed == i + 1U);
-        require_near_simulation(frame.local_energy, first_energy);
+        require_near(frame.local_energy, first_energy);
     }
 }
 

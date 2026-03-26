@@ -1,16 +1,10 @@
-#include <catch2/catch_test_macros.hpp>
+#include "test_utilities.hpp"
+
 #include <catch2/catch_message.hpp>
 
 #include "../src/wavefunction/wavefunction.hpp"
 
-#include <cmath>
 #include <vector>
-
-namespace {
-void requireNearWave(double actual, double expected, double tolerance = 1e-12) {
-    REQUIRE(std::abs(actual - expected) <= tolerance);
-}
-} // namespace
 
 TEST_CASE("WaveFunction evaluateDerivatives clears buffers and delegates to Jastrow", "[wavefunction]") {
     Particles particles{2U};
@@ -49,10 +43,10 @@ TEST_CASE("WaveFunction evaluateDerivatives clears buffers and delegates to Jast
     waveFunction.evaluate_derivatives(particles);
 
     for (std::size_t i = 0; i < stride; ++i) {
-        requireNearWave(particles.grad_log_psi_x_get()[i], expectedX[i]);
-        requireNearWave(particles.grad_log_psi_y_get()[i], expectedY[i]);
-        requireNearWave(particles.grad_log_psi_z_get()[i], expectedZ[i]);
-        requireNearWave(particles.lap_log_psi_get()[i], expectedLap[i]);
+        require_near(particles.grad_log_psi_x_get()[i], expectedX[i]);
+        require_near(particles.grad_log_psi_y_get()[i], expectedY[i]);
+        require_near(particles.grad_log_psi_z_get()[i], expectedZ[i]);
+        require_near(particles.lap_log_psi_get()[i], expectedLap[i]);
     }
 }
 
@@ -69,7 +63,7 @@ TEST_CASE("WaveFunction evaluate_log_psi returns finite for N=1", "[wavefunction
     WaveFunction waveFunction{particles, 10.0, 0.5, 1.0};
 
     const double logPsi{waveFunction.evaluate_log_psi(particles)};
-    requireNearWave(logPsi, 0.0);
+    require_near(logPsi, 0.0);
 }
 
 TEST_CASE("WaveFunction default Jastrow parameter matches fully polarized cusp choice",
@@ -82,6 +76,6 @@ TEST_CASE("WaveFunction default Jastrow parameter matches fully polarized cusp c
 
     INFO("Default WaveFunction Jastrow parameters should match the fully polarized HEG choice.");
     CAPTURE(actualA, actualB);
-    requireNearWave(actualA, 0.25);
-    requireNearWave(actualB, 1.0);
+    require_near(actualA, 0.25);
+    require_near(actualB, 1.0);
 }

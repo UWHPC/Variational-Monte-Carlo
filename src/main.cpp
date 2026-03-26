@@ -21,7 +21,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     //     return 1;
     // }
     // std::unique_ptr<OutputWriter> writer{make_output_writer(OutputFormat::JSON, out_file)};
-    
 
     try {
         std::size_t num_threads{master_config.num_threads};

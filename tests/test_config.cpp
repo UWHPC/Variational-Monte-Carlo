@@ -1,13 +1,11 @@
-#include <catch2/catch_test_macros.hpp>
+#include "test_utilities.hpp"
 
 #include "config/config.hpp"
 
 #include <initializer_list>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 namespace {
@@ -49,19 +47,6 @@ std::string invalidArgumentMessage(std::initializer_list<std::string_view> args)
 
     FAIL("Expected parse_args to throw std::invalid_argument");
     return {};
-}
-
-template <typename Fn> std::string captureStdout(Fn&& fn) {
-    std::ostringstream output{};
-    std::streambuf* const oldBuffer{std::cout.rdbuf(output.rdbuf())};
-    try {
-        std::forward<Fn>(fn)();
-    } catch (...) {
-        std::cout.rdbuf(oldBuffer);
-        throw;
-    }
-    std::cout.rdbuf(oldBuffer);
-    return output.str();
 }
 
 } // namespace
@@ -230,7 +215,7 @@ TEST_CASE("parse_args enforces runtime numeric constraints", "[config]") {
 }
 
 TEST_CASE("printUsage and printConfig include all expected fields", "[config]") {
-    const std::string usage{captureStdout([] { print_usage("vmc-test"); })};
+    const std::string usage{capture_stdout([] { print_usage("vmc-test"); })};
     REQUIRE(usage.find("Usage:") != std::string::npos);
     REQUIRE(usage.find("vmc-test") != std::string::npos);
     REQUIRE(usage.find("--num_particles") != std::string::npos);
@@ -244,7 +229,7 @@ TEST_CASE("printUsage and printConfig include all expected fields", "[config]") 
                      .step_size = 0.2,
                      .seed = 99U,
                      .block_size = 25U};
-    const std::string configText{captureStdout([&cfg] { print_config(cfg); })};
+    const std::string configText{capture_stdout([&cfg] { print_config(cfg); })};
     REQUIRE(configText.find("num_particles: 12") != std::string::npos);
     REQUIRE(configText.find("box_length: 9.5") != std::string::npos);
     REQUIRE(configText.find("warmup_steps: 30") != std::string::npos);
