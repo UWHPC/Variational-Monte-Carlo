@@ -1,3 +1,5 @@
+#include "test_utilities.hpp"
+
 #include <catch2/catch_message.hpp>
 #include <catch2/catch_test_macros.hpp>
 
@@ -17,21 +19,6 @@
 namespace {
 
 constexpr double EWALD_RECIPROCAL_TOLERANCE{1.0e-6};
-
-double wrap_coordinate(double value, double box_length) {
-    return value - box_length * std::floor(value / box_length);
-}
-double minimum_image(double dx, double box_length) {
-    const double half_length{0.5 * box_length};
-
-    if (dx <= -half_length) {
-        dx += box_length;
-    } else if (dx > half_length) {
-        dx -= box_length;
-    }
-
-    return dx;
-}
 
 double phy_determinant3x3(const double* matrix) {
     return matrix[0] * (matrix[4] * matrix[8] - matrix[5] * matrix[7]) -
@@ -140,38 +127,6 @@ double exact_total_potential(const Particles& particles, double box_length) {
     return exact_real_potential(particles, box_length) +
            exact_reciprocal_potential(particles, box_length) +
            self_correction + background;
-}
-
-double slater_identity_residual(const SlaterPlaneWave& slater) {
-    const std::size_t n{slater.num_orbitals_get()};
-    double max_residual{};
-
-    for (std::size_t row = 0; row < n; ++row) {
-        for (std::size_t col = 0; col < n; ++col) {
-            double value{};
-
-            for (std::size_t k = 0; k < n; ++k) {
-                value += slater.determinant_get()[row * n + k] *
-                         slater.inv_determinant_get()[col * n + k];
-            }
-
-            const double expected{row == col ? 1.0 : 0.0};
-            const double residual{std::abs(value - expected)};
-            max_residual = std::max(max_residual, residual);
-        }
-    }
-
-    return max_residual;
-}
-
-void set_stable_closed_shell_positions(Particles& particles) {
-    const std::size_t n{particles.num_particles_get()};
-
-    for (std::size_t i = 0; i < n; ++i) {
-        particles.pos_x_get()[i] = 1.0 + static_cast<double>(i) * 1.1;
-        particles.pos_y_get()[i] = 0.5 + static_cast<double>(i) * 0.7;
-        particles.pos_z_get()[i] = 0.3 + static_cast<double>(i) * 1.3;
-    }
 }
 
 } // namespace
@@ -641,4 +596,3 @@ TEST_CASE("EnergyTracker remains close to the exact Ewald reference across many 
         REQUIRE(std::abs(tracker_total - exact_total) <= 8e-6);
     }
 }
-

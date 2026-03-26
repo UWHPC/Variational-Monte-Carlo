@@ -2,6 +2,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "config/config.hpp"
 #include "output_writer/output_writer.hpp"
 #include "particles/particles.hpp"
 #include "slater_plane_wave/slater_plane_wave.hpp"
@@ -145,6 +146,31 @@ std::string capture_stdout(Fn&& fn) {
     }
     std::cout.rdbuf(OLD_BUFFER);
     return output.str();
+}
+
+/// Builds a Config with explicit control over derived fields.
+/// warmup_steps and measure_steps are per-particle steps (not sweeps).
+/// step_size overrides the default box_length/10 derivation.
+inline Config make_config(std::size_t num_particles, double box_length,
+                          std::size_t warmup_steps, std::size_t measure_steps,
+                          double step_size, uint64_t master_seed,
+                          std::size_t block_size, std::size_t num_threads = 1U,
+                          bool is_master_thread = false) {
+    Config cfg{};
+    cfg.num_threads = num_threads;
+    cfg.num_particles = num_particles;
+    cfg.box_length = box_length;
+    cfg.block_size = block_size;
+    cfg.master_seed = master_seed;
+    cfg.is_master_thread = is_master_thread;
+
+    // Set derived fields directly (bypass compute_derived sweep logic):
+    cfg.warmup_sweeps = (num_particles > 0U) ? (warmup_steps / num_particles) : 0U;
+    cfg.measure_sweeps = (num_particles > 0U) ? (measure_steps / num_particles) : 0U;
+    cfg.warmup_steps = warmup_steps;
+    cfg.measure_steps = measure_steps;
+    cfg.step_size = step_size;
+    return cfg;
 }
 
 class RecordingOutputWriter final : public OutputWriter {

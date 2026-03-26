@@ -11,13 +11,7 @@ namespace {
 
 SimResult run_vmc(std::size_t N, double L, std::size_t warmup, std::size_t measure, double step_size, uint64_t seed,
                   std::size_t block_size) {
-    const Config config{.num_particles = N,
-                        .box_length = L,
-                        .warmup_steps = warmup,
-                        .measure_steps = measure,
-                        .step_size = step_size,
-                        .seed = seed,
-                        .block_size = block_size};
+    const Config config{make_config(N, L, warmup, measure, step_size, seed, block_size)};
 
     auto writer{std::make_unique<RecordingOutputWriter>()};
     RecordingOutputWriter* const sink{writer.get()};
