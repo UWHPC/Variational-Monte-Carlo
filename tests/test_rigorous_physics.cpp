@@ -20,10 +20,13 @@ namespace {
 
 constexpr double EWALD_RECIPROCAL_TOLERANCE{1.0e-6};
 
-double phy_determinant3x3(const double* matrix) {
-    return matrix[0] * (matrix[4] * matrix[8] - matrix[5] * matrix[7]) -
-           matrix[1] * (matrix[3] * matrix[8] - matrix[5] * matrix[6]) +
-           matrix[2] * (matrix[3] * matrix[7] - matrix[4] * matrix[6]);
+double phy_determinant3x3(const double* matrix, std::size_t stride) {
+    return matrix[0 * stride + 0] * (matrix[1 * stride + 1] * matrix[2 * stride + 2] -
+                                      matrix[1 * stride + 2] * matrix[2 * stride + 1]) -
+           matrix[0 * stride + 1] * (matrix[1 * stride + 0] * matrix[2 * stride + 2] -
+                                      matrix[1 * stride + 2] * matrix[2 * stride + 0]) +
+           matrix[0 * stride + 2] * (matrix[1 * stride + 0] * matrix[2 * stride + 1] -
+                                      matrix[1 * stride + 1] * matrix[2 * stride + 0]);
 }
 
 void phy_copy_positions(const Particles& source, Particles& dest) {
@@ -202,7 +205,7 @@ TEST_CASE("Slater determinant changes sign under particle exchange while log_abs
     const double log_original{slater_original.log_abs_det(original)};
     REQUIRE(std::isfinite(log_original));
 
-    const double det_original{phy_determinant3x3(slater_original.determinant_get())};
+    const double det_original{phy_determinant3x3(slater_original.determinant_get(), slater_original.matrix_row_stride_get())};
 
     Particles swapped{n};
     phy_copy_positions(original, swapped);
@@ -214,7 +217,7 @@ TEST_CASE("Slater determinant changes sign under particle exchange while log_abs
     const double log_swapped{slater_swapped.log_abs_det(swapped)};
     REQUIRE(std::isfinite(log_swapped));
 
-    const double det_swapped{phy_determinant3x3(slater_swapped.determinant_get())};
+    const double det_swapped{phy_determinant3x3(slater_swapped.determinant_get(), slater_swapped.matrix_row_stride_get())};
 
     INFO("Swapping two particles must negate the Slater determinant but preserve log|det|.");
     CAPTURE(det_original, det_swapped, log_original, log_swapped);
@@ -258,10 +261,14 @@ TEST_CASE("SlaterPlaneWave is periodic under box translations of a single partic
     CAPTURE(baseline_log_det, translated_log_det);
     REQUIRE(std::abs(translated_log_det - baseline_log_det) <= 1e-12);
 
-    for (std::size_t idx = 0; idx < n * n; ++idx) {
-        CAPTURE(idx);
-        REQUIRE(std::abs(baseline.determinant_get()[idx] - translated.determinant_get()[idx]) <=
-                1e-12);
+    const std::size_t S{baseline.matrix_row_stride_get()};
+    for (std::size_t row = 0; row < n; ++row) {
+        for (std::size_t col = 0; col < n; ++col) {
+            const std::size_t idx{row * S + col};
+            CAPTURE(row, col);
+            REQUIRE(std::abs(baseline.determinant_get()[idx] - translated.determinant_get()[idx]) <=
+                    1e-12);
+        }
     }
 }
 
@@ -291,7 +298,7 @@ TEST_CASE("Randomized determinant_ratio matches exact determinant ratio over man
         CAPTURE(sample, baseline_log_det);
         REQUIRE(std::isfinite(baseline_log_det));
 
-        const double det_old{phy_determinant3x3(slater.determinant_get())};
+        const double det_old{phy_determinant3x3(slater.determinant_get(), slater.matrix_row_stride_get())};
         REQUIRE(std::abs(det_old) > 1e-12);
 
         const std::size_t moved{sample % n};
@@ -313,7 +320,7 @@ TEST_CASE("Randomized determinant_ratio matches exact determinant ratio over man
         CAPTURE(sample, moved, rebuilt_log_det);
         REQUIRE(std::isfinite(rebuilt_log_det));
 
-        const double det_new{phy_determinant3x3(rebuilt.determinant_get())};
+        const double det_new{phy_determinant3x3(rebuilt.determinant_get(), rebuilt.matrix_row_stride_get())};
         const double exact_ratio{det_new / det_old};
 
         INFO("Fast determinant ratio must agree with exact determinant ratio over many random configurations.");
@@ -342,7 +349,7 @@ TEST_CASE("SlaterPlaneWave reports a singular determinant for duplicate particle
 
     SlaterPlaneWave slater{particles, box_length};
     const double log_abs_det{slater.log_abs_det(particles)};
-    const double det{phy_determinant3x3(slater.determinant_get())};
+    const double det{phy_determinant3x3(slater.determinant_get(), slater.matrix_row_stride_get())};
 
     INFO("Duplicate particle positions should create duplicate Slater rows and a singular matrix.");
     CAPTURE(log_abs_det, det);
@@ -407,10 +414,14 @@ TEST_CASE("Repeated accepted Slater updates preserve predictive determinant rati
         REQUIRE(rebuilt_residual <= 1e-10);
 
         double max_det_diff{};
-        for (std::size_t idx = 0; idx < n * n; ++idx) {
-            const double det_diff{
-                std::abs(maintained.determinant_get()[idx] - rebuilt.determinant_get()[idx])};
-            max_det_diff = std::max(max_det_diff, det_diff);
+        const std::size_t S_MAT{maintained.matrix_row_stride_get()};
+        for (std::size_t row = 0; row < n; ++row) {
+            for (std::size_t col = 0; col < n; ++col) {
+                const std::size_t idx{row * S_MAT + col};
+                const double det_diff{
+                    std::abs(maintained.determinant_get()[idx] - rebuilt.determinant_get()[idx])};
+                max_det_diff = std::max(max_det_diff, det_diff);
+            }
         }
 
         INFO("Maintained and rebuilt determinant matrices should match after each accepted update.");

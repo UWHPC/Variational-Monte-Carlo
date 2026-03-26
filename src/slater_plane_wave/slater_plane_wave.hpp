@@ -15,6 +15,7 @@ private:
     std::size_t num_orbitals_;
     std::size_t num_unique_k_;
     std::size_t trig_row_stride_;
+    std::size_t matrix_row_stride_;  // N padded to SIMD boundary (row stride in D, inv_D, LU)
     std::size_t matrix_size_;
     double box_length_;
 
@@ -66,7 +67,10 @@ public:
     // Padded row stride for trig cache (aligned to SIMD boundary)
     [[nodiscard]] std::size_t trig_row_stride_get() const noexcept { return trig_row_stride_; }
 
-    // Matrix size - N^2
+    // Padded row stride for N×N matrices (aligned to SIMD boundary)
+    [[nodiscard]] std::size_t matrix_row_stride_get() const noexcept { return matrix_row_stride_; }
+
+    // Total padded matrix size (matrix_row_stride * N)
     [[nodiscard]] std::size_t matrix_size_get() const noexcept { return matrix_size_; }
 
     // Box length - L

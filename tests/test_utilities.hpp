@@ -48,14 +48,18 @@ inline std::size_t matrix_index(std::size_t row, std::size_t col, std::size_t n)
     return row * n + col;
 }
 
-inline double determinant_3x3(const double* matrix) {
-    return matrix[0] * (matrix[4] * matrix[8] - matrix[5] * matrix[7]) -
-           matrix[1] * (matrix[3] * matrix[8] - matrix[5] * matrix[6]) +
-           matrix[2] * (matrix[3] * matrix[7] - matrix[4] * matrix[6]);
+inline double determinant_3x3(const double* matrix, std::size_t stride) {
+    return matrix[0 * stride + 0] * (matrix[1 * stride + 1] * matrix[2 * stride + 2] -
+                                      matrix[1 * stride + 2] * matrix[2 * stride + 1]) -
+           matrix[0 * stride + 1] * (matrix[1 * stride + 0] * matrix[2 * stride + 2] -
+                                      matrix[1 * stride + 2] * matrix[2 * stride + 0]) +
+           matrix[0 * stride + 2] * (matrix[1 * stride + 0] * matrix[2 * stride + 1] -
+                                      matrix[1 * stride + 1] * matrix[2 * stride + 0]);
 }
 
 inline double slater_identity_residual(const SlaterPlaneWave& slater) {
     const std::size_t N{slater.num_orbitals_get()};
+    const std::size_t S{slater.matrix_row_stride_get()};
     double max_residual{};
 
     for (std::size_t row = 0; row < N; ++row) {
@@ -63,8 +67,8 @@ inline double slater_identity_residual(const SlaterPlaneWave& slater) {
             double value{};
 
             for (std::size_t k = 0; k < N; ++k) {
-                value += slater.determinant_get()[row * N + k] *
-                         slater.inv_determinant_get()[col * N + k];
+                value += slater.determinant_get()[row * S + k] *
+                         slater.inv_determinant_get()[col * S + k];
             }
 
             const double expected{row == col ? 1.0 : 0.0};

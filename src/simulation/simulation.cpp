@@ -179,6 +179,12 @@ void Simulation::warmup() {
                 static_cast<double>(window_accepted) / static_cast<double>(window_proposed);
             step_size *= exp(gain * (acceptance_rate_window - acceptance_target));
 
+            // Clamp to half the box length; the maximum physically meaningful displacement:
+            const double MAX_STEP{config_.box_length * 0.5};
+            if (step_size > MAX_STEP) {
+                step_size = MAX_STEP;
+            }
+
             proposal().param(
                 std::uniform_real_distribution<double>::param_type(-step_size, step_size));
 

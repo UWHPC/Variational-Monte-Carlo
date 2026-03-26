@@ -193,3 +193,11 @@ TEST_CASE("Config::from_file partial override leaves other fields at defaults", 
     require_near(cfg.box_length, 10.0);
     REQUIRE(cfg.master_seed == 42U);
 }
+
+TEST_CASE("Config::from_file rejects invalid parameter values", "[config]") {
+    REQUIRE_THROWS_AS(parse_config_string("Num_Particles = 0\n"), std::invalid_argument);
+    REQUIRE_THROWS_AS(parse_config_string("Block_Size = 0\n"), std::invalid_argument);
+    REQUIRE_THROWS_AS(parse_config_string("Box_Length = 0\n"), std::invalid_argument);
+    REQUIRE_THROWS_AS(parse_config_string("Box_Length = -1.0\n"), std::invalid_argument);
+    REQUIRE_THROWS_AS(parse_config_string("Measure_Sweeps = 0\n"), std::invalid_argument);
+}

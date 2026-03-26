@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <cmath>
 #include <fstream>
 #include <iostream>
@@ -9,7 +10,6 @@
 #include <string>
 #include <type_traits>
 #include <unordered_map>
-#include <cstdint>
 
 class Config {
 public:
@@ -58,6 +58,18 @@ public:
 
 private:
     void compute_derived() {
+        if (num_particles < 1U) {
+            throw std::invalid_argument("[Config] Num_Particles must be >= 1");
+        }
+        if (block_size < 1U) {
+            throw std::invalid_argument("[Config] Block_Size must be >= 1");
+        }
+        if (box_length <= 0.0 || !std::isfinite(box_length)) {
+            throw std::invalid_argument("[Config] Box_Length must be finite and > 0");
+        }
+        if (measure_sweeps < 1U) {
+            throw std::invalid_argument("[Config] Measure_Sweeps must be >= 1");
+        }
         this->warmup_steps = num_particles * warmup_sweeps;
         this->measure_steps = num_particles * measure_sweeps;
         this->step_size = box_length / 10.0;

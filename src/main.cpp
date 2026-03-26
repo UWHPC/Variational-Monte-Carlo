@@ -56,11 +56,15 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
         double global_energy_sum{};
         double global_variance_sum{};
         double global_acceptance_sum{};
+        std::size_t threads_with_se{};
 
         for (auto& f : futures) {
             Simulation::MeasurementSummary summary{f.get()};
             global_energy_sum += summary.mean_energy;
-            global_variance_sum += (*summary.standard_error) * (*summary.standard_error);
+            if (summary.standard_error.has_value()) {
+                global_variance_sum += (*summary.standard_error) * (*summary.standard_error);
+                ++threads_with_se;
+            }
             global_acceptance_sum += summary.acceptance_rate;
         }
 
@@ -69,11 +73,19 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
 
         const double inv_num_threads{1.0 / static_cast<double>(num_threads)};
         const double final_mean{global_energy_sum * inv_num_threads};
-        const double final_se{std::sqrt(global_variance_sum) * inv_num_threads};
         const double final_acceptance_rate{global_acceptance_sum * inv_num_threads * 100.0};
 
         std::cout << "<--- Final Measurements --->" << std::endl
-                  << "Final Aggregated Energy: " << std::setprecision(6) << final_mean << " +/- " << final_se << std::endl
+                  << "Final Aggregated Energy: " << std::setprecision(6) << final_mean;
+
+        if (threads_with_se > 0U) {
+            const double final_se{std::sqrt(global_variance_sum) * inv_num_threads};
+            std::cout << " +/- " << final_se;
+        } else {
+            std::cout << " +/- N/A (insufficient blocks)";
+        }
+
+        std::cout << std::endl
                   << "Elapsed: " << elapsed.count() << " s" << std::endl
                   << "Acceptance Rate: " << final_acceptance_rate << "%\n" << std::endl;
 

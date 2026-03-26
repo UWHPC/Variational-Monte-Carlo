@@ -29,12 +29,13 @@
 // Closed shells: N = 1, 7, 19, 27, 33, 57, ...
 SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, double box_lengthL)
     : num_orbitals_{particles.num_particles_get()},
-      matrix_size_{particles.num_particles_get() * particles.num_particles_get()},
+      matrix_row_stride_{AlignedSoA<double>::round_up(particles.num_particles_get())},
+      matrix_size_{matrix_row_stride_ * particles.num_particles_get()},
       box_length_{box_lengthL}, orbital_k_index_(particles.num_particles_get()),
       orbital_type_(particles.num_particles_get(), 0),
       int_vectors_{particles.num_particles_get(), NUM_INT_VECTORS_},
       double_vectors_{particles.num_particles_get(), NUM_DOUBLE_VECTORS_}, trig_cache_{},
-      matrices_{particles.num_particles_get() * particles.num_particles_get(), NUM_MATRIX_} {
+      matrices_{matrix_row_stride_ * particles.num_particles_get(), NUM_MATRIX_} {
 
     const std::size_t N{num_orbitals_get()};
     const std::size_t num_particles{particles.num_particles_get()};
@@ -152,7 +153,8 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, double box_lengthL)
 
 void SlaterPlaneWave::save_trig_row(std::size_t particle) noexcept {
     const std::size_t num_k{num_unique_k_get()};
-    const std::size_t offset{particle * num_k};
+    const std::size_t ROW_STRIDE{trig_row_stride_get()};
+    const std::size_t offset{particle * ROW_STRIDE};
 
     std::memcpy(trig_scratch_[SIN_SAVED_], sin_cache_get() + offset, num_k * sizeof(double));
     std::memcpy(trig_scratch_[COS_SAVED_], cos_cache_get() + offset, num_k * sizeof(double));
@@ -160,7 +162,8 @@ void SlaterPlaneWave::save_trig_row(std::size_t particle) noexcept {
 
 void SlaterPlaneWave::restore_trig_row(std::size_t particle) noexcept {
     const std::size_t num_k{num_unique_k_get()};
-    const std::size_t offset{particle * num_k};
+    const std::size_t ROW_STRIDE{trig_row_stride_get()};
+    const std::size_t offset{particle * ROW_STRIDE};
 
     std::memcpy(sin_cache_get() + offset, trig_scratch_[SIN_SAVED_], num_k * sizeof(double));
     std::memcpy(cos_cache_get() + offset, trig_scratch_[COS_SAVED_], num_k * sizeof(double));
@@ -168,6 +171,7 @@ void SlaterPlaneWave::restore_trig_row(std::size_t particle) noexcept {
 
 void SlaterPlaneWave::update_trig_cache(std::size_t particle, const Particles& particles) noexcept {
     const std::size_t num_k{num_unique_k_get()};
+    const std::size_t ROW_STRIDE{trig_row_stride_get()};
 
     const double px{particles.pos_x_get()[particle]};
     const double py{particles.pos_y_get()[particle]};
@@ -177,8 +181,8 @@ void SlaterPlaneWave::update_trig_cache(std::size_t particle, const Particles& p
     const double* RESTRICT ky{k_vector_y_get()};
     const double* RESTRICT kz{k_vector_z_get()};
 
-    double* RESTRICT c_row{cos_cache_get() + particle * num_k};
-    double* RESTRICT s_row{sin_cache_get() + particle * num_k};
+    double* RESTRICT c_row{cos_cache_get() + particle * ROW_STRIDE};
+    double* RESTRICT s_row{sin_cache_get() + particle * ROW_STRIDE};
 
     ASSUME_ALIGNED(kx, SIMD_BYTES);
     ASSUME_ALIGNED(ky, SIMD_BYTES);
@@ -197,6 +201,7 @@ void SlaterPlaneWave::update_trig_cache(std::size_t particle, const Particles& p
 
 double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     const std::size_t N{num_orbitals_get()};
+    const std::size_t S{matrix_row_stride_get()};
     const std::size_t padded_N{particles.padding_stride_get()};
 
     const double* RESTRICT pos_x{particles.pos_x_get()};
@@ -245,13 +250,13 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
 
 
     // Build determinant matrix D
-    #pragma omp parallel for
+    const std::size_t ROW_STRIDE{trig_row_stride_get()};
     for (std::size_t particle = 0; particle < N; ++particle) {
         const double p_x{pos_x[particle]};
         const double p_y{pos_y[particle]};
         const double p_z{pos_z[particle]};
 
-        const std::size_t offset{particle * num_k};
+        const std::size_t offset{particle * ROW_STRIDE};
         
         #pragma omp simd
         for (std::size_t k = 0; k < num_k; ++k) {
@@ -270,22 +275,22 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
             const double cos_term{cos_cache[offset + k_idx]};
             const double sin_term{sin_cache[offset + k_idx]};
 
-            det_matrix[particle * N + orbital] = cos_term + type * (sin_term - cos_term);
+            det_matrix[particle * S + orbital] = cos_term + type * (sin_term - cos_term);
         }
     }
 
     // Copy determinant matrix into LU storage
-    std::copy_n(det_matrix, N * N, lower_upper_matrix);
+    std::copy_n(det_matrix, S * N, lower_upper_matrix);
 
     // Perform LU decomposition
-    (void)lower_upper_decomp(lower_upper_matrix, pivot_vector, N);
+    (void)lower_upper_decomp(lower_upper_matrix, pivot_vector, N, S);
 
     // Compute log|det(D)| = Σ log|U_ii|
     double log_abs_det{};
 
     #pragma omp simd reduction(+ : log_abs_det)
     for (std::size_t diag = 0; diag < N; ++diag) {
-        const double U_ii{lower_upper_matrix[diag * N + diag]};
+        const double U_ii{lower_upper_matrix[diag * S + diag]};
         const double abs_U_ii{std::abs(U_ii)};
 
         log_abs_det += std::log(abs_U_ii);
@@ -302,10 +307,10 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
         std::fill(rhs, rhs + padded_N, 0.0);
         rhs[column] = 1.0;
 
-        solve_lower_upper(lower_upper_matrix, pivot_vector, rhs, solution, N);
+        solve_lower_upper(lower_upper_matrix, pivot_vector, rhs, solution, N, S);
 
         for (std::size_t row = 0; row < N; ++row) {
-            inv_det_matrix[column * N + row] = solution[row];
+            inv_det_matrix[column * S + row] = solution[row];
         }
     }
 
@@ -314,7 +319,7 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
 
 double* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
     const std::size_t N{num_orbitals_get()};
-    const std::size_t num_K{num_unique_k_get()};
+    const std::size_t ROW_STRIDE{trig_row_stride_get()};
 
     const auto& k_index{orbital_k_index_get()};
     const auto& orb_type{orbital_type_get()};
@@ -334,8 +339,8 @@ double* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
 
         const double type{static_cast<double>(orb_type[orbital])};
 
-        const double cos_term{cos_cache[particle * num_K + k_idx]};
-        const double sin_term{sin_cache[particle * num_K + k_idx]};
+        const double cos_term{cos_cache[particle * ROW_STRIDE + k_idx]};
+        const double sin_term{sin_cache[particle * ROW_STRIDE + k_idx]};
 
         row[orbital] = cos_term + type * (sin_term - cos_term);
     }
@@ -346,13 +351,14 @@ double* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
 double SlaterPlaneWave::determinant_ratio(std::size_t particle,
                                           const double* new_row) const noexcept {
     const std::size_t N{num_orbitals_get()};
+    const std::size_t S{matrix_row_stride_get()};
     const double* RESTRICT inv_det{inv_determinant_get()};
     ASSUME_ALIGNED(inv_det, SIMD_BYTES);
 
     double ratio{};
     #pragma omp simd reduction(+ : ratio)
     for (std::size_t j = 0; j < N; ++j) {
-        ratio += new_row[j] * inv_det[particle * N + j];
+        ratio += new_row[j] * inv_det[particle * S + j];
     }
 
     return ratio;
@@ -361,6 +367,7 @@ double SlaterPlaneWave::determinant_ratio(std::size_t particle,
 void SlaterPlaneWave::accept_move(std::size_t particle, const double* new_row,
                                   double ratio) noexcept {
     const std::size_t N{num_orbitals_get()};
+    const std::size_t S{matrix_row_stride_get()};
 
     double* RESTRICT inv_det{inv_determinant_get()};
     double* RESTRICT det_matrix{determinant_get()};
@@ -371,7 +378,7 @@ void SlaterPlaneWave::accept_move(std::size_t particle, const double* new_row,
     ASSUME_ALIGNED(inv_d_col, SIMD_BYTES);
 
     const double inv_ratio{1.0 / ratio};
-    const std::size_t p_offset{particle * N}; // Pre-calculate particle row offset
+    const std::size_t p_offset{particle * S}; // Pre-calculate particle row offset
 
     // Cache particle row column j for inv_D before changing
     #pragma omp simd
@@ -385,7 +392,7 @@ void SlaterPlaneWave::accept_move(std::size_t particle, const double* new_row,
         if (k == particle)
             continue;
 
-        const std::size_t k_offset{k * N}; // Pre-calculate row offset
+        const std::size_t k_offset{k * S}; // Pre-calculate row offset
         double s_k{};
 
         // Compiler can now easily auto-vectorize this
@@ -419,6 +426,7 @@ void SlaterPlaneWave::add_derivatives(double* RESTRICT grad_x, double* RESTRICT 
                                       double* RESTRICT grad_z,
                                       double* RESTRICT laplacian) const noexcept {
     const std::size_t N{num_orbitals_get()};
+    const std::size_t S{matrix_row_stride_get()};
 
     const double* RESTRICT k_x{k_vector_x_get()};
     const double* RESTRICT k_y{k_vector_y_get()};
@@ -428,9 +436,6 @@ void SlaterPlaneWave::add_derivatives(double* RESTRICT grad_x, double* RESTRICT 
     const auto& o_type{orbital_type_get()};
 
     const double* RESTRICT inv_det{inv_determinant_get()};
-
-    const std::size_t num_k{num_unique_k_get()};
-
     const double* RESTRICT cos_cache{cos_cache_get()};
     const double* RESTRICT sin_cache{sin_cache_get()};
 
@@ -451,8 +456,8 @@ void SlaterPlaneWave::add_derivatives(double* RESTRICT grad_x, double* RESTRICT 
         double d_log_det_dx{}, d_log_det_dy{}, d_log_det_dz{};
         double laplace_det_term{};
 
-        const std::size_t offset{particle * num_k};
-        const std::size_t p_offset{particle * N};
+        const std::size_t offset{particle * trig_row_stride_get()};
+        const std::size_t p_offset{particle * S};
 
         // Added reduction clauses so the compiler can safely vectorize the accumulators
         #pragma omp simd reduction(+ : d_log_det_dx, d_log_det_dy, d_log_det_dz, laplace_det_term)

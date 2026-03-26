@@ -115,7 +115,6 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
     ASSUME_ALIGNED(p_z, SIMD_BYTES);
 
     double sum{};
-    #pragma omp parallel for reduction(+ : sum) schedule(dynamic)
     for (std::size_t i = 0; i < N; ++i) {
         double local_sum{};
 
@@ -170,7 +169,6 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
     ASSUME_ALIGNED(sum_real, SIMD_BYTES);
     ASSUME_ALIGNED(sum_imag, SIMD_BYTES);
 
-    #pragma omp parallel for
     for (std::size_t g = 0; g < num_G; ++g) {
         double cos_sum{};
         double sin_sum{};

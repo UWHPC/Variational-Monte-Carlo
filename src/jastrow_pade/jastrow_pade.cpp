@@ -23,8 +23,6 @@ double JastrowPade::value(const Particles& particles) const noexcept {
     const double b_local{b_get()};
 
     double jastrow_pade{};
-
-    #pragma omp parallel for reduction(+ : jastrow_pade)
     for (std::size_t i = 0; i < num_particles; ++i) {
         double local_jastrow{};
 
@@ -83,7 +81,6 @@ void JastrowPade::add_derivatives(const Particles& particles, double* RESTRICT g
     const double b_local{b_get()};
     const double neg_two_a_b{-2.0 * a_local * b_local};
 
-    #pragma omp parallel for
     for (std::size_t i = 0; i < num_particles; ++i) {
         // i accumulators to prevent SIMD lane collisions
         double d_grad_x{}, d_grad_y{}, d_grad_z{}, d_lap{};
