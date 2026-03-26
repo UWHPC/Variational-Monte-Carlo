@@ -42,11 +42,11 @@ else()
         -Wconversion
         -Wsign-conversion
     )
-    set(VMC_RELEASE_OPTIONS -O3 -march=native -ffast-math -fno-finite-math-only)
+    set(VMC_RELEASE_OPTIONS -O3 -march=native)
     set(VMC_DEBUG_OPTIONS   -g -O0)
     set(VMC_RELWITHDEBINFO_OPT_1 -O3)
     set(VMC_RELWITHDEBINFO_OPT_2 -march=native)
-    set(VMC_RELWITHDEBINFO_OPT_3 -fno-omit-frame-pointer -ffast-math)
+    set(VMC_RELWITHDEBINFO_OPT_3 -fno-omit-frame-pointer)
 endif()
 
 # --- Library target for all source files ---
