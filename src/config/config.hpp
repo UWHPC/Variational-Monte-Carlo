@@ -21,6 +21,8 @@ public:
     std::size_t block_size{100U};
     uint64_t master_seed{42U};
     bool is_master_thread{};
+    double jastrow_a{0.25};
+    double jastrow_b{1.0};
 
     std::size_t warmup_steps;
     std::size_t measure_steps;
@@ -44,7 +46,8 @@ public:
         read(map, "Box_Length", cfg.box_length);
         read(map, "Block_Size", cfg.block_size);
         read(map, "Master_Seed", cfg.master_seed);
-        read(map, "Is_Master_Thread", cfg.is_master_thread);
+        read(map, "Jastrow_A", cfg.jastrow_a);
+        read(map, "Jastrow_B", cfg.jastrow_b);
         if (!map.empty()) {
             std::cout << "[Config] Warning! unknown keys ignored:";
             for (auto const &[key, val] : map) {

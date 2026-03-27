@@ -11,3 +11,5 @@
 #include "test_validation_interacting.cpp"
 #include "test_wavefunction.cpp"
 #include "test_rigorous_physics.cpp"
+#include "test_known_energy.cpp"
+#include "test_optimizer.cpp"

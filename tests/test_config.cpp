@@ -48,7 +48,7 @@ TEST_CASE("Config::from_file parses all recognized keys", "[config]") {
         "Box_Length = 8.5\n"
         "Block_Size = 50\n"
         "Master_Seed = 99999\n"
-        "Is_Master_Thread = true\n")};
+    )};
 
     REQUIRE(cfg.num_threads == 4U);
     REQUIRE(cfg.num_particles == 19U);
@@ -57,7 +57,6 @@ TEST_CASE("Config::from_file parses all recognized keys", "[config]") {
     require_near(cfg.box_length, 8.5);
     REQUIRE(cfg.block_size == 50U);
     REQUIRE(cfg.master_seed == 99999U);
-    REQUIRE(cfg.is_master_thread == true);
 
     // Derived:
     REQUIRE(cfg.warmup_steps == 19U * 200U);
@@ -120,29 +119,6 @@ TEST_CASE("Config::from_file skips lines without an equals sign", "[config]") {
 
     REQUIRE(cfg.num_particles == 19U);
     require_near(cfg.box_length, 5.0);
-}
-
-TEST_CASE("Config::from_file parses Is_Master_Thread boolean variants", "[config]") {
-    {
-        const Config cfg{parse_config_string("Is_Master_Thread = true\n")};
-        REQUIRE(cfg.is_master_thread == true);
-    }
-    {
-        const Config cfg{parse_config_string("Is_Master_Thread = TRUE\n")};
-        REQUIRE(cfg.is_master_thread == true);
-    }
-    {
-        const Config cfg{parse_config_string("Is_Master_Thread = 1\n")};
-        REQUIRE(cfg.is_master_thread == true);
-    }
-    {
-        const Config cfg{parse_config_string("Is_Master_Thread = false\n")};
-        REQUIRE(cfg.is_master_thread == false);
-    }
-    {
-        const Config cfg{parse_config_string("Is_Master_Thread = 0\n")};
-        REQUIRE(cfg.is_master_thread == false);
-    }
 }
 
 TEST_CASE("Config derived fields recompute correctly for various particle counts", "[config]") {

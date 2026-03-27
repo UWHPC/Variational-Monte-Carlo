@@ -11,7 +11,8 @@
 
 Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_writer)
     : config_{std::move(config)}, particles_{config_.num_particles},
-      wave_function_{particles_, config_.box_length}, blocking_analysis_{config_.block_size},
+      wave_function_{particles_, config_.box_length, config_.jastrow_a, config_.jastrow_b},
+      blocking_analysis_{config_.block_size},
       energy_tracker_{config_.box_length, static_cast<double>(config_.num_particles)},
       output_writer_{std::move(output_writer)}, proposed_{}, accepted_{}, log_psi_current_{},
       rng_{config_.master_seed}, proposal_{-config_.step_size, config_.step_size},

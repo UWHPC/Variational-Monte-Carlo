@@ -1,4 +1,5 @@
 #include "config/config.hpp"
+#include "optimizer/jastrow_optimizer.hpp"
 #include "output_writer/output_writer.hpp"
 #include "simulation/simulation.hpp"
 
@@ -11,26 +12,19 @@
 #include <memory>
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
-    // Config passed to simulation
-    const Config master_config{Config::from_file("config.cfg")};
-
-    // const Config config{parse_args(argc, argv)};
-    // std::ofstream out_file{"data/run.jsonl"};
-    // if (!out_file) {
-    //     std::cerr << "Failed to open output file: data/run.jsonl\n";
-    //     return 1;
-    // }
-    // std::unique_ptr<OutputWriter> writer{make_output_writer(OutputFormat::JSON, out_file)};
+    Config master_config{Config::from_file("config.cfg")};
 
     try {
         std::size_t num_threads{master_config.num_threads};
 
-        std::mt19937_64 master_rng(master_config.master_seed);
-        std::uniform_int_distribution<uint64_t> seedDist;
-        std::vector<std::future<Simulation::MeasurementSummary>> futures;
-
+        // Optimize Jastrow b parameter before production run
         std::cout << "\n<--- Variational Monte Carlo Simulation --->\n\n"
-                  << "<--- Config Settings --->\n"
+                  << "<--- Optimizing Jastrow b parameter --->\n";
+
+        const auto opt_result{JastrowOptimizer::optimize(master_config, true)};
+        master_config.jastrow_b = opt_result.optimal_b;
+
+        std::cout << "\n<--- Config Settings --->\n"
                   << "Number of threads: " << num_threads << "\n"
                   << "Number of particles: " << master_config.num_particles << "\n"
                   << "Number of warmup sweeps: " << master_config.warmup_sweeps << "\n"
@@ -38,7 +32,13 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
                   << "Length of box: " << master_config.box_length << "\n"
                   << "Samples per block: " << master_config.block_size << "\n"
                   << "Master seed: " << master_config.master_seed << "\n"
+                  << "Jastrow a: " << master_config.jastrow_a << "\n"
+                  << "Jastrow b: " << master_config.jastrow_b << " (optimized)\n"
                   << std::endl;
+
+        std::mt19937_64 master_rng(master_config.master_seed);
+        std::uniform_int_distribution<uint64_t> seedDist;
+        std::vector<std::future<Simulation::MeasurementSummary>> futures;
 
         auto start{std::chrono::steady_clock::now()};
 
