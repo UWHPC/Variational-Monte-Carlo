@@ -124,12 +124,42 @@ void CsvOutputWriter::write_done(const DoneData&) {
     throw std::logic_error{"CsvOutputWriter is not implemented yet"};
 }
 
+BinOutputWriter::BinOutputWriter(std::ostream& out) : out_{out} {}
+
+void BinOutputWriter::write_init(const InitData& data) {
+    // Header: num_particles (u64), box_length (f64), measure_steps (u64)
+    const uint64_t np{static_cast<uint64_t>(data.num_particles)};
+    const double bl{data.box_length};
+    const uint64_t ms{static_cast<uint64_t>(data.measure_steps)};
+    out_.write(reinterpret_cast<const char*>(&np), sizeof(np));
+    out_.write(reinterpret_cast<const char*>(&bl), sizeof(bl));
+    out_.write(reinterpret_cast<const char*>(&ms), sizeof(ms));
+    out_.flush();
+}
+
+void BinOutputWriter::write_frame(const FrameData& data) {
+    // Per frame: local_energy, mean_energy, standard_error, acceptance_rate, positions[3*N]
+    const double se{data.standard_error.value_or(0.0)};
+    out_.write(reinterpret_cast<const char*>(&data.local_energy), sizeof(double));
+    out_.write(reinterpret_cast<const char*>(&data.mean_energy), sizeof(double));
+    out_.write(reinterpret_cast<const char*>(&se), sizeof(double));
+    out_.write(reinterpret_cast<const char*>(&data.acceptance_rate), sizeof(double));
+    out_.write(reinterpret_cast<const char*>(data.positions.data()),
+               static_cast<std::streamsize>(data.positions.size() * sizeof(double)));
+}
+
+void BinOutputWriter::write_done(const DoneData&) {
+    out_.flush();
+}
+
 std::unique_ptr<OutputWriter> make_output_writer(OutputFormat format, std::ostream& out) {
     switch (format) {
     case OutputFormat::JSON:
         return std::make_unique<JsonOutputWriter>(out);
     case OutputFormat::CSV:
         return std::make_unique<CsvOutputWriter>(out);
+    case OutputFormat::BIN:
+        return std::make_unique<BinOutputWriter>(out);
     }
     throw std::invalid_argument("Unsupported output format");
 }

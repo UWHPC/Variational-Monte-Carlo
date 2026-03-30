@@ -1,4 +1,5 @@
 data/run.jsonl
+output/
 
 .vscode/
 .DS_Store

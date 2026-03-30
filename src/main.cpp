@@ -40,6 +40,11 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
         std::uniform_int_distribution<uint64_t> seedDist;
         std::vector<std::future<Simulation::MeasurementSummary>> futures;
 
+        std::ofstream bin_out{"output/vmc.bin", std::ios::binary | std::ios::trunc};
+        if (!bin_out) {
+            std::cerr << "Warning: could not open output/vmc.bin for writing\n";
+        }
+
         auto start{std::chrono::steady_clock::now()};
 
         for (std::size_t thread{}; thread < num_threads; ++thread) {
@@ -47,10 +52,19 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
             thread_config.master_seed = seedDist(master_rng);
             thread_config.is_master_thread = (thread == 0);
 
-            futures.push_back(std::async(std::launch::async, [thread_config]() {
-                Simulation sim{thread_config};
-                return sim.run();
-            }));
+            if (thread == 0 && bin_out) {
+                futures.push_back(std::async(std::launch::async,
+                    [thread_config, &bin_out]() {
+                        auto writer{std::make_unique<BinOutputWriter>(bin_out)};
+                        Simulation sim{thread_config, std::move(writer)};
+                        return sim.run();
+                    }));
+            } else {
+                futures.push_back(std::async(std::launch::async, [thread_config]() {
+                    Simulation sim{thread_config};
+                    return sim.run();
+                }));
+            }
         }
         
         double global_energy_sum{};
