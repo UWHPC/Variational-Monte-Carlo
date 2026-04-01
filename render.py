@@ -122,7 +122,11 @@ def main():
     half = box_length / 2.0
     rr.log(
         "world/box",
-        rr.Boxes3D(centers=[half, half, half], sizes=[box_length, box_length, box_length]),
+        rr.Boxes3D(
+            centers=[half, half, half],
+            sizes=[box_length, box_length, box_length],
+            colors=[(255, 255, 255, 30)],
+        ),
         static=True,
     )
 
