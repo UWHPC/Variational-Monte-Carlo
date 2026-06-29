@@ -13,3 +13,4 @@
 #include "test_rigorous_physics.cpp"
 #include "test_known_energy.cpp"
 #include "test_optimizer.cpp"
+#include "test_matrix.cpp"

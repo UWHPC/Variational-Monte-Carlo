@@ -1,7 +1,6 @@
 #include "energy_tracking.hpp"
 
 #include <numbers>
-#include <omp.h>
 
 EnergyTracker::EnergyTracker(double box_length, double num_particles)
     : box_length_{box_length}, ewald_alpha_{6.0 / box_length}, // 6.0 / L

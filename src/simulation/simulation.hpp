@@ -48,7 +48,10 @@ private:
     [[nodiscard]] EnergyTracker& energy_tracker_get() { return energy_tracker_; }
     [[nodiscard]] BlockingAnalysis& blocking_analysis_get() { return blocking_analysis_; }
 
-    // Randomly generated uniform, proposal, and particle:
+    // Random uniform, proposal, and particle draws.
+    // metropolis_step pulls these in a fixed order each step (particle pick, then
+    // the three proposal components, then the acceptance roll), and the CUDA port
+    // has to match it. See the longer note in metropolis_step (simulation.cpp).
     [[nodiscard]] double rand_uniform_double() { return uniform01()(rng()); }
     [[nodiscard]] double rand_proposal_double() { return proposal()(rng()); }
     [[nodiscard]] std::size_t rand_particle_get() { return pick_particle()(rng()); }

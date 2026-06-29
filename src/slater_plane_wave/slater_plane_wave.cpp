@@ -8,7 +8,6 @@
 #include <cstddef>
 #include <cstring>
 #include <limits>
-#include <omp.h>
 #include <vector>
 
 // Real plane-wave basis from complex exponentials
@@ -378,6 +377,16 @@ void SlaterPlaneWave::accept_move(std::size_t particle, const double* new_row,
     ASSUME_ALIGNED(inv_d_col, SIMD_BYTES);
 
     const double inv_ratio{1.0 / ratio};
+
+    // ratio shouldn't be zero here: a near-zero ratio drives log_ratio_sq to -inf
+    // and the move gets rejected before we ever call accept_move. Guard it anyway
+    // for the GPU port, where lots of walkers run on their own and one inf/NaN in
+    // inv_D would quietly throw off the averaged energy. On the GPU the better
+    // response is to flag or reset that walker instead of carrying on.
+    if (!std::isfinite(inv_ratio)) {
+        return;
+    }
+
     const std::size_t p_offset{particle * S}; // Pre-calculate particle row offset
 
     // Cache particle row column j for inv_D before changing

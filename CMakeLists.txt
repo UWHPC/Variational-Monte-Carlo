@@ -17,7 +17,19 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # --- Dependencies ---
-find_package(OpenMP REQUIRED COMPONENTS CXX)
+# OpenMP is optional here. We only use '#pragma omp simd', no parallel regions or
+# runtime calls, so the full runtime isn't needed to build or run. If it's missing
+# (e.g. AppleClang with no libomp hints) we just turn on -fopenmp-simd when the
+# compiler has it, so the build works out of the box on any toolchain.
+find_package(OpenMP QUIET COMPONENTS CXX)
+
+if(OpenMP_CXX_FOUND)
+    message(STATUS "OpenMP found (CXX ${OpenMP_CXX_VERSION}); using it for '#pragma omp simd'.")
+else()
+    message(STATUS "OpenMP not found; building without it (we only use '#pragma omp simd').")
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag("-fopenmp-simd" VMC_HAS_FOPENMP_SIMD)
+endif()
 
 # --- Build type default (Release unless overridden) ---
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -62,7 +74,14 @@ add_library(vmc_lib STATIC
 )
 
 target_include_directories(vmc_lib PUBLIC src)
-target_link_libraries(vmc_lib PUBLIC OpenMP::OpenMP_CXX)
+
+# Link OpenMP if we have it, otherwise keep the simd pragmas working with
+# -fopenmp-simd. PUBLIC so vmc and vmc_tests pick up the same behavior.
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(vmc_lib PUBLIC OpenMP::OpenMP_CXX)
+elseif(VMC_HAS_FOPENMP_SIMD)
+    target_compile_options(vmc_lib PUBLIC -fopenmp-simd)
+endif()
 target_compile_options(vmc_lib PRIVATE
     ${VMC_WARNING_OPTIONS}
     $<$<CONFIG:Release>:${VMC_RELEASE_OPTIONS}>

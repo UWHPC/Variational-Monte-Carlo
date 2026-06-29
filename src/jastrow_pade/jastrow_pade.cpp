@@ -2,7 +2,6 @@
 
 #include <cmath>
 #include <cstddef>
-#include <omp.h>
 
 double JastrowPade::value(const Particles& particles) const noexcept {
     const std::size_t num_particles{particles.num_particles_get()};

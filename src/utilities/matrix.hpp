@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <utility>
 
 /*
@@ -10,7 +11,7 @@ In-Place LU with partial pivoting in LU (size N*N, row-major)
 pivot is length >= N storing row permutation indices
 return numbers of row swaps (parity info, if you need det sign).
 */
-int lower_upper_decomp(double* lowerUpper, int* pivot, std::size_t N, std::size_t stride) {
+inline int lower_upper_decomp(double* lowerUpper, int* pivot, std::size_t N, std::size_t stride) {
     // Track row swaps
     int swapCount{};
 
@@ -66,8 +67,8 @@ solve (P^-1)LU x = b. given combined LU and pivot permutation piv.
 piv encodes the row permutation applied during LU so that
 we first permute b: y = P b, then solve L z = y, then U x = z.
 */
-void solve_lower_upper(const double* LU, const int* pivot, const double* b, double* x,
-                       std::size_t N, std::size_t stride) {
+inline void solve_lower_upper(const double* LU, const int* pivot, const double* b, double* x,
+                              std::size_t N, std::size_t stride) {
     // Apply permutation: x = Pb
     // store y in x temporarily
     for (std::size_t row = 0; row < N; ++row) {
@@ -91,14 +92,22 @@ void solve_lower_upper(const double* LU, const int* pivot, const double* b, doub
         for (std::size_t col = row + 1; col < N; ++col) {
             sum -= LU[row * stride + col] * x[col];
         }
-        x[row] = sum / LU[row * stride + row];
+
+        // Don't divide by a zero pivot. lower_upper_decomp leaves 0.0 on the
+        // diagonal when a column is singular, and dividing here would give us
+        // inf/NaN that then spreads through the wavefunction. Singular cases are
+        // already caught upstream by the -inf log|det| check, so this really only
+        // matters for a direct caller or on the GPU, where one bad walker would
+        // otherwise quietly ruin an averaged energy.
+        const double diag{LU[row * stride + row]};
+        x[row] = (std::abs(diag) > std::numeric_limits<double>::min()) ? (sum / diag) : 0.0;
     }
 }
 
 // Canonical representative rule for +-n deduplication:
 // The canonical form is: the first nonzero component is positive
 // The zero vector (0,0,0) is its own canonical representative
-bool is_canonical(int n_x, int n_y, int n_z) {
+inline bool is_canonical(int n_x, int n_y, int n_z) {
     if (n_x > 0)
         return true;
     if (n_x < 0)
