@@ -93,12 +93,6 @@ inline void solve_lower_upper(const double* LU, const int* pivot, const double* 
             sum -= LU[row * stride + col] * x[col];
         }
 
-        // Don't divide by a zero pivot. lower_upper_decomp leaves 0.0 on the
-        // diagonal when a column is singular, and dividing here would give us
-        // inf/NaN that then spreads through the wavefunction. Singular cases are
-        // already caught upstream by the -inf log|det| check, so this really only
-        // matters for a direct caller or on the GPU, where one bad walker would
-        // otherwise quietly ruin an averaged energy.
         const double diag{LU[row * stride + row]};
         x[row] = (std::abs(diag) > std::numeric_limits<double>::min()) ? (sum / diag) : 0.0;
     }

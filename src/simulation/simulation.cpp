@@ -87,18 +87,6 @@ Simulation::StepResult Simulation::metropolis_step() {
     ASSUME_ALIGNED(p_y, SIMD_BYTES);
     ASSUME_ALIGNED(p_z, SIMD_BYTES);
 
-    // RNG draw order, don't reorder this. The CUDA port leans on it.
-    // Every step pulls 5 random values, always in this order:
-    //   1. rand_particle_get()    one int in [0, N-1], which particle to move
-    //   2. rand_proposal_double() three reals in [-step, step], the dx/dy/dz kick
-    //   3. rand_uniform_double()  one real in [0, 1), the acceptance roll
-    // When this moves to cuRAND/Philox (seeded per walker from master_seed and the
-    // walker id) it has to draw the same values in the same order, or the chain
-    // drifts and we lose the ability to diff CPU vs GPU energies step by step.
-    // The std distributions can eat a variable number of mt19937_64 words per
-    // call, so the raw streams won't be bit-identical across CPU and GPU. What
-    // we're pinning is the order and meaning of those 5 values.
-
     // Local random vars:
     const std::size_t rand{rand_particle_get()};
     const double L{config_.box_length};

@@ -378,11 +378,6 @@ void SlaterPlaneWave::accept_move(std::size_t particle, const double* new_row,
 
     const double inv_ratio{1.0 / ratio};
 
-    // ratio shouldn't be zero here: a near-zero ratio drives log_ratio_sq to -inf
-    // and the move gets rejected before we ever call accept_move. Guard it anyway
-    // for the GPU port, where lots of walkers run on their own and one inf/NaN in
-    // inv_D would quietly throw off the averaged energy. On the GPU the better
-    // response is to flag or reset that walker instead of carrying on.
     if (!std::isfinite(inv_ratio)) {
         return;
     }

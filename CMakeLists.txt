@@ -17,10 +17,6 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # --- Dependencies ---
-# OpenMP is optional here. We only use '#pragma omp simd', no parallel regions or
-# runtime calls, so the full runtime isn't needed to build or run. If it's missing
-# (e.g. AppleClang with no libomp hints) we just turn on -fopenmp-simd when the
-# compiler has it, so the build works out of the box on any toolchain.
 find_package(OpenMP QUIET COMPONENTS CXX)
 
 if(OpenMP_CXX_FOUND)
@@ -75,8 +71,6 @@ add_library(vmc_lib STATIC
 
 target_include_directories(vmc_lib PUBLIC src)
 
-# Link OpenMP if we have it, otherwise keep the simd pragmas working with
-# -fopenmp-simd. PUBLIC so vmc and vmc_tests pick up the same behavior.
 if(OpenMP_CXX_FOUND)
     target_link_libraries(vmc_lib PUBLIC OpenMP::OpenMP_CXX)
 elseif(VMC_HAS_FOPENMP_SIMD)
