@@ -67,7 +67,7 @@ inline double determinant_3x3(const double* matrix, std::size_t stride) {
 inline double slater_identity_residual(const SlaterPlaneWave& slater) {
   const std::size_t N{slater.num_orbitals()};
   const std::size_t S{slater.matrix_row_stride()};
-  double            max_residual{};
+  double max_residual{};
 
   for (std::size_t row = 0; row < N; ++row) {
     for (std::size_t col = 0; col < N; ++col) {
@@ -104,10 +104,10 @@ inline double minimum_image(double dx, double box_length) {
 
 inline double exact_kinetic_energy(const SlaterPlaneWave& slater) {
   const std::size_t N{slater.num_orbitals()};
-  const double*     k_x{slater.k_vector().x_};
-  const double*     k_y{slater.k_vector().y_};
-  const double*     k_z{slater.k_vector().z_};
-  const auto&       K_INDEX{slater.orbital_k_index()};
+  const double* k_x{slater.k_vector().x_};
+  const double* k_y{slater.k_vector().y_};
+  const double* k_z{slater.k_vector().z_};
+  const auto& K_INDEX{slater.orbital_k_index()};
 
   double T_exact{};
   for (std::size_t j = 0; j < N; ++j) {
@@ -119,7 +119,7 @@ inline double exact_kinetic_energy(const SlaterPlaneWave& slater) {
 
 inline double local_kinetic_energy(const Particles& particles) {
   const std::size_t N{particles.size()};
-  double            T_local{};
+  double T_local{};
   for (std::size_t i = 0; i < N; ++i) {
     const double GX{particles.grad_log_psi().x_[i]};
     const double GY{particles.grad_log_psi().y_[i]};
@@ -145,7 +145,7 @@ inline void set_stable_closed_shell_positions(Particles& particles) {
 }
 
 template <typename Fn> std::string capture_stdout(Fn&& fn) {
-  std::ostringstream    output{};
+  std::ostringstream output{};
   std::streambuf* const OLD_BUFFER{std::cout.rdbuf(output.rdbuf())};
   try {
     std::forward<Fn>(fn)();

@@ -24,7 +24,7 @@ double valueAtOffset(
 
 TEST_CASE("Jastrow value uses minimum-image pair distances", "[jastrow]") {
   const JastrowPade jastrow{10.0, 0.25, 1.0};
-  Particles         particles{2U};
+  Particles particles{2U};
 
   particles.pos().x_[0] = 0.1;
   particles.pos().y_[0] = 0.0;
@@ -41,7 +41,7 @@ TEST_CASE("Jastrow value uses minimum-image pair distances", "[jastrow]") {
 
 TEST_CASE("Jastrow value skips degenerate pairs", "[jastrow]") {
   const JastrowPade jastrow{10.0, 0.25, 1.0};
-  Particles         particles{2U};
+  Particles particles{2U};
 
   particles.pos().x_[0] = 1.0;
   particles.pos().y_[0] = 2.0;
@@ -56,7 +56,7 @@ TEST_CASE("Jastrow value skips degenerate pairs", "[jastrow]") {
 
 TEST_CASE("Jastrow derivatives match the analytic two-particle result", "[jastrow]") {
   const JastrowPade jastrow{100.0, 0.25, 1.0};
-  Particles         particles{2U};
+  Particles particles{2U};
 
   particles.pos().x_[0] = 0.0;
   particles.pos().y_[0] = 0.0;
@@ -66,7 +66,7 @@ TEST_CASE("Jastrow derivatives match the analytic two-particle result", "[jastro
   particles.pos().y_[1] = 0.0;
   particles.pos().z_[1] = 0.0;
 
-  const std::size_t   stride{particles.p_stride()};
+  const std::size_t stride{particles.p_stride()};
   std::vector<double> gradX(stride, 0.0);
   std::vector<double> gradY(stride, 0.0);
   std::vector<double> gradZ(stride, 0.0);
@@ -97,7 +97,7 @@ TEST_CASE("Jastrow derivatives match the analytic two-particle result", "[jastro
 
 TEST_CASE("Jastrow derivatives are unchanged for degenerate pairs", "[jastrow]") {
   const JastrowPade jastrow{10.0, 0.25, 1.0};
-  Particles         particles{2U};
+  Particles particles{2U};
 
   particles.pos().x_[0] = 4.0;
   particles.pos().y_[0] = 5.0;
@@ -107,7 +107,7 @@ TEST_CASE("Jastrow derivatives are unchanged for degenerate pairs", "[jastrow]")
   particles.pos().y_[1] = 5.0;
   particles.pos().z_[1] = 6.0;
 
-  const std::size_t   stride{particles.p_stride()};
+  const std::size_t stride{particles.p_stride()};
   std::vector<double> gradX(stride, 3.0);
   std::vector<double> gradY(stride, -2.0);
   std::vector<double> gradZ(stride, 1.5);
@@ -125,7 +125,7 @@ TEST_CASE("Jastrow derivatives are unchanged for degenerate pairs", "[jastrow]")
 
 TEST_CASE("Jastrow derivatives match finite-difference gradients and Laplacians", "[jastrow]") {
   const JastrowPade jastrow{20.0, 0.6, 0.9};
-  Particles         particles{3U};
+  Particles particles{3U};
 
   particles.pos().x_[0] = 1.1;
   particles.pos().y_[0] = 2.2;
@@ -139,7 +139,7 @@ TEST_CASE("Jastrow derivatives match finite-difference gradients and Laplacians"
   particles.pos().y_[2] = 4.1;
   particles.pos().z_[2] = 3.3;
 
-  const std::size_t   stride{particles.p_stride()};
+  const std::size_t stride{particles.p_stride()};
   std::vector<double> gradX(stride, 0.0);
   std::vector<double> gradY(stride, 0.0);
   std::vector<double> gradZ(stride, 0.0);

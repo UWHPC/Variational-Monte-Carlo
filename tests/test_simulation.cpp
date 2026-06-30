@@ -19,7 +19,7 @@ TEST_CASE("Simulation emits consistent init/frame/done records through OutputWri
           "[simulation]") {
   const Config config{make_config(7U, 6.0, 0U, 4U, 0.35, 12345U, 2U)};
 
-  auto                         writer{std::make_unique<RecordingOutputWriter>()};
+  auto writer{std::make_unique<RecordingOutputWriter>()};
   RecordingOutputWriter* const sink{writer.get()};
 
   Simulation simulation{config, std::move(writer)};
@@ -42,7 +42,7 @@ TEST_CASE("Simulation emits consistent init/frame/done records through OutputWri
   REQUIRE(init.block_size == config.block_size);
 
   for (std::size_t i = 0; i < sink->frames.size(); ++i) {
-    const FrameData&  frame{sink->frames[i]};
+    const FrameData& frame{sink->frames[i]};
     const std::size_t expected_step{i + 1U};
 
     REQUIRE(frame.step == expected_step);
@@ -99,7 +99,7 @@ TEST_CASE("Simulation accepts zero-step proposals and preserves local energy acr
           "[simulation]") {
   const Config config{make_config(7U, 6.0, 0U, 6U, 0.0, 314159U, 3U)};
 
-  auto                         writer{std::make_unique<RecordingOutputWriter>()};
+  auto writer{std::make_unique<RecordingOutputWriter>()};
   RecordingOutputWriter* const sink{writer.get()};
 
   Simulation simulation{config, std::move(writer)};
@@ -119,7 +119,7 @@ TEST_CASE("Simulation accepts zero-step proposals and preserves local energy acr
 TEST_CASE("Simulation performs rejected moves for a large proposal step size", "[simulation]") {
   const Config config{make_config(7U, 6.0, 0U, 100U, 2.0, 20250308U, 10U)};
 
-  auto                         writer{std::make_unique<RecordingOutputWriter>()};
+  auto writer{std::make_unique<RecordingOutputWriter>()};
   RecordingOutputWriter* const sink{writer.get()};
 
   Simulation simulation{config, std::move(writer)};
@@ -133,7 +133,7 @@ TEST_CASE("Simulation performs rejected moves for a large proposal step size", "
 TEST_CASE("Simulation warmup path executes with adaptive proposal updates", "[simulation]") {
   const Config config{make_config(1U, 4.0, 5U, 1U, 0.2, 42U, 1U)};
 
-  auto                         writer{std::make_unique<RecordingOutputWriter>()};
+  auto writer{std::make_unique<RecordingOutputWriter>()};
   RecordingOutputWriter* const sink{writer.get()};
 
   Simulation simulation{config, std::move(writer)};

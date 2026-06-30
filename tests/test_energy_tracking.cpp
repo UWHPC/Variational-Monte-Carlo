@@ -8,8 +8,8 @@
 
 TEST_CASE("EnergyTracker total energy changes by expected kinetic contribution", "[energy]") {
   constexpr std::size_t n{3U};
-  constexpr double      L{8.0};
-  const EnergyTracker   tracker{L, static_cast<double>(n)};
+  constexpr double L{8.0};
+  const EnergyTracker tracker{L, static_cast<double>(n)};
 
   Particles reference{n};
   reference.pos().x_[0] = 0.3;
@@ -57,8 +57,8 @@ TEST_CASE("EnergyTracker total energy changes by expected kinetic contribution",
 
 TEST_CASE("EnergyTracker is invariant under box-periodic particle translations", "[energy]") {
   constexpr std::size_t n{3U};
-  constexpr double      L{7.5};
-  const EnergyTracker   tracker{L, static_cast<double>(n)};
+  constexpr double L{7.5};
+  const EnergyTracker tracker{L, static_cast<double>(n)};
 
   Particles particles{n};
   particles.pos().x_[0] = 1.1;
@@ -102,8 +102,8 @@ TEST_CASE("EnergyTracker is invariant under box-periodic particle translations",
 
 TEST_CASE("EnergyTracker handles degenerate positions and permutation symmetry", "[energy]") {
   constexpr std::size_t n{2U};
-  constexpr double      L{6.0};
-  const EnergyTracker   tracker{L, static_cast<double>(n)};
+  constexpr double L{6.0};
+  const EnergyTracker tracker{L, static_cast<double>(n)};
 
   Particles particles{n};
   particles.pos().x_[0] = 2.0;
@@ -149,7 +149,7 @@ TEST_CASE("EnergyTracker handles degenerate positions and permutation symmetry",
 TEST_CASE("EnergyTracker incremental reciprocal and real-energy updates match full recomputation",
           "[energy]") {
   constexpr std::size_t n{3U};
-  constexpr double      L{8.5};
+  constexpr double L{8.5};
   constexpr std::size_t moved{1U};
 
   Particles initial{n};

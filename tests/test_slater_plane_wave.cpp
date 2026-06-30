@@ -11,8 +11,8 @@
 
 TEST_CASE("SlaterPlaneWave constructor initializes correctly", "[slater]") {
   constexpr std::size_t N{3U};
-  Particles             particles{N};
-  SlaterPlaneWave       slater{particles, 5.0};
+  Particles particles{N};
+  SlaterPlaneWave slater{particles, 5.0};
 
   REQUIRE(slater.num_orbitals() == N);
   REQUIRE(slater.box_length() == 5.0);
@@ -22,7 +22,7 @@ TEST_CASE("SlaterPlaneWave constructor initializes correctly", "[slater]") {
 
 TEST_CASE("log_abs_det handles the N=1 constant orbital case", "[slater]") {
   // N=1: orbital 0 is k=0, cos → D = cos(0) = 1
-  Particles       particles{1U};
+  Particles particles{1U};
   SlaterPlaneWave slater{particles, 10.0};
 
   particles.pos().x_[0] = 3.25;
@@ -39,8 +39,8 @@ TEST_CASE("log_abs_det handles the N=1 constant orbital case", "[slater]") {
 TEST_CASE("log_abs_det computes an inverse satisfying D*invD = I", "[slater]") {
   // N=3: orbital 0 = cos(0)=1, orbital 1 = cos(k1·r), orbital 2 = sin(k1·r)
   constexpr std::size_t N{3U};
-  Particles             particles{N};
-  SlaterPlaneWave       slater{particles, 11.0};
+  Particles particles{N};
+  SlaterPlaneWave slater{particles, 11.0};
 
   particles.pos().x_[0] = 0.3;
   particles.pos().y_[0] = 0.4;
@@ -73,8 +73,8 @@ TEST_CASE("log_abs_det computes an inverse satisfying D*invD = I", "[slater]") {
 
 TEST_CASE("SlaterPlaneWave zero-initializes the full trig cache span", "[slater]") {
   constexpr std::size_t N{7U};
-  Particles             particles{N};
-  SlaterPlaneWave       slater{particles, 9.0};
+  Particles particles{N};
+  SlaterPlaneWave slater{particles, 9.0};
 
   const std::size_t numK{slater.num_unique_k()};
   const std::size_t ROW_STRIDE{slater.trig_row_stride()};
@@ -94,8 +94,8 @@ TEST_CASE("SlaterPlaneWave zero-initializes the full trig cache span", "[slater]
 
 TEST_CASE("determinant_ratio matches exact determinant ratio for a moved row", "[slater]") {
   constexpr std::size_t N{3U};
-  constexpr double      L{12.0};
-  Particles             particles{N};
+  constexpr double L{12.0};
+  Particles particles{N};
 
   particles.pos().x_[0] = 0.8;
   particles.pos().y_[0] = 1.1;
@@ -110,7 +110,7 @@ TEST_CASE("determinant_ratio matches exact determinant ratio for a moved row", "
   particles.pos().z_[2] = 2.6;
 
   SlaterPlaneWave slater{particles, L};
-  const double    logDetOld{slater.log_abs_det(particles)};
+  const double logDetOld{slater.log_abs_det(particles)};
   REQUIRE(std::isfinite(logDetOld));
 
   const double detOld{determinant_3x3(slater.determinant(), slater.matrix_row_stride())};
@@ -123,10 +123,10 @@ TEST_CASE("determinant_ratio matches exact determinant ratio for a moved row", "
 
   slater.update_trig_cache(moved, particles);
   const double* const newRow{slater.build_row(moved)};
-  const double        ratio{slater.determinant_ratio(moved, newRow)};
+  const double ratio{slater.determinant_ratio(moved, newRow)};
 
   SlaterPlaneWave exactSlater{particles, L};
-  const double    logDetNew{exactSlater.log_abs_det(particles)};
+  const double logDetNew{exactSlater.log_abs_det(particles)};
   REQUIRE(std::isfinite(logDetNew));
 
   const double detNew{
@@ -144,8 +144,8 @@ TEST_CASE("determinant_ratio matches exact determinant ratio for a moved row", "
 
 TEST_CASE("accept_move matches a fresh full rebuild after an accepted row update", "[slater]") {
   constexpr std::size_t N{3U};
-  constexpr double      L{10.5};
-  Particles             particles{N};
+  constexpr double L{10.5};
+  Particles particles{N};
 
   particles.pos().x_[0] = 0.4;
   particles.pos().y_[0] = 1.5;
@@ -160,7 +160,7 @@ TEST_CASE("accept_move matches a fresh full rebuild after an accepted row update
   particles.pos().z_[2] = 3.3;
 
   SlaterPlaneWave updated{particles, L};
-  const double    logDetInitial{updated.log_abs_det(particles)};
+  const double logDetInitial{updated.log_abs_det(particles)};
   REQUIRE(std::isfinite(logDetInitial));
 
   constexpr std::size_t moved{2U};
@@ -170,7 +170,7 @@ TEST_CASE("accept_move matches a fresh full rebuild after an accepted row update
 
   updated.update_trig_cache(moved, particles);
   const double* const newRow{updated.build_row(moved)};
-  const double        ratio{updated.determinant_ratio(moved, newRow)};
+  const double ratio{updated.determinant_ratio(moved, newRow)};
 
   INFO("Accepted-move update should preserve determinant/inverse consistency.");
   CAPTURE(moved, ratio);
@@ -180,7 +180,7 @@ TEST_CASE("accept_move matches a fresh full rebuild after an accepted row update
   updated.accept_move(moved, newRow, ratio);
 
   SlaterPlaneWave rebuilt{particles, L};
-  const double    logDetRebuilt{rebuilt.log_abs_det(particles)};
+  const double logDetRebuilt{rebuilt.log_abs_det(particles)};
   REQUIRE(std::isfinite(logDetRebuilt));
 
   const std::size_t S{updated.matrix_row_stride()};
@@ -198,9 +198,9 @@ TEST_CASE("N=3 determinant matrix uses cos/sin basis correctly", "[slater]") {
   // N=3: orbital 0 = cos(0)=1, orbital 1 = cos(k1·r), orbital 2 = sin(k1·r)
   // k1 is the first nonzero canonical k-vector
   constexpr std::size_t N{3U};
-  constexpr double      L{10.0};
-  Particles             particles{N};
-  SlaterPlaneWave       slater{particles, L};
+  constexpr double L{10.0};
+  Particles particles{N};
+  SlaterPlaneWave slater{particles, L};
 
   particles.pos().x_[0] = 1.0;
   particles.pos().y_[0] = 2.0;
@@ -237,9 +237,9 @@ TEST_CASE("N=3 determinant matrix uses cos/sin basis correctly", "[slater]") {
 
   // Verify D entries for orbitals 1 and 2
   const std::size_t ki{k_index[1]};
-  const double      kx{slater.k_vector().x_[ki]};
-  const double      ky{slater.k_vector().y_[ki]};
-  const double      kz{slater.k_vector().z_[ki]};
+  const double kx{slater.k_vector().x_[ki]};
+  const double ky{slater.k_vector().y_[ki]};
+  const double kz{slater.k_vector().z_[ki]};
 
   for (std::size_t i = 0; i < N; ++i) {
     const double k_dot_r{
@@ -261,8 +261,8 @@ TEST_CASE("N=3 determinant matrix uses cos/sin basis correctly", "[slater]") {
 TEST_CASE("N=7 determinant is nonzero with cos/sin basis", "[slater]") {
   // N=7 is a closed shell: 1 (k=0) + 3 pairs × 2 = 7
   constexpr std::size_t N{7U};
-  Particles             particles{N};
-  SlaterPlaneWave       slater{particles, 10.0};
+  Particles particles{N};
+  SlaterPlaneWave slater{particles, 10.0};
 
   // Spread particles around the box
   for (std::size_t i = 0; i < N; ++i) {
@@ -291,9 +291,9 @@ TEST_CASE("N=7 determinant is nonzero with cos/sin basis", "[slater]") {
 
 TEST_CASE("Slater derivatives match finite-difference for N=3 cos/sin basis", "[slater]") {
   constexpr std::size_t N{3U};
-  constexpr double      L{10.0};
-  Particles             particles{N};
-  SlaterPlaneWave       slater{particles, L};
+  constexpr double L{10.0};
+  Particles particles{N};
+  SlaterPlaneWave slater{particles, L};
 
   particles.pos().x_[0] = 1.1;
   particles.pos().y_[0] = 2.3;
@@ -309,7 +309,7 @@ TEST_CASE("Slater derivatives match finite-difference for N=3 cos/sin basis", "[
 
   // Compute analytic derivatives
   slater.log_abs_det(particles);
-  const std::size_t   stride{particles.p_stride()};
+  const std::size_t stride{particles.p_stride()};
   std::vector<double> gradX(stride, 0.0);
   std::vector<double> gradY(stride, 0.0);
   std::vector<double> gradZ(stride, 0.0);
@@ -380,7 +380,7 @@ TEST_CASE("Slater derivatives match finite-difference for N=3 cos/sin basis", "[
 }
 
 TEST_CASE("Shell filling produces (0,0,0) as the first n-vector", "[slater]") {
-  Particles       p{1U};
+  Particles p{1U};
   SlaterPlaneWave slater{p, 5.0};
 
   REQUIRE(slater.n_vector().x_[0] == 0);
@@ -390,7 +390,7 @@ TEST_CASE("Shell filling produces (0,0,0) as the first n-vector", "[slater]") {
 
 TEST_CASE("Shell filling for N=7 uses canonical n-vectors with 4 unique k-vectors", "[slater]") {
   // N=7: 1 (k=0) + 3 nonzero k-vectors × 2 (cos,sin) = 7
-  Particles       p{7U};
+  Particles p{7U};
   SlaterPlaneWave slater{p, 10.0};
 
   REQUIRE(slater.num_unique_k() == 4U);
@@ -421,7 +421,7 @@ TEST_CASE("Shell filling for N=7 uses canonical n-vectors with 4 unique k-vector
 }
 
 TEST_CASE("Shell filling orbital types alternate cos/sin for nonzero k", "[slater]") {
-  Particles       p{7U};
+  Particles p{7U};
   SlaterPlaneWave slater{p, 10.0};
 
   const auto& o_type{slater.orbital_type()};
@@ -439,13 +439,13 @@ TEST_CASE("Shell filling orbital types alternate cos/sin for nonzero k", "[slate
 }
 
 TEST_CASE("Shell filling n-vectors are sorted by magnitude then lexicographically", "[slater]") {
-  Particles       p{7U};
+  Particles p{7U};
   SlaterPlaneWave slater{p, 10.0};
 
   const std::size_t num_k{slater.num_unique_k()};
-  const int*        n_x{slater.n_vector().x_};
-  const int*        n_y{slater.n_vector().y_};
-  const int*        n_z{slater.n_vector().z_};
+  const int* n_x{slater.n_vector().x_};
+  const int* n_y{slater.n_vector().y_};
+  const int* n_z{slater.n_vector().z_};
 
   for (std::size_t i = 0; i + 1 < num_k; ++i) {
     const int mag_sq_a{n_x[i] * n_x[i] + n_y[i] * n_y[i] + n_z[i] * n_z[i]};
@@ -466,11 +466,11 @@ TEST_CASE("Shell filling n-vectors are sorted by magnitude then lexicographicall
 
 TEST_CASE("Shell filling k-vectors match 2pi/L times n-vectors", "[slater]") {
   constexpr std::size_t N{7U};
-  constexpr double      L{8.0};
-  Particles             p{N};
-  SlaterPlaneWave       slater{p, L};
+  constexpr double L{8.0};
+  Particles p{N};
+  SlaterPlaneWave slater{p, L};
 
-  const double      TWO_PI_OVER_L{2.0 * std::numbers::pi / L};
+  const double TWO_PI_OVER_L{2.0 * std::numbers::pi / L};
   const std::size_t num_k{slater.num_unique_k()};
 
   for (std::size_t i = 0; i < num_k; ++i) {

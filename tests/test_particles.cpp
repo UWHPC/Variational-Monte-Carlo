@@ -7,7 +7,7 @@
 
 TEST_CASE("Particles allocates aligned padded blocks and zero-initializes them", "[particles]") {
   constexpr std::size_t numParticles{3U};
-  Particles             particles{numParticles};
+  Particles particles{numParticles};
 
   const std::size_t stride{particles.p_stride()};
   const std::size_t doublesPerAlignment{SIMD_BYTES / sizeof(double)};

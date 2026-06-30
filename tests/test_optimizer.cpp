@@ -13,7 +13,7 @@ namespace {
 
 double energy_at_b(std::size_t N, double r_s, double b, uint64_t seed) {
   const double L{box_length_from_rs(r_s, N)};
-  Config       config{make_config(N, L, 3000U, 40000U, L / 10.0, seed, 1000U)};
+  Config config{make_config(N, L, 3000U, 40000U, L / 10.0, seed, 1000U)};
   config.jastrow_b = b;
 
   Simulation sim{config};
@@ -26,8 +26,8 @@ double energy_at_b(std::size_t N, double r_s, double b, uint64_t seed) {
 // The optimizer should find a b value, and it should be positive and finite
 TEST_CASE("Optimizer: produces valid b parameter", "[optimizer]") {
   constexpr std::size_t N{7U};
-  constexpr double      R_S{5.0};
-  const double          L{box_length_from_rs(R_S, N)};
+  constexpr double R_S{5.0};
+  const double L{box_length_from_rs(R_S, N)};
 
   Config config{};
   config.num_particles = N;
@@ -53,8 +53,8 @@ TEST_CASE("Optimizer: produces valid b parameter", "[optimizer]") {
 // The optimized b should give lower (or equal) energy than b=1.0
 TEST_CASE("Optimizer: optimized b lowers energy vs default b=1", "[optimizer]") {
   constexpr std::size_t N{7U};
-  constexpr double      R_S{5.0};
-  const double          L{box_length_from_rs(R_S, N)};
+  constexpr double R_S{5.0};
+  const double L{box_length_from_rs(R_S, N)};
 
   Config config{};
   config.num_particles = N;
@@ -82,8 +82,8 @@ TEST_CASE("Optimizer: optimized b lowers energy vs default b=1", "[optimizer]") 
 // At r_s=10 the optimizer should also work
 TEST_CASE("Optimizer: works at r_s=10", "[optimizer]") {
   constexpr std::size_t N{7U};
-  constexpr double      R_S{10.0};
-  const double          L{box_length_from_rs(R_S, N)};
+  constexpr double R_S{10.0};
+  const double L{box_length_from_rs(R_S, N)};
 
   Config config{};
   config.num_particles = N;

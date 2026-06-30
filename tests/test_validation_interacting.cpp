@@ -20,7 +20,7 @@ SimResult run_vmc(
 ) {
   const Config config{make_config(N, L, warmup, measure, step_size, seed, block_size)};
 
-  auto                         writer{std::make_unique<RecordingOutputWriter>()};
+  auto writer{std::make_unique<RecordingOutputWriter>()};
   RecordingOutputWriter* const sink{writer.get()};
 
   Simulation sim{config, std::move(writer)};
@@ -40,12 +40,12 @@ SimResult run_vmc(
 // At r_s=5 the interaction energy is strongly negative, VMC total must be below non-interacting KE
 TEST_CASE("Interacting VMC energy is below non-interacting KE at r_s=5", "[interacting]") {
   constexpr std::size_t N{19U};
-  constexpr double      R_S{5.0};
-  const double          L{box_length_from_rs(R_S, N)};
+  constexpr double R_S{5.0};
+  const double L{box_length_from_rs(R_S, N)};
 
-  Particles             p{N};
+  Particles p{N};
   const SlaterPlaneWave slater{p, L};
-  const double          T_EXACT{exact_kinetic_energy(slater)};
+  const double T_EXACT{exact_kinetic_energy(slater)};
 
   const auto result{run_vmc(N, L, 5000U, 40000U, 0.6, 2048U, 1000U)};
 
@@ -56,10 +56,10 @@ TEST_CASE("Interacting VMC energy is below non-interacting KE at r_s=5", "[inter
 // At r_s=5, exchange-correlation dominates -> E/N must be negative
 TEST_CASE("Energy per particle is negative at r_s=5", "[interacting]") {
   constexpr std::size_t N{19U};
-  constexpr double      R_S{5.0};
-  const double          L{box_length_from_rs(R_S, N)};
+  constexpr double R_S{5.0};
+  const double L{box_length_from_rs(R_S, N)};
 
-  const auto   result{run_vmc(N, L, 5000U, 40000U, 0.6, 4096U, 1000U)};
+  const auto result{run_vmc(N, L, 5000U, 40000U, 0.6, 4096U, 1000U)};
   const double E_PER_N{result.mean_energy / static_cast<double>(N)};
 
   REQUIRE(E_PER_N < 0.0);
@@ -101,8 +101,8 @@ TEST_CASE("Finite-size convergence: N=7 and N=19 agree at r_s=5", "[interacting]
 // 40k measure steps with block_size=1000 -> 40 blocks, should produce reliable SE
 TEST_CASE("Blocking analysis produces finite standard error", "[interacting]") {
   constexpr std::size_t N{7U};
-  constexpr double      R_S{2.0};
-  const double          L{box_length_from_rs(R_S, N)};
+  constexpr double R_S{2.0};
+  const double L{box_length_from_rs(R_S, N)};
 
   const auto result{run_vmc(N, L, 2000U, 40000U, 0.4, 123U, 1000U)};
 
@@ -116,8 +116,8 @@ TEST_CASE("Blocking analysis produces finite standard error", "[interacting]") {
 // Warmup targets ~50% acceptance, measurement should land between 30-70%
 TEST_CASE("Warmup produces reasonable acceptance rate", "[interacting]") {
   constexpr std::size_t N{19U};
-  constexpr double      R_S{2.0};
-  const double          L{box_length_from_rs(R_S, N)};
+  constexpr double R_S{2.0};
+  const double L{box_length_from_rs(R_S, N)};
 
   const auto result{run_vmc(N, L, 5000U, 20000U, 0.3, 7777U, 1000U)};
 
@@ -128,10 +128,10 @@ TEST_CASE("Warmup produces reasonable acceptance rate", "[interacting]") {
 // At r_s=1 (high density), KE dominates -> E/N positive, bounded [0.3, 2.0] Ha
 TEST_CASE("Energy per particle at r_s=1 is positive and bounded", "[interacting]") {
   constexpr std::size_t N{19U};
-  constexpr double      R_S{1.0};
-  const double          L{box_length_from_rs(R_S, N)};
+  constexpr double R_S{1.0};
+  const double L{box_length_from_rs(R_S, N)};
 
-  const auto   result{run_vmc(N, L, 5000U, 40000U, 0.2, 789U, 1000U)};
+  const auto result{run_vmc(N, L, 5000U, 40000U, 0.2, 789U, 1000U)};
   const double E_PER_N{result.mean_energy / static_cast<double>(N)};
 
   REQUIRE(E_PER_N > 0.0);
@@ -142,8 +142,8 @@ TEST_CASE("Energy per particle at r_s=1 is positive and bounded", "[interacting]
 // SE per particle should be small fraction of |E/N|
 TEST_CASE("Standard error is small relative to energy scale", "[interacting]") {
   constexpr std::size_t N{19U};
-  constexpr double      R_S{5.0};
-  const double          L{box_length_from_rs(R_S, N)};
+  constexpr double R_S{5.0};
+  const double L{box_length_from_rs(R_S, N)};
 
   const auto result{run_vmc(N, L, 5000U, 40000U, 0.6, 31415U, 1000U)};
 
@@ -156,8 +156,8 @@ TEST_CASE("Standard error is small relative to energy scale", "[interacting]") {
 // Deterministic RNG seeding must produce identical results
 TEST_CASE("Same seed produces identical energy", "[interacting]") {
   constexpr std::size_t N{7U};
-  constexpr double      R_S{2.0};
-  const double          L{box_length_from_rs(R_S, N)};
+  constexpr double R_S{2.0};
+  const double L{box_length_from_rs(R_S, N)};
 
   const auto r1{run_vmc(N, L, 1000U, 10000U, 0.4, 42U, 500U)};
   const auto r2{run_vmc(N, L, 1000U, 10000U, 0.4, 42U, 500U)};
@@ -168,8 +168,8 @@ TEST_CASE("Same seed produces identical energy", "[interacting]") {
 // Different seeds should agree within 3 combined standard errors
 TEST_CASE("Independent seeds produce consistent energies", "[interacting]") {
   constexpr std::size_t N{7U};
-  constexpr double      R_S{5.0};
-  const double          L{box_length_from_rs(R_S, N)};
+  constexpr double R_S{5.0};
+  const double L{box_length_from_rs(R_S, N)};
 
   const auto r1{run_vmc(N, L, 3000U, 40000U, 0.8, 111U, 1000U)};
   const auto r2{run_vmc(N, L, 3000U, 40000U, 0.8, 222U, 1000U)};

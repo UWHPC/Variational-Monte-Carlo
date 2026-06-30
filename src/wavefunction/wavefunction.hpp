@@ -33,11 +33,11 @@ public:
   , deriv_{particles.size(), NUM_ARRAYS}
   { }
 
-  [[nodiscard]]       JastrowPade&     jastrow_pade()             noexcept { return jastrow_pade_; }
-  [[nodiscard]] const JastrowPade&     jastrow_pade()       const noexcept { return jastrow_pade_; }
+  [[nodiscard]]       JastrowPade& jastrow_pade()       noexcept { return jastrow_pade_; }
+  [[nodiscard]] const JastrowPade& jastrow_pade() const noexcept { return jastrow_pade_; }
 
-  [[nodiscard]]       SlaterPlaneWave& slater_plane_wave()        noexcept { return slater_plane_wave_; }
-  [[nodiscard]] const SlaterPlaneWave& slater_plane_wave()  const noexcept { return slater_plane_wave_; }
+  [[nodiscard]]       SlaterPlaneWave& slater_plane_wave()       noexcept { return slater_plane_wave_; }
+  [[nodiscard]] const SlaterPlaneWave& slater_plane_wave() const noexcept { return slater_plane_wave_; }
 
   Ptr3D<      double> j_grad()       noexcept { return {deriv_[GRAD_X], deriv_[GRAD_Y], deriv_[GRAD_Z]}; }
   Ptr3D<const double> j_grad() const noexcept { return {deriv_[GRAD_X], deriv_[GRAD_Y], deriv_[GRAD_Z]}; }

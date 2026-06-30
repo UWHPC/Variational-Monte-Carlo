@@ -48,7 +48,7 @@ void phy_copy_positions(const Particles& source, Particles& dest) {
 
 double exact_real_potential(const Particles& particles, double box_length) {
   const std::size_t n{particles.size()};
-  const double      alpha{6.0 / box_length};
+  const double alpha{6.0 / box_length};
 
   double total{};
 
@@ -68,12 +68,12 @@ double exact_real_potential(const Particles& particles, double box_length) {
 
 double exact_reciprocal_potential(const Particles& particles, double box_length) {
   const std::size_t n{particles.size()};
-  const double      alpha{6.0 / box_length};
-  const double      two_pi_over_l{2.0 * std::numbers::pi / box_length};
-  const double      four_alpha_sq{4.0 * alpha * alpha};
-  const double      cutoff_factor{-std::log(EWALD_RECIPROCAL_TOLERANCE)};
-  const double      g_max_mag_sq{four_alpha_sq * cutoff_factor};
-  const int         m_max{static_cast<int>(std::ceil(std::sqrt(g_max_mag_sq) / two_pi_over_l)) + 1};
+  const double alpha{6.0 / box_length};
+  const double two_pi_over_l{2.0 * std::numbers::pi / box_length};
+  const double four_alpha_sq{4.0 * alpha * alpha};
+  const double cutoff_factor{-std::log(EWALD_RECIPROCAL_TOLERANCE)};
+  const double g_max_mag_sq{four_alpha_sq * cutoff_factor};
+  const int m_max{static_cast<int>(std::ceil(std::sqrt(g_max_mag_sq) / two_pi_over_l)) + 1};
 
   double weighted_sum{};
 
@@ -141,9 +141,9 @@ double exact_total_potential(const Particles& particles, double box_length) {
 
 TEST_CASE("Fully polarized Jastrow cusp matches the same-spin analytical form near contact",
           "[rigorous][jastrow]") {
-  constexpr double  box_length{50.0};
+  constexpr double box_length{50.0};
   const JastrowPade jastrow{box_length, 0.25, 1.0};
-  Particles         particles{2U};
+  Particles particles{2U};
 
   particles.pos().x_[0] = 0.0;
   particles.pos().y_[0] = 0.0;
@@ -191,7 +191,7 @@ TEST_CASE(
     "Slater determinant changes sign under particle exchange while log_abs_det stays invariant",
     "[rigorous][slater]") {
   constexpr std::size_t n{3U};
-  constexpr double      box_length{9.0};
+  constexpr double box_length{9.0};
 
   Particles original{n};
   original.pos().x_[0] = 0.7;
@@ -207,7 +207,7 @@ TEST_CASE(
   original.pos().z_[2] = 0.5;
 
   SlaterPlaneWave slater_original{original, box_length};
-  const double    log_original{slater_original.log_abs_det(original)};
+  const double log_original{slater_original.log_abs_det(original)};
   REQUIRE(std::isfinite(log_original));
 
   const double det_original{
@@ -224,7 +224,7 @@ TEST_CASE(
   std::swap(swapped.pos().z_[0], swapped.pos().z_[1]);
 
   SlaterPlaneWave slater_swapped{swapped, box_length};
-  const double    log_swapped{slater_swapped.log_abs_det(swapped)};
+  const double log_swapped{slater_swapped.log_abs_det(swapped)};
   REQUIRE(std::isfinite(log_swapped));
 
   const double det_swapped{
@@ -243,7 +243,7 @@ TEST_CASE(
 TEST_CASE("SlaterPlaneWave is periodic under box translations of a single particle",
           "[rigorous][slater]") {
   constexpr std::size_t n{3U};
-  constexpr double      box_length{10.0};
+  constexpr double box_length{10.0};
 
   Particles particles{n};
   particles.pos().x_[0] = 1.1;
@@ -259,7 +259,7 @@ TEST_CASE("SlaterPlaneWave is periodic under box translations of a single partic
   particles.pos().z_[2] = 2.9;
 
   SlaterPlaneWave baseline{particles, box_length};
-  const double    baseline_log_det{baseline.log_abs_det(particles)};
+  const double baseline_log_det{baseline.log_abs_det(particles)};
   REQUIRE(std::isfinite(baseline_log_det));
 
   Particles shifted{n};
@@ -269,7 +269,7 @@ TEST_CASE("SlaterPlaneWave is periodic under box translations of a single partic
   shifted.pos().z_[1] += 2.0 * box_length;
 
   SlaterPlaneWave translated{shifted, box_length};
-  const double    translated_log_det{translated.log_abs_det(shifted)};
+  const double translated_log_det{translated.log_abs_det(shifted)};
   REQUIRE(std::isfinite(translated_log_det));
 
   INFO("Plane-wave Slater determinant must be invariant under integer box translations.");
@@ -289,10 +289,10 @@ TEST_CASE("SlaterPlaneWave is periodic under box translations of a single partic
 TEST_CASE("Randomized determinant_ratio matches exact determinant ratio over many configurations",
           "[rigorous][slater]") {
   constexpr std::size_t n{3U};
-  constexpr double      box_length{11.0};
+  constexpr double box_length{11.0};
   constexpr std::size_t samples{40U};
 
-  std::mt19937_64                        rng{123456789ULL};
+  std::mt19937_64 rng{123456789ULL};
   std::uniform_real_distribution<double> position_dist{0.0, box_length};
   std::uniform_real_distribution<double> move_dist{-0.20, 0.20};
 
@@ -306,7 +306,7 @@ TEST_CASE("Randomized determinant_ratio matches exact determinant ratio over man
     }
 
     SlaterPlaneWave slater{particles, box_length};
-    const double    baseline_log_det{slater.log_abs_det(particles)};
+    const double baseline_log_det{slater.log_abs_det(particles)};
 
     INFO("Baseline Slater rebuild must be finite for randomized determinant-ratio testing.");
     CAPTURE(sample, baseline_log_det);
@@ -330,10 +330,10 @@ TEST_CASE("Randomized determinant_ratio matches exact determinant ratio over man
 
     slater.update_trig_cache(moved, particles);
     const double* const new_row{slater.build_row(moved)};
-    const double        ratio{slater.determinant_ratio(moved, new_row)};
+    const double ratio{slater.determinant_ratio(moved, new_row)};
 
     SlaterPlaneWave rebuilt{particles, box_length};
-    const double    rebuilt_log_det{rebuilt.log_abs_det(particles)};
+    const double rebuilt_log_det{rebuilt.log_abs_det(particles)};
 
     INFO("Fresh rebuild must be finite for randomized determinant-ratio testing.");
     CAPTURE(sample, moved, rebuilt_log_det);
@@ -357,7 +357,7 @@ TEST_CASE("Randomized determinant_ratio matches exact determinant ratio over man
 TEST_CASE("SlaterPlaneWave reports a singular determinant for duplicate particle rows",
           "[rigorous][slater]") {
   constexpr std::size_t n{3U};
-  constexpr double      box_length{10.0};
+  constexpr double box_length{10.0};
 
   Particles particles{n};
   particles.pos().x_[0] = 1.25;
@@ -373,8 +373,8 @@ TEST_CASE("SlaterPlaneWave reports a singular determinant for duplicate particle
   particles.pos().z_[2] = 1.70;
 
   SlaterPlaneWave slater{particles, box_length};
-  const double    log_abs_det{slater.log_abs_det(particles)};
-  const double    det{phy_determinant3x3(slater.determinant(), slater.matrix_row_stride())};
+  const double log_abs_det{slater.log_abs_det(particles)};
+  const double det{phy_determinant3x3(slater.determinant(), slater.matrix_row_stride())};
 
   INFO("Duplicate particle positions should create duplicate Slater rows and a singular matrix.");
   CAPTURE(log_abs_det, det);
@@ -386,14 +386,14 @@ TEST_CASE("Repeated accepted Slater updates preserve predictive determinant rati
           "rebuilds",
           "[rigorous][slater]") {
   constexpr std::size_t n{7U};
-  constexpr double      box_length{10.0};
+  constexpr double box_length{10.0};
   constexpr std::size_t steps{64U};
 
   Particles particles{n};
   set_stable_closed_shell_positions(particles);
 
   SlaterPlaneWave maintained{particles, box_length};
-  const double    initial_log_det{maintained.log_abs_det(particles)};
+  const double initial_log_det{maintained.log_abs_det(particles)};
 
   INFO("Initial Slater matrix for the multi-step drift test must be well-defined.");
   CAPTURE(initial_log_det);
@@ -412,7 +412,7 @@ TEST_CASE("Repeated accepted Slater updates preserve predictive determinant rati
 
     maintained.update_trig_cache(moved, particles);
     const double* const accepted_row{maintained.build_row(moved)};
-    const double        accepted_ratio{maintained.determinant_ratio(moved, accepted_row)};
+    const double accepted_ratio{maintained.determinant_ratio(moved, accepted_row)};
 
     INFO("Accepted-step determinant ratio became non-finite or too close to singular.");
     CAPTURE(step, moved, accepted_ratio);
@@ -422,7 +422,7 @@ TEST_CASE("Repeated accepted Slater updates preserve predictive determinant rati
     maintained.accept_move(moved, accepted_row, accepted_ratio);
 
     SlaterPlaneWave rebuilt{particles, box_length};
-    const double    rebuilt_log_det{rebuilt.log_abs_det(particles)};
+    const double rebuilt_log_det{rebuilt.log_abs_det(particles)};
 
     INFO("Fresh rebuild produced a non-finite log determinant during the multi-step "
          "predictive-consistency test.");
@@ -438,12 +438,12 @@ TEST_CASE("Repeated accepted Slater updates preserve predictive determinant rati
     REQUIRE(maintained_residual <= 1e-8);
     REQUIRE(rebuilt_residual <= 1e-10);
 
-    double            max_det_diff{};
+    double max_det_diff{};
     const std::size_t S_MAT{maintained.matrix_row_stride()};
     for (std::size_t row = 0; row < n; ++row) {
       for (std::size_t col = 0; col < n; ++col) {
         const std::size_t idx{row * S_MAT + col};
-        const double      det_diff{
+        const double det_diff{
           std::abs(maintained.determinant()[idx] - rebuilt.determinant()[idx])
         };
         max_det_diff = std::max(max_det_diff, det_diff);
@@ -455,7 +455,7 @@ TEST_CASE("Repeated accepted Slater updates preserve predictive determinant rati
     REQUIRE(max_det_diff <= 1e-11);
 
     const std::size_t probe{(moved + 1U) % n};
-    Particles         probe_particles{n};
+    Particles probe_particles{n};
     phy_copy_positions(particles, probe_particles);
 
     const double probe_dx{0.0017 * static_cast<double>((step % 4U) + 1U)};
@@ -495,7 +495,7 @@ TEST_CASE("Repeated accepted Slater updates preserve predictive determinant rati
 TEST_CASE("WaveFunction log_psi and derivatives are invariant under integer box translations",
           "[rigorous][wavefunction]") {
   constexpr std::size_t n{7U};
-  constexpr double      box_length{9.5};
+  constexpr double box_length{9.5};
 
   Particles particles{n};
   set_stable_closed_shell_positions(particles);
@@ -550,10 +550,10 @@ TEST_CASE("WaveFunction log_psi and derivatives are invariant under integer box 
 TEST_CASE("EnergyTracker matches an exact Ewald reference on many random small configurations",
           "[rigorous][energy]") {
   constexpr std::size_t n{3U};
-  constexpr double      box_length{8.25};
+  constexpr double box_length{8.25};
   constexpr std::size_t samples{25U};
 
-  std::mt19937_64                        rng{987654321ULL};
+  std::mt19937_64 rng{987654321ULL};
   std::uniform_real_distribution<double> dist{0.0, box_length};
 
   for (std::size_t sample = 0; sample < samples; ++sample) {
@@ -583,7 +583,7 @@ TEST_CASE("EnergyTracker matches an exact Ewald reference on many random small c
 TEST_CASE("EnergyTracker remains close to the exact Ewald reference across many cached updates",
           "[rigorous][energy]") {
   constexpr std::size_t n{3U};
-  constexpr double      box_length{8.75};
+  constexpr double box_length{8.75};
   constexpr std::size_t steps{48U};
 
   Particles particles{n};

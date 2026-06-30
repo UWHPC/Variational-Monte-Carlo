@@ -44,11 +44,11 @@ namespace {
 double published_pz_total_energy(double r_s) {
   // T_HF/N = (2.21 * 2^(2/3)) / (2 * r_s^2) Ha
   constexpr double T_COEFF{2.21 * 1.587401051968199 * 0.5};
-  const double     t{T_COEFF / (r_s * r_s)};
+  const double t{T_COEFF / (r_s * r_s)};
 
   // E_x/N = -(0.9163 * 2^(1/3)) / (2 * r_s) Ha
   constexpr double EX_COEFF{0.9163 * 1.2599210498948732 * 0.5};
-  const double     ex{-EX_COEFF / r_s};
+  const double ex{-EX_COEFF / r_s};
 
   // PZ81 correlation for ζ=1, in Ry -> Ha (divide by 2)
   double ec_ry{};
@@ -62,7 +62,7 @@ double published_pz_total_energy(double r_s) {
     constexpr double B{-0.0269};
     constexpr double C{0.0007};
     constexpr double D{-0.0048};
-    const double     ln_rs{std::log(r_s)};
+    const double ln_rs{std::log(r_s)};
     ec_ry = A * ln_rs + B + C * r_s * ln_rs + D * r_s;
   }
 
@@ -79,9 +79,9 @@ SimResult run_published_vmc(
   std::size_t block_size
 ) {
   const double L{box_length_from_rs(r_s, N)};
-  Config       config{make_config(N, L, warmup_steps, measure_steps, step_size, seed, block_size)};
+  Config config{make_config(N, L, warmup_steps, measure_steps, step_size, seed, block_size)};
 
-  auto                         writer{std::make_unique<RecordingOutputWriter>()};
+  auto writer{std::make_unique<RecordingOutputWriter>()};
   RecordingOutputWriter* const sink{writer.get()};
 
   Simulation sim{config, std::move(writer)};
@@ -111,10 +111,10 @@ SimResult run_published_vmc(
 
 TEST_CASE("Published values: E/N at r_s=5, N=19 matches PZ81 within 0.01 Ha", "[published]") {
   constexpr std::size_t N{19U};
-  constexpr double      R_S{5.0};
-  const double          E_PZ{published_pz_total_energy(R_S)};
+  constexpr double R_S{5.0};
+  const double E_PZ{published_pz_total_energy(R_S)};
 
-  const auto   result{run_published_vmc(N, R_S, 5000U, 80000U, 0.6, 5019U, 2000U)};
+  const auto result{run_published_vmc(N, R_S, 5000U, 80000U, 0.6, 5019U, 2000U)};
   const double E_VMC{result.mean_energy / static_cast<double>(N)};
 
   INFO("E_VMC/N    = " << E_VMC << " Ha");
@@ -127,10 +127,10 @@ TEST_CASE("Published values: E/N at r_s=5, N=19 matches PZ81 within 0.01 Ha", "[
 
 TEST_CASE("Published values: E/N at r_s=10, N=19 matches PZ81 within 0.005 Ha", "[published]") {
   constexpr std::size_t N{19U};
-  constexpr double      R_S{10.0};
-  const double          E_PZ{published_pz_total_energy(R_S)};
+  constexpr double R_S{10.0};
+  const double E_PZ{published_pz_total_energy(R_S)};
 
-  const auto   result{run_published_vmc(N, R_S, 5000U, 80000U, 1.0, 10019U, 2000U)};
+  const auto result{run_published_vmc(N, R_S, 5000U, 80000U, 1.0, 10019U, 2000U)};
   const double E_VMC{result.mean_energy / static_cast<double>(N)};
 
   INFO("E_VMC/N    = " << E_VMC << " Ha");
@@ -143,10 +143,10 @@ TEST_CASE("Published values: E/N at r_s=10, N=19 matches PZ81 within 0.005 Ha", 
 
 TEST_CASE("Published values: E/N at r_s=10, N=7 matches PZ81 within 0.005 Ha", "[published]") {
   constexpr std::size_t N{7U};
-  constexpr double      R_S{10.0};
-  const double          E_PZ{published_pz_total_energy(R_S)};
+  constexpr double R_S{10.0};
+  const double E_PZ{published_pz_total_energy(R_S)};
 
-  const auto   result{run_published_vmc(N, R_S, 5000U, 80000U, 1.2, 10007U, 2000U)};
+  const auto result{run_published_vmc(N, R_S, 5000U, 80000U, 1.2, 10007U, 2000U)};
   const double E_VMC{result.mean_energy / static_cast<double>(N)};
 
   INFO("E_VMC/N    = " << E_VMC << " Ha");
@@ -160,10 +160,10 @@ TEST_CASE("Published values: E/N at r_s=10, N=7 matches PZ81 within 0.005 Ha", "
 // At r_s=2 finite-size effects are larger, use wider tolerance
 TEST_CASE("Published values: E/N at r_s=2, N=19 matches PZ81 within 0.07 Ha", "[published]") {
   constexpr std::size_t N{19U};
-  constexpr double      R_S{2.0};
-  const double          E_PZ{published_pz_total_energy(R_S)};
+  constexpr double R_S{2.0};
+  const double E_PZ{published_pz_total_energy(R_S)};
 
-  const auto   result{run_published_vmc(N, R_S, 5000U, 80000U, 0.3, 2019U, 2000U)};
+  const auto result{run_published_vmc(N, R_S, 5000U, 80000U, 0.3, 2019U, 2000U)};
   const double E_VMC{result.mean_energy / static_cast<double>(N)};
 
   INFO("E_VMC/N    = " << E_VMC << " Ha");
@@ -177,7 +177,7 @@ TEST_CASE("Published values: E/N at r_s=2, N=19 matches PZ81 within 0.07 Ha", "[
 // Convergence toward published values with increasing N
 TEST_CASE("Published values: N=19 closer to PZ81 than N=7 at r_s=5", "[published]") {
   constexpr double R_S{5.0};
-  const double     E_PZ{published_pz_total_energy(R_S)};
+  const double E_PZ{published_pz_total_energy(R_S)};
 
   const auto r7{run_published_vmc(7U, R_S, 5000U, 60000U, 0.8, 7500U, 1500U)};
   const auto r19{run_published_vmc(19U, R_S, 5000U, 60000U, 0.6, 19500U, 1500U)};

@@ -11,7 +11,7 @@
 TEST_CASE("JsonOutputWriter writes init/frame/done records and escapes JSON strings",
           "[output_writer]") {
   std::ostringstream out{};
-  JsonOutputWriter   writer{out};
+  JsonOutputWriter writer{out};
 
   const InitData init{
     .run_id = std::string{"run\"\\\b\f\n\r\t\x01"},
@@ -82,7 +82,7 @@ TEST_CASE("JsonOutputWriter writes init/frame/done records and escapes JSON stri
 
 TEST_CASE("CsvOutputWriter methods throw until implemented", "[output_writer]") {
   std::ostringstream out{};
-  CsvOutputWriter    writer{out};
+  CsvOutputWriter writer{out};
 
   REQUIRE_THROWS_AS(
     writer.write_init(InitData{

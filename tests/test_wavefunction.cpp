@@ -74,7 +74,7 @@ TEST_CASE("WaveFunction evaluate_log_psi returns finite for N=1", "[wavefunction
 
 TEST_CASE("WaveFunction default Jastrow parameter matches fully polarized cusp choice",
           "[wavefunction]") {
-  Particles    particles{2U};
+  Particles particles{2U};
   WaveFunction waveFunction{particles, 9.0};
 
   const double actualA{waveFunction.jastrow_pade().a()};
