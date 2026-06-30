@@ -10,13 +10,7 @@ double JastrowPade::value(const Particles& particles) const noexcept {
     const double half_L{0.5 * L};
     const double neg_half_L{-1.0 * half_L};
 
-    const double* RESTRICT pos_x{particles.pos_x_get()};
-    const double* RESTRICT pos_y{particles.pos_y_get()};
-    const double* RESTRICT pos_z{particles.pos_z_get()};
-
-    ASSUME_ALIGNED(pos_x, SIMD_BYTES);
-    ASSUME_ALIGNED(pos_y, SIMD_BYTES);
-    ASSUME_ALIGNED(pos_z, SIMD_BYTES);
+    const auto [pos_x, pos_y, pos_z]{particles.pos().align()};
 
     const double a_local{a_get()};
     const double b_local{b_get()};
@@ -63,13 +57,7 @@ void JastrowPade::add_derivatives(const Particles& particles, double* RESTRICT g
     const double half_L{0.5 * L};
     const double neg_half_L{-1.0 * half_L};
 
-    const double* RESTRICT pos_x{particles.pos_x_get()};
-    const double* RESTRICT pos_y{particles.pos_y_get()};
-    const double* RESTRICT pos_z{particles.pos_z_get()};
-
-    ASSUME_ALIGNED(pos_x, SIMD_BYTES);
-    ASSUME_ALIGNED(pos_y, SIMD_BYTES);
-    ASSUME_ALIGNED(pos_z, SIMD_BYTES);
+    const auto [pos_x, pos_y, pos_z]{particles.pos().align()};
 
     ASSUME_ALIGNED(grad_x, SIMD_BYTES);
     ASSUME_ALIGNED(grad_y, SIMD_BYTES);
@@ -144,13 +132,7 @@ double JastrowPade::delta_value(const Particles& particles, std::size_t moved, d
     const double half_L{0.5 * L};
     const double neg_half_L{-1.0 * half_L};
 
-    const double* RESTRICT pos_x{particles.pos_x_get()};
-    const double* RESTRICT pos_y{particles.pos_y_get()};
-    const double* RESTRICT pos_z{particles.pos_z_get()};
-    
-    ASSUME_ALIGNED(pos_x, SIMD_BYTES);
-    ASSUME_ALIGNED(pos_y, SIMD_BYTES);
-    ASSUME_ALIGNED(pos_z, SIMD_BYTES);
+    const auto [pos_x, pos_y, pos_z]{particles.pos().align()};
 
     const double a_local{a_get()};
     const double b_local{b_get()};
@@ -216,13 +198,7 @@ void JastrowPade::update_derivatives_for_move(const Particles& particles, std::s
     const double half_L{0.5 * L};
     const double neg_half_L{-1.0 * half_L};
 
-    const double* RESTRICT pos_x{particles.pos_x_get()};
-    const double* RESTRICT pos_y{particles.pos_y_get()};
-    const double* RESTRICT pos_z{particles.pos_z_get()};
-
-    ASSUME_ALIGNED(pos_x, SIMD_BYTES);
-    ASSUME_ALIGNED(pos_y, SIMD_BYTES);
-    ASSUME_ALIGNED(pos_z, SIMD_BYTES);
+    const auto [pos_x, pos_y, pos_z]{particles.pos().align()};
 
     ASSUME_ALIGNED(grad_x, SIMD_BYTES);
     ASSUME_ALIGNED(grad_y, SIMD_BYTES);

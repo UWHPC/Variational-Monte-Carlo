@@ -9,19 +9,19 @@
 TEST_CASE("WaveFunction evaluateDerivatives clears buffers and delegates to Jastrow", "[wavefunction]") {
     Particles particles{2U};
 
-    particles.pos_x_get()[0] = 0.0;
-    particles.pos_y_get()[0] = 0.0;
-    particles.pos_z_get()[0] = 0.0;
+    particles.pos().x_[0] = 0.0;
+    particles.pos().y_[0] = 0.0;
+    particles.pos().z_[0] = 0.0;
 
-    particles.pos_x_get()[1] = 1.0;
-    particles.pos_y_get()[1] = 0.0;
-    particles.pos_z_get()[1] = 0.0;
+    particles.pos().x_[1] = 1.0;
+    particles.pos().y_[1] = 0.0;
+    particles.pos().z_[1] = 0.0;
 
     const std::size_t stride{particles.padding_stride_get()};
     for (std::size_t i = 0; i < stride; ++i) {
-        particles.grad_log_psi_x_get()[i] = 999.0;
-        particles.grad_log_psi_y_get()[i] = 999.0;
-        particles.grad_log_psi_z_get()[i] = 999.0;
+        particles.grad_log_psi().x_[i] = 999.0;
+        particles.grad_log_psi().y_[i] = 999.0;
+        particles.grad_log_psi().z_[i] = 999.0;
         particles.lap_log_psi_get()[i] = 999.0;
     }
 
@@ -43,9 +43,9 @@ TEST_CASE("WaveFunction evaluateDerivatives clears buffers and delegates to Jast
     waveFunction.evaluate_derivatives(particles);
 
     for (std::size_t i = 0; i < stride; ++i) {
-        require_near(particles.grad_log_psi_x_get()[i], expectedX[i]);
-        require_near(particles.grad_log_psi_y_get()[i], expectedY[i]);
-        require_near(particles.grad_log_psi_z_get()[i], expectedZ[i]);
+        require_near(particles.grad_log_psi().x_[i], expectedX[i]);
+        require_near(particles.grad_log_psi().y_[i], expectedY[i]);
+        require_near(particles.grad_log_psi().z_[i], expectedZ[i]);
         require_near(particles.lap_log_psi_get()[i], expectedLap[i]);
     }
 }
@@ -56,9 +56,9 @@ TEST_CASE("WaveFunction evaluate_log_psi returns finite for N=1", "[wavefunction
     // Total log_psi = 0
     Particles particles{1U};
 
-    particles.pos_x_get()[0] = 0.4;
-    particles.pos_y_get()[0] = 0.7;
-    particles.pos_z_get()[0] = 0.9;
+    particles.pos().x_[0] = 0.4;
+    particles.pos().y_[0] = 0.7;
+    particles.pos().z_[0] = 0.9;
 
     WaveFunction waveFunction{particles, 10.0, 0.5, 1.0};
 

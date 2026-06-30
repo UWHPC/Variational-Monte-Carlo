@@ -20,13 +20,7 @@ Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_write
 
 std::vector<double> Simulation::positions_snapshot() const {
     const std::size_t N{particles_.num_particles_get()};
-    const double* RESTRICT p_x{particles_.pos_x_get()};
-    const double* RESTRICT p_y{particles_.pos_y_get()};
-    const double* RESTRICT p_z{particles_.pos_z_get()};
-
-    ASSUME_ALIGNED(p_x, SIMD_BYTES);
-    ASSUME_ALIGNED(p_y, SIMD_BYTES);
-    ASSUME_ALIGNED(p_z, SIMD_BYTES);
+    auto [p_x, p_y, p_z]{particles_.pos().align()};
 
     std::vector<double> positions{};
     positions.reserve(N * 3U);
@@ -41,17 +35,9 @@ std::vector<double> Simulation::positions_snapshot() const {
 
 /// @brief Intializes Random Positions for each particle, making sure to not exceed box length
 void Simulation::initialize_positions() {
-    // X, Y, Z Position Blocks of Memory
-    double* RESTRICT p_x{particles_.pos_x_get()};
-    double* RESTRICT p_y{particles_.pos_y_get()};
-    double* RESTRICT p_z{particles_.pos_z_get()};
-
-    ASSUME_ALIGNED(p_x, SIMD_BYTES);
-    ASSUME_ALIGNED(p_y, SIMD_BYTES);
-    ASSUME_ALIGNED(p_z, SIMD_BYTES);
-
     const std::size_t N{particles_.num_particles_get()};
     const double length{config_.box_length};
+    auto [p_x, p_y, p_z]{particles_.pos().align()};
 
     constexpr std::size_t MAX_INIT_ATTEMPTS{100};
 
@@ -79,13 +65,7 @@ void Simulation::initialize_positions() {
 /// was valid then either accepts or rejects it
 Simulation::StepResult Simulation::metropolis_step() {
     // Position pointers:
-    double* RESTRICT p_x{particles_.pos_x_get()};
-    double* RESTRICT p_y{particles_.pos_y_get()};
-    double* RESTRICT p_z{particles_.pos_z_get()};
-
-    ASSUME_ALIGNED(p_x, SIMD_BYTES);
-    ASSUME_ALIGNED(p_y, SIMD_BYTES);
-    ASSUME_ALIGNED(p_z, SIMD_BYTES);
+    auto [p_x, p_y, p_z]{particles_.pos().align()};
 
     // Local random vars:
     const std::size_t rand{rand_particle_get()};

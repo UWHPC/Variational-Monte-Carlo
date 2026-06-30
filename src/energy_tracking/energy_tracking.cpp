@@ -62,9 +62,10 @@ EnergyTracker::EnergyTracker(double box_length, double num_particles)
 
     data_ = AlignedSoA<double>(num_g_vectors_, NUM_ARRAYS_);
 
-    std::copy_n(tmp_x.data(), num_g_vectors_, G_vector_x_get());
-    std::copy_n(tmp_y.data(), num_g_vectors_, G_vector_y_get());
-    std::copy_n(tmp_z.data(), num_g_vectors_, G_vector_z_get());
+    const auto g_dst{G_vector()};
+    std::copy_n(tmp_x.data(), num_g_vectors_, g_dst.x_);
+    std::copy_n(tmp_y.data(), num_g_vectors_, g_dst.y_);
+    std::copy_n(tmp_z.data(), num_g_vectors_, g_dst.z_);
     std::copy_n(tmp_w.data(), num_g_vectors_, G_vector_weights_get());
 }
 
@@ -105,13 +106,7 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
     const double a4{-1.453152027};
     const double a5{1.061405429};
 
-    const double* RESTRICT p_x{particles.pos_x_get()};
-    const double* RESTRICT p_y{particles.pos_y_get()};
-    const double* RESTRICT p_z{particles.pos_z_get()};
-
-    ASSUME_ALIGNED(p_x, SIMD_BYTES);
-    ASSUME_ALIGNED(p_y, SIMD_BYTES);
-    ASSUME_ALIGNED(p_z, SIMD_BYTES);
+    const auto [p_x, p_y, p_z]{particles.pos().align()};
 
     double sum{};
     for (std::size_t i = 0; i < N; ++i) {
@@ -146,24 +141,11 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
     const std::size_t N{particles.num_particles_get()};
     const std::size_t num_G{num_g_vectors_get()};
 
-    const double* RESTRICT p_x{particles.pos_x_get()};
-    const double* RESTRICT p_y{particles.pos_y_get()};
-    const double* RESTRICT p_z{particles.pos_z_get()};
-
-    const double* RESTRICT g_x{G_vector_x_get()};
-    const double* RESTRICT g_y{G_vector_y_get()};
-    const double* RESTRICT g_z{G_vector_z_get()};
+    const auto [p_x, p_y, p_z]{particles.pos().align()};
+    const auto [g_x, g_y, g_z]{G_vector().align()};
 
     double* RESTRICT sum_real{sum_real_get()};
     double* RESTRICT sum_imag{sum_imag_get()};
-
-    ASSUME_ALIGNED(p_x, SIMD_BYTES);
-    ASSUME_ALIGNED(p_y, SIMD_BYTES);
-    ASSUME_ALIGNED(p_z, SIMD_BYTES);
-
-    ASSUME_ALIGNED(g_x, SIMD_BYTES);
-    ASSUME_ALIGNED(g_y, SIMD_BYTES);
-    ASSUME_ALIGNED(g_z, SIMD_BYTES);
 
     ASSUME_ALIGNED(sum_real, SIMD_BYTES);
     ASSUME_ALIGNED(sum_imag, SIMD_BYTES);
@@ -197,9 +179,7 @@ void EnergyTracker::update_structure_factors(double old_x, double old_y, double 
     const double prefactor{1.0 / (2.0 * std::numbers::pi * L * L * L)};
 
     const double* RESTRICT g_weights{G_vector_weights_get()};
-    const double* RESTRICT g_x{G_vector_x_get()};
-    const double* RESTRICT g_y{G_vector_y_get()};
-    const double* RESTRICT g_z{G_vector_z_get()};
+    const auto [g_x, g_y, g_z]{G_vector().align()};
 
     double* RESTRICT sum_real{sum_real_get()};
     double* RESTRICT sum_imag{sum_imag_get()};
@@ -207,9 +187,6 @@ void EnergyTracker::update_structure_factors(double old_x, double old_y, double 
     double* RESTRICT d_real_temp{d_real_temp_get()};
 
     ASSUME_ALIGNED(g_weights, SIMD_BYTES);
-    ASSUME_ALIGNED(g_x, SIMD_BYTES);
-    ASSUME_ALIGNED(g_y, SIMD_BYTES);
-    ASSUME_ALIGNED(g_z, SIMD_BYTES);
 
     ASSUME_ALIGNED(sum_real, SIMD_BYTES);
     ASSUME_ALIGNED(sum_imag, SIMD_BYTES);
@@ -250,14 +227,9 @@ void EnergyTracker::update_structure_factors(double old_x, double old_y, double 
 }
 
 double EnergyTracker::kinetic_energy(const Particles& particles) const noexcept {
-    const double* RESTRICT grad_x{particles.grad_log_psi_x_get()};
-    const double* RESTRICT grad_y{particles.grad_log_psi_y_get()};
-    const double* RESTRICT grad_z{particles.grad_log_psi_z_get()};
+    const auto [grad_x, grad_y, grad_z]{particles.grad_log_psi().align()};
     const double* RESTRICT lap{particles.lap_log_psi_get()};
 
-    ASSUME_ALIGNED(grad_x, SIMD_BYTES);
-    ASSUME_ALIGNED(grad_y, SIMD_BYTES);
-    ASSUME_ALIGNED(grad_z, SIMD_BYTES);
     ASSUME_ALIGNED(lap, SIMD_BYTES);
 
     // Kinetic
@@ -294,13 +266,7 @@ void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, doub
     const double a4{-1.453152027};
     const double a5{1.061405429};
 
-    const double* RESTRICT p_x{particles.pos_x_get()};
-    const double* RESTRICT p_y{particles.pos_y_get()};
-    const double* RESTRICT p_z{particles.pos_z_get()};
-
-    ASSUME_ALIGNED(p_x, SIMD_BYTES);
-    ASSUME_ALIGNED(p_y, SIMD_BYTES);
-    ASSUME_ALIGNED(p_z, SIMD_BYTES);
+    const auto [p_x, p_y, p_z]{particles.pos().align()};
 
     const double new_x{p_x[moved_idx]};
     const double new_y{p_y[moved_idx]};

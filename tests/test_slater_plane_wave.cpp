@@ -25,9 +25,9 @@ TEST_CASE("log_abs_det handles the N=1 constant orbital case", "[slater]") {
     Particles particles{1U};
     SlaterPlaneWave slater{particles, 10.0};
 
-    particles.pos_x_get()[0] = 3.25;
-    particles.pos_y_get()[0] = 1.50;
-    particles.pos_z_get()[0] = 7.75;
+    particles.pos().x_[0] = 3.25;
+    particles.pos().y_[0] = 1.50;
+    particles.pos().z_[0] = 7.75;
 
     const double logDet{slater.log_abs_det(particles)};
 
@@ -42,17 +42,17 @@ TEST_CASE("log_abs_det computes an inverse satisfying D*invD = I", "[slater]") {
     Particles particles{N};
     SlaterPlaneWave slater{particles, 11.0};
 
-    particles.pos_x_get()[0] = 0.3;
-    particles.pos_y_get()[0] = 0.4;
-    particles.pos_z_get()[0] = 0.5;
+    particles.pos().x_[0] = 0.3;
+    particles.pos().y_[0] = 0.4;
+    particles.pos().z_[0] = 0.5;
 
-    particles.pos_x_get()[1] = 1.7;
-    particles.pos_y_get()[1] = 0.2;
-    particles.pos_z_get()[1] = 2.1;
+    particles.pos().x_[1] = 1.7;
+    particles.pos().y_[1] = 0.2;
+    particles.pos().z_[1] = 2.1;
 
-    particles.pos_x_get()[2] = 2.2;
-    particles.pos_y_get()[2] = 1.8;
-    particles.pos_z_get()[2] = 0.9;
+    particles.pos().x_[2] = 2.2;
+    particles.pos().y_[2] = 1.8;
+    particles.pos().z_[2] = 0.9;
 
     const double logDet{slater.log_abs_det(particles)};
     REQUIRE(std::isfinite(logDet));
@@ -96,17 +96,17 @@ TEST_CASE("determinant_ratio matches exact determinant ratio for a moved row", "
     constexpr double L{12.0};
     Particles particles{N};
 
-    particles.pos_x_get()[0] = 0.8;
-    particles.pos_y_get()[0] = 1.1;
-    particles.pos_z_get()[0] = 0.3;
+    particles.pos().x_[0] = 0.8;
+    particles.pos().y_[0] = 1.1;
+    particles.pos().z_[0] = 0.3;
 
-    particles.pos_x_get()[1] = 2.7;
-    particles.pos_y_get()[1] = 0.4;
-    particles.pos_z_get()[1] = 1.9;
+    particles.pos().x_[1] = 2.7;
+    particles.pos().y_[1] = 0.4;
+    particles.pos().z_[1] = 1.9;
 
-    particles.pos_x_get()[2] = 4.2;
-    particles.pos_y_get()[2] = 3.5;
-    particles.pos_z_get()[2] = 2.6;
+    particles.pos().x_[2] = 4.2;
+    particles.pos().y_[2] = 3.5;
+    particles.pos().z_[2] = 2.6;
 
     SlaterPlaneWave slater{particles, L};
     const double logDetOld{slater.log_abs_det(particles)};
@@ -116,9 +116,9 @@ TEST_CASE("determinant_ratio matches exact determinant ratio for a moved row", "
     REQUIRE(std::abs(detOld) > 1e-12);
 
     constexpr std::size_t moved{1U};
-    particles.pos_x_get()[moved] += 0.35;
-    particles.pos_y_get()[moved] -= 0.20;
-    particles.pos_z_get()[moved] += 0.15;
+    particles.pos().x_[moved] += 0.35;
+    particles.pos().y_[moved] -= 0.20;
+    particles.pos().z_[moved] += 0.15;
 
     slater.update_trig_cache(moved, particles);
     const double* const newRow{slater.build_row(moved)};
@@ -141,26 +141,26 @@ TEST_CASE("accept_move matches a fresh full rebuild after an accepted row update
     constexpr double L{10.5};
     Particles particles{N};
 
-    particles.pos_x_get()[0] = 0.4;
-    particles.pos_y_get()[0] = 1.5;
-    particles.pos_z_get()[0] = 2.7;
+    particles.pos().x_[0] = 0.4;
+    particles.pos().y_[0] = 1.5;
+    particles.pos().z_[0] = 2.7;
 
-    particles.pos_x_get()[1] = 3.1;
-    particles.pos_y_get()[1] = 2.2;
-    particles.pos_z_get()[1] = 0.9;
+    particles.pos().x_[1] = 3.1;
+    particles.pos().y_[1] = 2.2;
+    particles.pos().z_[1] = 0.9;
 
-    particles.pos_x_get()[2] = 4.8;
-    particles.pos_y_get()[2] = 0.7;
-    particles.pos_z_get()[2] = 3.3;
+    particles.pos().x_[2] = 4.8;
+    particles.pos().y_[2] = 0.7;
+    particles.pos().z_[2] = 3.3;
 
     SlaterPlaneWave updated{particles, L};
     const double logDetInitial{updated.log_abs_det(particles)};
     REQUIRE(std::isfinite(logDetInitial));
 
     constexpr std::size_t moved{2U};
-    particles.pos_x_get()[moved] -= 0.28;
-    particles.pos_y_get()[moved] += 0.19;
-    particles.pos_z_get()[moved] += 0.41;
+    particles.pos().x_[moved] -= 0.28;
+    particles.pos().y_[moved] += 0.19;
+    particles.pos().z_[moved] += 0.41;
 
     updated.update_trig_cache(moved, particles);
     const double* const newRow{updated.build_row(moved)};
@@ -197,17 +197,17 @@ TEST_CASE("N=3 determinant matrix uses cos/sin basis correctly", "[slater]") {
     Particles particles{N};
     SlaterPlaneWave slater{particles, L};
 
-    particles.pos_x_get()[0] = 1.0;
-    particles.pos_y_get()[0] = 2.0;
-    particles.pos_z_get()[0] = 3.0;
+    particles.pos().x_[0] = 1.0;
+    particles.pos().y_[0] = 2.0;
+    particles.pos().z_[0] = 3.0;
 
-    particles.pos_x_get()[1] = 4.0;
-    particles.pos_y_get()[1] = 5.0;
-    particles.pos_z_get()[1] = 6.0;
+    particles.pos().x_[1] = 4.0;
+    particles.pos().y_[1] = 5.0;
+    particles.pos().z_[1] = 6.0;
 
-    particles.pos_x_get()[2] = 7.0;
-    particles.pos_y_get()[2] = 8.0;
-    particles.pos_z_get()[2] = 9.0;
+    particles.pos().x_[2] = 7.0;
+    particles.pos().y_[2] = 8.0;
+    particles.pos().z_[2] = 9.0;
 
     slater.log_abs_det(particles);
 
@@ -216,9 +216,9 @@ TEST_CASE("N=3 determinant matrix uses cos/sin basis correctly", "[slater]") {
 
     // Orbital 0 should be cos type with k=0
     REQUIRE(o_type[0] == 0);
-    require_near(slater.k_vector_x_get()[k_index[0]], 0.0);
-    require_near(slater.k_vector_y_get()[k_index[0]], 0.0);
-    require_near(slater.k_vector_z_get()[k_index[0]], 0.0);
+    require_near(slater.k_vector().x_[k_index[0]], 0.0);
+    require_near(slater.k_vector().y_[k_index[0]], 0.0);
+    require_near(slater.k_vector().z_[k_index[0]], 0.0);
 
     // First column should all be 1.0 (cos(0))
     for (std::size_t i = 0; i < N; ++i) {
@@ -232,13 +232,13 @@ TEST_CASE("N=3 determinant matrix uses cos/sin basis correctly", "[slater]") {
 
     // Verify D entries for orbitals 1 and 2
     const std::size_t ki{k_index[1]};
-    const double kx{slater.k_vector_x_get()[ki]};
-    const double ky{slater.k_vector_y_get()[ki]};
-    const double kz{slater.k_vector_z_get()[ki]};
+    const double kx{slater.k_vector().x_[ki]};
+    const double ky{slater.k_vector().y_[ki]};
+    const double kz{slater.k_vector().z_[ki]};
 
     for (std::size_t i = 0; i < N; ++i) {
-        const double k_dot_r{kx * particles.pos_x_get()[i] + ky * particles.pos_y_get()[i] +
-                             kz * particles.pos_z_get()[i]};
+        const double k_dot_r{kx * particles.pos().x_[i] + ky * particles.pos().y_[i] +
+                             kz * particles.pos().z_[i]};
         require_near(slater.determinant_get()[matrix_index(i, 1, slater.matrix_row_stride_get())], std::cos(k_dot_r));
         require_near(slater.determinant_get()[matrix_index(i, 2, slater.matrix_row_stride_get())], std::sin(k_dot_r));
     }
@@ -252,9 +252,9 @@ TEST_CASE("N=7 determinant is nonzero with cos/sin basis", "[slater]") {
 
     // Spread particles around the box
     for (std::size_t i = 0; i < N; ++i) {
-        particles.pos_x_get()[i] = 1.0 + static_cast<double>(i) * 1.1;
-        particles.pos_y_get()[i] = 0.5 + static_cast<double>(i) * 0.7;
-        particles.pos_z_get()[i] = 0.3 + static_cast<double>(i) * 1.3;
+        particles.pos().x_[i] = 1.0 + static_cast<double>(i) * 1.1;
+        particles.pos().y_[i] = 0.5 + static_cast<double>(i) * 0.7;
+        particles.pos().z_[i] = 0.3 + static_cast<double>(i) * 1.3;
     }
 
     const double logDet{slater.log_abs_det(particles)};
@@ -280,17 +280,17 @@ TEST_CASE("Slater derivatives match finite-difference for N=3 cos/sin basis", "[
     Particles particles{N};
     SlaterPlaneWave slater{particles, L};
 
-    particles.pos_x_get()[0] = 1.1;
-    particles.pos_y_get()[0] = 2.3;
-    particles.pos_z_get()[0] = 0.7;
+    particles.pos().x_[0] = 1.1;
+    particles.pos().y_[0] = 2.3;
+    particles.pos().z_[0] = 0.7;
 
-    particles.pos_x_get()[1] = 4.2;
-    particles.pos_y_get()[1] = 1.8;
-    particles.pos_z_get()[1] = 3.5;
+    particles.pos().x_[1] = 4.2;
+    particles.pos().y_[1] = 1.8;
+    particles.pos().z_[1] = 3.5;
 
-    particles.pos_x_get()[2] = 7.6;
-    particles.pos_y_get()[2] = 5.1;
-    particles.pos_z_get()[2] = 8.9;
+    particles.pos().x_[2] = 7.6;
+    particles.pos().y_[2] = 5.1;
+    particles.pos().z_[2] = 8.9;
 
     // Compute analytic derivatives
     slater.log_abs_det(particles);
@@ -308,13 +308,13 @@ TEST_CASE("Slater derivatives match finite-difference for N=3 cos/sin basis", "[
     auto shift_and_eval = [&](std::size_t p, double dx, double dy, double dz) {
         Particles shifted{N};
         for (std::size_t i = 0; i < N; ++i) {
-            shifted.pos_x_get()[i] = particles.pos_x_get()[i];
-            shifted.pos_y_get()[i] = particles.pos_y_get()[i];
-            shifted.pos_z_get()[i] = particles.pos_z_get()[i];
+            shifted.pos().x_[i] = particles.pos().x_[i];
+            shifted.pos().y_[i] = particles.pos().y_[i];
+            shifted.pos().z_[i] = particles.pos().z_[i];
         }
-        shifted.pos_x_get()[p] += dx;
-        shifted.pos_y_get()[p] += dy;
-        shifted.pos_z_get()[p] += dz;
+        shifted.pos().x_[p] += dx;
+        shifted.pos().y_[p] += dy;
+        shifted.pos().z_[p] += dz;
         return slater.log_abs_det(shifted);
     };
 
@@ -338,9 +338,9 @@ TEST_CASE("Shell filling produces (0,0,0) as the first n-vector", "[slater]") {
     Particles p{1U};
     SlaterPlaneWave slater{p, 5.0};
 
-    REQUIRE(slater.n_vector_x_get()[0] == 0);
-    REQUIRE(slater.n_vector_y_get()[0] == 0);
-    REQUIRE(slater.n_vector_z_get()[0] == 0);
+    REQUIRE(slater.n_vector().x_[0] == 0);
+    REQUIRE(slater.n_vector().y_[0] == 0);
+    REQUIRE(slater.n_vector().z_[0] == 0);
 }
 
 TEST_CASE("Shell filling for N=7 uses canonical n-vectors with 4 unique k-vectors", "[slater]") {
@@ -350,9 +350,9 @@ TEST_CASE("Shell filling for N=7 uses canonical n-vectors with 4 unique k-vector
 
     REQUIRE(slater.num_unique_k_get() == 4U);
 
-    const int* n_x{slater.n_vector_x_get()};
-    const int* n_y{slater.n_vector_y_get()};
-    const int* n_z{slater.n_vector_z_get()};
+    const int* n_x{slater.n_vector().x_};
+    const int* n_y{slater.n_vector().y_};
+    const int* n_z{slater.n_vector().z_};
 
     // k-index 0 should be (0,0,0)
     REQUIRE(n_x[0] == 0);
@@ -398,9 +398,9 @@ TEST_CASE("Shell filling n-vectors are sorted by magnitude then lexicographicall
     SlaterPlaneWave slater{p, 10.0};
 
     const std::size_t num_k{slater.num_unique_k_get()};
-    const int* n_x{slater.n_vector_x_get()};
-    const int* n_y{slater.n_vector_y_get()};
-    const int* n_z{slater.n_vector_z_get()};
+    const int* n_x{slater.n_vector().x_};
+    const int* n_y{slater.n_vector().y_};
+    const int* n_z{slater.n_vector().z_};
 
     for (std::size_t i = 0; i + 1 < num_k; ++i) {
         const int mag_sq_a{n_x[i] * n_x[i] + n_y[i] * n_y[i] + n_z[i] * n_z[i]};
@@ -426,8 +426,8 @@ TEST_CASE("Shell filling k-vectors match 2pi/L times n-vectors", "[slater]") {
     const std::size_t num_k{slater.num_unique_k_get()};
 
     for (std::size_t i = 0; i < num_k; ++i) {
-        require_near(slater.k_vector_x_get()[i], TWO_PI_OVER_L * static_cast<double>(slater.n_vector_x_get()[i]));
-        require_near(slater.k_vector_y_get()[i], TWO_PI_OVER_L * static_cast<double>(slater.n_vector_y_get()[i]));
-        require_near(slater.k_vector_z_get()[i], TWO_PI_OVER_L * static_cast<double>(slater.n_vector_z_get()[i]));
+        require_near(slater.k_vector().x_[i], TWO_PI_OVER_L * static_cast<double>(slater.n_vector().x_[i]));
+        require_near(slater.k_vector().y_[i], TWO_PI_OVER_L * static_cast<double>(slater.n_vector().y_[i]));
+        require_near(slater.k_vector().z_[i], TWO_PI_OVER_L * static_cast<double>(slater.n_vector().z_[i]));
     }
 }
