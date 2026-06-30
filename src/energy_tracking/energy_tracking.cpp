@@ -106,7 +106,7 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
     const double a4{-1.453152027};
     const double a5{1.061405429};
 
-    const auto [p_x, p_y, p_z]{particles.pos().align()};
+    const auto pos{particles.pos().align()};
 
     double sum{};
     for (std::size_t i = 0; i < N; ++i) {
@@ -114,9 +114,9 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
 
         #pragma omp simd reduction(+ : local_sum)
         for (std::size_t j = i + 1; j < N; ++j) {
-            double dx{p_x[i] - p_x[j]};
-            double dy{p_y[i] - p_y[j]};
-            double dz{p_z[i] - p_z[j]};
+            double dx{pos.x_[i] - pos.x_[j]};
+            double dy{pos.y_[i] - pos.y_[j]};
+            double dz{pos.z_[i] - pos.z_[j]};
 
             dx += L * (dx <= neg_half_L) + neg_L * (dx > half_L);
             dy += L * (dy <= neg_half_L) + neg_L * (dy > half_L);
@@ -141,8 +141,8 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
     const std::size_t N{particles.num_particles_get()};
     const std::size_t num_G{num_g_vectors_get()};
 
-    const auto [p_x, p_y, p_z]{particles.pos().align()};
-    const auto [g_x, g_y, g_z]{G_vector().align()};
+    const auto pos{particles.pos().align()};
+    const auto gv{G_vector().align()};
 
     double* RESTRICT sum_real{sum_real_get()};
     double* RESTRICT sum_imag{sum_imag_get()};
@@ -156,7 +156,7 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
 
         #pragma omp simd reduction(+ : cos_sum, sin_sum)
         for (std::size_t j = 0; j < N; ++j) {
-            const double G_dot_r{g_x[g] * p_x[j] + g_y[g] * p_y[j] + g_z[g] * p_z[j]};
+            const double G_dot_r{gv.x_[g] * pos.x_[j] + gv.y_[g] * pos.y_[j] + gv.z_[g] * pos.z_[j]};
             double cos_temp{};
             double sin_temp{};
 
@@ -179,7 +179,7 @@ void EnergyTracker::update_structure_factors(double old_x, double old_y, double 
     const double prefactor{1.0 / (2.0 * std::numbers::pi * L * L * L)};
 
     const double* RESTRICT g_weights{G_vector_weights_get()};
-    const auto [g_x, g_y, g_z]{G_vector().align()};
+    const auto gv{G_vector().align()};
 
     double* RESTRICT sum_real{sum_real_get()};
     double* RESTRICT sum_imag{sum_imag_get()};
@@ -197,8 +197,8 @@ void EnergyTracker::update_structure_factors(double old_x, double old_y, double 
     
     #pragma omp simd
     for (std::size_t g = 0; g < num_G; ++g) {
-        const double old_dot{g_x[g] * old_x + g_y[g] * old_y + g_z[g] * old_z};
-        const double new_dot{g_x[g] * new_x + g_y[g] * new_y + g_z[g] * new_z};
+        const double old_dot{gv.x_[g] * old_x + gv.y_[g] * old_y + gv.z_[g] * old_z};
+        const double new_dot{gv.x_[g] * new_x + gv.y_[g] * new_y + gv.z_[g] * new_z};
 
         double new_sin{}, new_cos{};
         double old_sin{}, old_cos{};
@@ -227,7 +227,7 @@ void EnergyTracker::update_structure_factors(double old_x, double old_y, double 
 }
 
 double EnergyTracker::kinetic_energy(const Particles& particles) const noexcept {
-    const auto [grad_x, grad_y, grad_z]{particles.grad_log_psi().align()};
+    const auto grad{particles.grad_log_psi().align()};
     const double* RESTRICT lap{particles.lap_log_psi_get()};
 
     ASSUME_ALIGNED(lap, SIMD_BYTES);
@@ -239,7 +239,7 @@ double EnergyTracker::kinetic_energy(const Particles& particles) const noexcept 
     #pragma omp simd reduction(+ : T_sum)
     for (std::size_t i = 0; i < N; ++i) {
         // Computes ||Grad(logPsi)||^2
-        const double grad_sq{grad_x[i] * grad_x[i] + grad_y[i] * grad_y[i] + grad_z[i] * grad_z[i]};
+        const double grad_sq{grad.x_[i] * grad.x_[i] + grad.y_[i] * grad.y_[i] + grad.z_[i] * grad.z_[i]};
 
         // Accumulate Lapl(LogPsi) + ||Grad(LogPsi)||^2
         T_sum += (lap[i] + grad_sq);
@@ -266,11 +266,11 @@ void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, doub
     const double a4{-1.453152027};
     const double a5{1.061405429};
 
-    const auto [p_x, p_y, p_z]{particles.pos().align()};
+    const auto pos{particles.pos().align()};
 
-    const double new_x{p_x[moved_idx]};
-    const double new_y{p_y[moved_idx]};
-    const double new_z{p_z[moved_idx]};
+    const double new_x{pos.x_[moved_idx]};
+    const double new_y{pos.y_[moved_idx]};
+    const double new_z{pos.z_[moved_idx]};
 
     double delta{};
 
@@ -280,9 +280,9 @@ void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, doub
         const double valid_mask{(j == moved_idx) ? 0.0 : 1.0};
 
         // Old pair
-        double dx_old{old_x - p_x[j]};
-        double dy_old{old_y - p_y[j]};
-        double dz_old{old_z - p_z[j]};
+        double dx_old{old_x - pos.x_[j]};
+        double dy_old{old_y - pos.y_[j]};
+        double dz_old{old_z - pos.z_[j]};
 
         dx_old += L * (dx_old <= neg_half_L) + neg_L * (dx_old > half_L);
         dy_old += L * (dy_old <= neg_half_L) + neg_L * (dy_old > half_L);
@@ -301,9 +301,9 @@ void EnergyTracker::update_real_energy(std::size_t moved_idx, double old_x, doub
         double const erfc_old{tau_old * std::exp(-erfc_arg_old * erfc_arg_old) * inv_r_old};
 
         // New pair
-        double dx_new{new_x - p_x[j]};
-        double dy_new{new_y - p_y[j]};
-        double dz_new{new_z - p_z[j]};
+        double dx_new{new_x - pos.x_[j]};
+        double dy_new{new_y - pos.y_[j]};
+        double dz_new{new_z - pos.z_[j]};
 
         dx_new += L * (dx_new <= neg_half_L) + neg_L * (dx_new > half_L);
         dy_new += L * (dy_new <= neg_half_L) + neg_L * (dy_new > half_L);

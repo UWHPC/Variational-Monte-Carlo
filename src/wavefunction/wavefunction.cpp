@@ -12,34 +12,34 @@ double WaveFunction::evaluate_log_psi(const Particles& particles) {
 void WaveFunction::evaluate_derivatives(Particles& particles) noexcept {
     const std::size_t padded_stride{particles.padding_stride_get()};
 
-    auto [log_grad_x, log_grad_y, log_grad_z]{particles.grad_log_psi().align()};
+    const auto log_grad{particles.grad_log_psi().align()};
     double* RESTRICT log_lap{particles.lap_log_psi_get()};
 
-    auto [jastrow_grad_x, jastrow_grad_y, jastrow_grad_z]{j_grad().align()};
+    const auto jg{j_grad().align()};
     double* RESTRICT jastrow_lap{jastrow_lap_get()};
 
     ASSUME_ALIGNED(log_lap, SIMD_BYTES);
     ASSUME_ALIGNED(jastrow_lap, SIMD_BYTES);
 
-    std::fill_n(log_grad_x, padded_stride, 0.0);
-    std::fill_n(log_grad_y, padded_stride, 0.0);
-    std::fill_n(log_grad_z, padded_stride, 0.0);
+    std::fill_n(log_grad.x_, padded_stride, 0.0);
+    std::fill_n(log_grad.y_, padded_stride, 0.0);
+    std::fill_n(log_grad.z_, padded_stride, 0.0);
     std::fill_n(log_lap, padded_stride, 0.0);
 
-    std::fill_n(jastrow_grad_x, padded_stride, 0.0);
-    std::fill_n(jastrow_grad_y, padded_stride, 0.0);
-    std::fill_n(jastrow_grad_z, padded_stride, 0.0);
+    std::fill_n(jg.x_, padded_stride, 0.0);
+    std::fill_n(jg.y_, padded_stride, 0.0);
+    std::fill_n(jg.z_, padded_stride, 0.0);
     std::fill_n(jastrow_lap, padded_stride, 0.0);
 
-    slater_plane_wave_.add_derivatives(log_grad_x, log_grad_y, log_grad_z, log_lap);
-    jastrow_pade_.add_derivatives(particles, jastrow_grad_x, jastrow_grad_y, jastrow_grad_z,
+    slater_plane_wave_.add_derivatives(log_grad.x_, log_grad.y_, log_grad.z_, log_lap);
+    jastrow_pade_.add_derivatives(particles, jg.x_, jg.y_, jg.z_,
                                   jastrow_lap);
 
     #pragma omp simd
     for (std::size_t i = 0; i < padded_stride; ++i) {
-        log_grad_x[i] += jastrow_grad_x[i];
-        log_grad_y[i] += jastrow_grad_y[i];
-        log_grad_z[i] += jastrow_grad_z[i];
+        log_grad.x_[i] += jg.x_[i];
+        log_grad.y_[i] += jg.y_[i];
+        log_grad.z_[i] += jg.z_[i];
         log_lap[i] += jastrow_lap[i];
     }
     jastrow_cache_valid_set(true);
@@ -63,30 +63,30 @@ void WaveFunction::evaluate_derivatives(Particles& particles, bool move_accepted
     }
     const std::size_t padded_stride{particles.padding_stride_get()};
 
-    auto [log_grad_x, log_grad_y, log_grad_z]{particles.grad_log_psi().align()};
+    const auto log_grad{particles.grad_log_psi().align()};
     double* RESTRICT log_lap{particles.lap_log_psi_get()};
 
-    auto [jastrow_grad_x, jastrow_grad_y, jastrow_grad_z]{j_grad().align()};
+    const auto jg{j_grad().align()};
     double* RESTRICT jastrow_lap{jastrow_lap_get()};
 
     ASSUME_ALIGNED(log_lap, SIMD_BYTES);
     ASSUME_ALIGNED(jastrow_lap, SIMD_BYTES);
 
-    jastrow_pade_.update_derivatives_for_move(particles, moved, old_x, old_y, old_z, jastrow_grad_x,
-                                              jastrow_grad_y, jastrow_grad_z, jastrow_lap);
+    jastrow_pade_.update_derivatives_for_move(particles, moved, old_x, old_y, old_z, jg.x_,
+                                              jg.y_, jg.z_, jastrow_lap);
 
-    std::fill_n(log_grad_x, padded_stride, 0.0);
-    std::fill_n(log_grad_y, padded_stride, 0.0);
-    std::fill_n(log_grad_z, padded_stride, 0.0);
+    std::fill_n(log_grad.x_, padded_stride, 0.0);
+    std::fill_n(log_grad.y_, padded_stride, 0.0);
+    std::fill_n(log_grad.z_, padded_stride, 0.0);
     std::fill_n(log_lap, padded_stride, 0.0);
 
-    slater_plane_wave_.add_derivatives(log_grad_x, log_grad_y, log_grad_z, log_lap);
+    slater_plane_wave_.add_derivatives(log_grad.x_, log_grad.y_, log_grad.z_, log_lap);
 
     #pragma omp simd
     for (std::size_t i = 0; i < padded_stride; ++i) {
-        log_grad_x[i] += jastrow_grad_x[i];
-        log_grad_y[i] += jastrow_grad_y[i];
-        log_grad_z[i] += jastrow_grad_z[i];
+        log_grad.x_[i] += jg.x_[i];
+        log_grad.y_[i] += jg.y_[i];
+        log_grad.z_[i] += jg.z_[i];
         log_lap[i] += jastrow_lap[i];
     }
 }
