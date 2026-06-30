@@ -20,186 +20,197 @@
 #include <vector>
 
 inline void require_near(double actual, double expected, double tolerance = 1e-12) {
-    REQUIRE(std::abs(actual - expected) <= tolerance);
+  REQUIRE(std::abs(actual - expected) <= tolerance);
 }
 
 inline void copy_positions(const Particles& source, Particles& dest) {
-    const std::size_t N{source.num_particles_get()};
-    std::copy_n(source.pos().x_, N, dest.pos().x_);
-    std::copy_n(source.pos().y_, N, dest.pos().y_);
-    std::copy_n(source.pos().z_, N, dest.pos().z_);
+  const std::size_t N{source.size()};
+  std::copy_n(source.pos().x_, N, dest.pos().x_);
+  std::copy_n(source.pos().y_, N, dest.pos().y_);
+  std::copy_n(source.pos().z_, N, dest.pos().z_);
 }
 
 inline void copy_derivatives(const Particles& source, Particles& dest) {
-    const std::size_t N{source.num_particles_get()};
-    std::copy_n(source.grad_log_psi().x_, N, dest.grad_log_psi().x_);
-    std::copy_n(source.grad_log_psi().y_, N, dest.grad_log_psi().y_);
-    std::copy_n(source.grad_log_psi().z_, N, dest.grad_log_psi().z_);
-    std::copy_n(source.lap_log_psi_get(), N, dest.lap_log_psi_get());
+  const std::size_t N{source.size()};
+  std::copy_n(source.grad_log_psi().x_, N, dest.grad_log_psi().x_);
+  std::copy_n(source.grad_log_psi().y_, N, dest.grad_log_psi().y_);
+  std::copy_n(source.grad_log_psi().z_, N, dest.grad_log_psi().z_);
+  std::copy_n(source.lap_log_psi(), N, dest.lap_log_psi());
 }
 
 inline Particles copy_particle_positions(const Particles& source) {
-    Particles copy{source.num_particles_get()};
-    copy_positions(source, copy);
-    return copy;
+  Particles copy{source.size()};
+  copy_positions(source, copy);
+  return copy;
 }
 
 inline std::size_t matrix_index(std::size_t row, std::size_t col, std::size_t n) {
-    return row * n + col;
+  return row * n + col;
 }
 
 inline double determinant_3x3(const double* matrix, std::size_t stride) {
-    return matrix[0 * stride + 0] * (matrix[1 * stride + 1] * matrix[2 * stride + 2] -
-                                      matrix[1 * stride + 2] * matrix[2 * stride + 1]) -
-           matrix[0 * stride + 1] * (matrix[1 * stride + 0] * matrix[2 * stride + 2] -
-                                      matrix[1 * stride + 2] * matrix[2 * stride + 0]) +
-           matrix[0 * stride + 2] * (matrix[1 * stride + 0] * matrix[2 * stride + 1] -
-                                      matrix[1 * stride + 1] * matrix[2 * stride + 0]);
+  return
+    matrix[0 * stride + 0] * (
+      matrix[1 * stride + 1] * matrix[2 * stride + 2] -
+      matrix[1 * stride + 2] * matrix[2 * stride + 1]
+    ) -
+    matrix[0 * stride + 1] * (
+      matrix[1 * stride + 0] * matrix[2 * stride + 2] -
+      matrix[1 * stride + 2] * matrix[2 * stride + 0]
+    ) +
+    matrix[0 * stride + 2] * (
+      matrix[1 * stride + 0] * matrix[2 * stride + 1] -
+      matrix[1 * stride + 1] * matrix[2 * stride + 0]
+    );
 }
 
 inline double slater_identity_residual(const SlaterPlaneWave& slater) {
-    const std::size_t N{slater.num_orbitals_get()};
-    const std::size_t S{slater.matrix_row_stride_get()};
-    double max_residual{};
+  const std::size_t N{slater.num_orbitals()};
+  const std::size_t S{slater.matrix_row_stride()};
+  double            max_residual{};
 
-    for (std::size_t row = 0; row < N; ++row) {
-        for (std::size_t col = 0; col < N; ++col) {
-            double value{};
+  for (std::size_t row = 0; row < N; ++row) {
+    for (std::size_t col = 0; col < N; ++col) {
+      double value{};
 
-            for (std::size_t k = 0; k < N; ++k) {
-                value += slater.determinant_get()[row * S + k] *
-                         slater.inv_determinant_get()[col * S + k];
-            }
+      for (std::size_t k = 0; k < N; ++k) {
+        value += slater.determinant()[row * S + k] * slater.inv_determinant()[col * S + k];
+      }
 
-            const double expected{row == col ? 1.0 : 0.0};
-            const double residual{std::abs(value - expected)};
-            max_residual = std::max(max_residual, residual);
-        }
+      const double expected{row == col ? 1.0 : 0.0};
+      const double residual{std::abs(value - expected)};
+      max_residual = std::max(max_residual, residual);
     }
+  }
 
-    return max_residual;
+  return max_residual;
 }
 
 inline double wrap_coordinate(double value, double box_length) {
-    return value - box_length * std::floor(value / box_length);
+  return value - box_length * std::floor(value / box_length);
 }
 
 inline double minimum_image(double dx, double box_length) {
-    const double HALF_LENGTH{0.5 * box_length};
+  const double HALF_LENGTH{0.5 * box_length};
 
-    if (dx <= -HALF_LENGTH) {
-        dx += box_length;
-    } else if (dx > HALF_LENGTH) {
-        dx -= box_length;
-    }
+  if (dx <= -HALF_LENGTH) {
+    dx += box_length;
+  } else if (dx > HALF_LENGTH) {
+    dx -= box_length;
+  }
 
-    return dx;
+  return dx;
 }
 
 inline double exact_kinetic_energy(const SlaterPlaneWave& slater) {
-    const std::size_t N{slater.num_orbitals_get()};
-    const double* k_x{slater.k_vector().x_};
-    const double* k_y{slater.k_vector().y_};
-    const double* k_z{slater.k_vector().z_};
-    const auto& K_INDEX{slater.orbital_k_index_get()};
+  const std::size_t N{slater.num_orbitals()};
+  const double*     k_x{slater.k_vector().x_};
+  const double*     k_y{slater.k_vector().y_};
+  const double*     k_z{slater.k_vector().z_};
+  const auto&       K_INDEX{slater.orbital_k_index()};
 
-    double T_exact{};
-    for (std::size_t j = 0; j < N; ++j) {
-        const std::size_t IDX{K_INDEX[j]};
-        T_exact += 0.5 * (k_x[IDX] * k_x[IDX] + k_y[IDX] * k_y[IDX] + k_z[IDX] * k_z[IDX]);
-    }
-    return T_exact;
+  double T_exact{};
+  for (std::size_t j = 0; j < N; ++j) {
+    const std::size_t IDX{K_INDEX[j]};
+    T_exact += 0.5 * (k_x[IDX] * k_x[IDX] + k_y[IDX] * k_y[IDX] + k_z[IDX] * k_z[IDX]);
+  }
+  return T_exact;
 }
 
 inline double local_kinetic_energy(const Particles& particles) {
-    const std::size_t N{particles.num_particles_get()};
-    double T_local{};
-    for (std::size_t i = 0; i < N; ++i) {
-        const double GX{particles.grad_log_psi().x_[i]};
-        const double GY{particles.grad_log_psi().y_[i]};
-        const double GZ{particles.grad_log_psi().z_[i]};
-        const double LAP{particles.lap_log_psi_get()[i]};
-        T_local += -0.5 * (LAP + GX * GX + GY * GY + GZ * GZ);
-    }
-    return T_local;
+  const std::size_t N{particles.size()};
+  double            T_local{};
+  for (std::size_t i = 0; i < N; ++i) {
+    const double GX{particles.grad_log_psi().x_[i]};
+    const double GY{particles.grad_log_psi().y_[i]};
+    const double GZ{particles.grad_log_psi().z_[i]};
+    const double LAP{particles.lap_log_psi()[i]};
+    T_local += -0.5 * (LAP + GX * GX + GY * GY + GZ * GZ);
+  }
+  return T_local;
 }
 
 inline double box_length_from_rs(double r_s, std::size_t N) {
-    return std::cbrt(4.0 * std::numbers::pi * static_cast<double>(N) / 3.0) * r_s;
+  return std::cbrt(4.0 * std::numbers::pi * static_cast<double>(N) / 3.0) * r_s;
 }
 
 inline void set_stable_closed_shell_positions(Particles& particles) {
-    const std::size_t N{particles.num_particles_get()};
+  const std::size_t N{particles.size()};
 
-    for (std::size_t i = 0; i < N; ++i) {
-        particles.pos().x_[i] = 1.0 + static_cast<double>(i) * 1.1;
-        particles.pos().y_[i] = 0.5 + static_cast<double>(i) * 0.7;
-        particles.pos().z_[i] = 0.3 + static_cast<double>(i) * 1.3;
-    }
+  for (std::size_t i = 0; i < N; ++i) {
+    particles.pos().x_[i] = 1.0 + static_cast<double>(i) * 1.1;
+    particles.pos().y_[i] = 0.5 + static_cast<double>(i) * 0.7;
+    particles.pos().z_[i] = 0.3 + static_cast<double>(i) * 1.3;
+  }
 }
 
-template <typename Fn>
-std::string capture_stdout(Fn&& fn) {
-    std::ostringstream output{};
-    std::streambuf* const OLD_BUFFER{std::cout.rdbuf(output.rdbuf())};
-    try {
-        std::forward<Fn>(fn)();
-    } catch (...) {
-        std::cout.rdbuf(OLD_BUFFER);
-        throw;
-    }
+template <typename Fn> std::string capture_stdout(Fn&& fn) {
+  std::ostringstream    output{};
+  std::streambuf* const OLD_BUFFER{std::cout.rdbuf(output.rdbuf())};
+  try {
+    std::forward<Fn>(fn)();
+  } catch (...) {
     std::cout.rdbuf(OLD_BUFFER);
-    return output.str();
+    throw;
+  }
+  std::cout.rdbuf(OLD_BUFFER);
+  return output.str();
 }
 
 /// Builds a Config with explicit control over derived fields.
 /// warmup_steps and measure_steps are per-particle steps (not sweeps).
 /// step_size overrides the default box_length/10 derivation.
-inline Config make_config(std::size_t num_particles, double box_length,
-                          std::size_t warmup_steps, std::size_t measure_steps,
-                          double step_size, uint64_t master_seed,
-                          std::size_t block_size, std::size_t num_threads = 1U,
-                          bool is_master_thread = false) {
-    Config cfg{};
-    cfg.num_threads = num_threads;
-    cfg.num_particles = num_particles;
-    cfg.box_length = box_length;
-    cfg.block_size = block_size;
-    cfg.master_seed = master_seed;
-    cfg.is_master_thread = is_master_thread;
+inline Config make_config(
+  std::size_t num_particles,
+  double box_length,
+  std::size_t warmup_steps,
+  std::size_t measure_steps,
+  double step_size,
+  uint64_t master_seed,
+  std::size_t block_size,
+  std::size_t num_threads = 1U,
+  bool is_master_thread = false
+) {
+  Config cfg{};
+  cfg.num_threads = num_threads;
+  cfg.num_particles = num_particles;
+  cfg.box_length = box_length;
+  cfg.block_size = block_size;
+  cfg.master_seed = master_seed;
+  cfg.is_master_thread = is_master_thread;
 
-    // Set derived fields directly (bypass compute_derived sweep logic):
-    cfg.warmup_sweeps = (num_particles > 0U) ? (warmup_steps / num_particles) : 0U;
-    cfg.measure_sweeps = (num_particles > 0U) ? (measure_steps / num_particles) : 0U;
-    cfg.warmup_steps = warmup_steps;
-    cfg.measure_steps = measure_steps;
-    cfg.step_size = step_size;
-    return cfg;
+  // Set derived fields directly (bypass compute_derived sweep logic):
+  cfg.warmup_sweeps = (num_particles > 0U) ? (warmup_steps / num_particles) : 0U;
+  cfg.measure_sweeps = (num_particles > 0U) ? (measure_steps / num_particles) : 0U;
+  cfg.warmup_steps = warmup_steps;
+  cfg.measure_steps = measure_steps;
+  cfg.step_size = step_size;
+  return cfg;
 }
 
 class RecordingOutputWriter final : public OutputWriter {
 public:
-    void write_init(const InitData& data) override {
-        init = data;
-        saw_init = true;
-    }
+  void write_init(const InitData& data) override {
+    init = data;
+    saw_init = true;
+  }
 
-    void write_frame(const FrameData& data) override { frames.push_back(data); }
+  void write_frame(const FrameData& data) override { frames.push_back(data); }
 
-    void write_done(const DoneData& data) override {
-        done = data;
-        saw_done = true;
-    }
+  void write_done(const DoneData& data) override {
+    done = data;
+    saw_done = true;
+  }
 
-    bool saw_init{false};
-    bool saw_done{false};
-    std::optional<InitData> init{};
-    std::optional<DoneData> done{};
-    std::vector<FrameData> frames{};
+  bool saw_init{false};
+  bool saw_done{false};
+  std::optional<InitData> init{};
+  std::optional<DoneData> done{};
+  std::vector<FrameData> frames{};
 };
 
 struct SimResult {
-    double mean_energy;
-    double standard_error;
-    double acceptance_rate;
+  double mean_energy;
+  double standard_error;
+  double acceptance_rate;
 };

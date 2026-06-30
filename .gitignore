@@ -3,6 +3,8 @@ output/
 
 .vscode/
 .DS_Store
+.claude
+.backboard
 
 # Prerequisites
 *.d
@@ -28,7 +30,6 @@ output/
 *.dylib
 *.dll
 *.so.*
-
 
 # Fortran module files
 *.mod

@@ -14,79 +14,57 @@
 
 class Simulation {
 private:
-    // Configuration of sim:
-    Config config_;
+  Config config_;
 
-    // Objects and physical handlers of sim:
-    Particles particles_;
-    WaveFunction wave_function_;
-    BlockingAnalysis blocking_analysis_;
-    EnergyTracker energy_tracker_;
-    std::unique_ptr<OutputWriter> output_writer_;
+  Particles particles_;
+  WaveFunction wave_function_;
+  BlockingAnalysis blocking_analysis_;
+  EnergyTracker energy_tracker_;
+  std::unique_ptr<OutputWriter> output_writer_;
 
-    // Physical quantities of sim:
-    std::size_t proposed_;
-    std::size_t accepted_;
-    double log_psi_current_;
+  std::size_t proposed_;
+  std::size_t accepted_;
+  double log_psi_current_;
 
-    // Random num generation:
-    std::mt19937_64 rng_;
-    std::uniform_real_distribution<double> uniform01_{0.0, 1.0};
-    std::uniform_real_distribution<double> proposal_;
-    std::uniform_int_distribution<std::size_t> pick_particle_;
+  std::mt19937_64 rng_;
+  std::uniform_real_distribution<double> uniform01_{0.0, 1.0};
+  std::uniform_real_distribution<double> proposal_;
+  std::uniform_int_distribution<std::size_t> pick_particle_;
 
-    // Getters:
-    [[nodiscard]] std::mt19937_64& rng() { return rng_; }
-    [[nodiscard]] std::uniform_real_distribution<double>& uniform01() { return uniform01_; }
-    [[nodiscard]] std::uniform_real_distribution<double>& proposal() { return proposal_; }
-    [[nodiscard]] std::uniform_int_distribution<std::size_t>& pick_particle() {
-        return pick_particle_;
+  [[nodiscard]] double rand_uniform() { return uniform01_(rng_); }
+  [[nodiscard]] double rand_proposal() { return proposal_(rng_); }
+  [[nodiscard]] std::size_t rand_particle() { return pick_particle_(rng_); }
+
+  [[nodiscard]] double acceptance_rate() const {
+    if (proposed_ == 0U) {
+      return 0.0;
     }
+    return static_cast<double>(accepted_) / static_cast<double>(proposed_);
+  }
 
-    [[nodiscard]] Particles& particles_get() { return particles_; }
-    [[nodiscard]] WaveFunction& wave_function_get() { return wave_function_; }
-    [[nodiscard]] EnergyTracker& energy_tracker_get() { return energy_tracker_; }
-    [[nodiscard]] BlockingAnalysis& blocking_analysis_get() { return blocking_analysis_; }
+  struct StepResult {
+    bool accepted;
+    std::size_t moved_particle;
+    double old_x;
+    double old_y;
+    double old_z;
+  };
 
-    // Randomly generated uniform, proposal, and particle:
-    [[nodiscard]] double rand_uniform_double() { return uniform01()(rng()); }
-    [[nodiscard]] double rand_proposal_double() { return proposal()(rng()); }
-    [[nodiscard]] std::size_t rand_particle_get() { return pick_particle()(rng()); }
-
-    [[nodiscard]] double& log_psi_set() { return log_psi_current_; }
-    [[nodiscard]] double log_psi_get() const { return log_psi_current_; }
-
-    [[nodiscard]] double acceptance_rate() const {
-        if (proposed_ == 0U) {
-            return 0.0;
-        }
-        return static_cast<double>(accepted_) / static_cast<double>(proposed_);
-    }
-
-    struct StepResult {
-        bool accepted;
-        std::size_t moved_particle;
-        double old_x;
-        double old_y;
-        double old_z;
-    };
-
-    [[nodiscard]] std::vector<double> positions_snapshot() const;
+  [[nodiscard]] std::vector<double> positions_snapshot() const;
 
 public:
-    struct MeasurementSummary {
-        double mean_energy;
-        std::optional<double> standard_error;
-        double acceptance_rate;
-    };
+  struct MeasurementSummary {
+    double mean_energy;
+    std::optional<double> standard_error;
+    double acceptance_rate;
+  };
 
-public:
-    explicit Simulation(Config cfg, std::unique_ptr<OutputWriter> output_writer = nullptr);
-    MeasurementSummary run();
+  explicit Simulation(Config cfg, std::unique_ptr<OutputWriter> output_writer = nullptr);
+  MeasurementSummary run();
 
 private:
-    void initialize_positions();
-    StepResult metropolis_step();
-    void warmup();
-    MeasurementSummary measure();
+  void initialize_positions();
+  StepResult metropolis_step();
+  void warmup();
+  MeasurementSummary measure();
 };

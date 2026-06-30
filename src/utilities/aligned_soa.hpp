@@ -4,102 +4,83 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdlib>
 #include <memory>
+#include <new>
 
-// Aligned allocation:
 #if defined(_WIN32)
 #include <malloc.h>
-inline void* AlignedAlloc(std::size_t alignment, std::size_t size) {
-    return _aligned_malloc(size, alignment);
-}
-inline void AlignedFree(void* ptr) { _aligned_free(ptr); }
-#elif defined(__APPLE__)
-inline void* AlignedAlloc(std::size_t alignment, std::size_t size) {
-    void* ptr{nullptr};
-    // posix_memalign requires alignment >= sizeof(void*) and a power of two
-    alignment = std::max(alignment, sizeof(void*));
-    posix_memalign(&ptr, alignment, size);
-    return ptr;
-}
-inline void AlignedFree(void* ptr) { std::free(ptr); }
-#else
-inline void* AlignedAlloc(std::size_t alignment, std::size_t size) {
-    return std::aligned_alloc(alignment, size);
-}
-inline void AlignedFree(void* ptr) { std::free(ptr); }
 #endif
 
-// Deletion of memory for aligned_alloc:
+inline void* aligned_alloc_backend(std::size_t alignment, std::size_t size) {
+#if defined(_WIN32)
+  return _aligned_malloc(size, alignment);
+#elif defined(__APPLE__) || defined(__GNUC__) || defined(__clang__)
+  void* ptr{};
+  alignment = std::max(alignment, sizeof(void*));
+  if (posix_memalign(&ptr, alignment, size) != 0) {
+    return nullptr;
+  }
+  return ptr;
+#else
+  return std::aligned_alloc(alignment, size);
+#endif
+}
+
+inline void aligned_free_backend(void* ptr) {
+#if defined(_WIN32)
+  _aligned_free(ptr);
+#else
+  std::free(ptr);
+#endif
+}
+
 struct AlignedDeleter {
-    template <typename T> void operator()(T* ptr) const { AlignedFree(ptr); }
+  template <typename T>
+  void operator()(T* ptr) const {
+    aligned_free_backend(ptr);
+  }
 };
 
-// Detect SIMD width:
-#if defined(__AVX512F__)
-constexpr std::size_t SIMD_BYTES{64};
-#elif defined(__AVX2__) || defined(__AVX__)
-constexpr std::size_t SIMD_BYTES{32};
-#elif defined(__SSE2__)
-constexpr std::size_t SIMD_BYTES{16};
-#else
-constexpr std::size_t SIMD_BYTES{sizeof(double)};
-#endif
-
-template <typename T> class AlignedSoA {
+template <arithmetic T> class AlignedSoA {
 private:
-    // SIMD byte alignment
-    static constexpr std::size_t alignment_bytes{SIMD_BYTES};
-
-    // Ensures sub-arrays are byte aligned
-    static constexpr std::size_t elements_per_alignment{SIMD_BYTES / sizeof(T)};
-
-    std::size_t num_elements_;
-    std::size_t stride_length_;
-    std::size_t num_arrays_;
-    std::unique_ptr<T[], AlignedDeleter> memory_block_;
+  static constexpr std::size_t elements_per_align_{SIMD_BYTES / sizeof(T)};
+  std::size_t num_elements_{};
+  std::size_t stride_length_{};
+  std::unique_ptr<T[], AlignedDeleter> memory_block_;
 
 public:
-    // Round up to nearest factor of SIMD bytes:
-    static std::size_t round_up(std::size_t unpadded) {
-        return (unpadded + elements_per_alignment - 1) & ~(elements_per_alignment - 1);
+  AlignedSoA() = default;
+  AlignedSoA(AlignedSoA&&) noexcept = default;
+  AlignedSoA& operator=(AlignedSoA&&) noexcept = default;
+
+  AlignedSoA(std::size_t num_elements, std::size_t num_arrays)
+  : num_elements_{num_elements}
+  , stride_length_{round_up(num_elements)}
+  {
+    const std::size_t total_elements{num_arrays * stride_length_};
+    const std::size_t total_bytes{total_elements * sizeof(T)};
+
+    T* ptr{static_cast<T*>(aligned_alloc_backend(SIMD_BYTES, total_bytes))};
+    if (!ptr) {
+      throw std::bad_alloc();
     }
 
-    // Defaults:
-    AlignedSoA() : num_elements_{}, stride_length_{}, num_arrays_{}, memory_block_{nullptr} {}
-    AlignedSoA(AlignedSoA&&) noexcept = default;
-    AlignedSoA& operator=(AlignedSoA&&) noexcept = default;
+    std::fill_n(ptr, total_elements, T{});
+    memory_block_.reset(ptr);
+  }
 
-    // Non-Default:
-    AlignedSoA(std::size_t num_elements, std::size_t num_arrays)
-        : num_elements_{num_elements}, stride_length_{round_up(num_elements)},
-          num_arrays_{num_arrays} {
-        // Determine the total elements and bytes needed for padded memory block:
-        const std::size_t total_elements{num_arrays_ * stride_length_};
-        const std::size_t total_bytes{total_elements * sizeof(T)};
+  [[nodiscard]] std::size_t stride() const { return stride_length_; }
+  [[nodiscard]] std::size_t num_elements() const { return num_elements_; }
 
-        // Allocate aligned bytes and check:
-        T* ptr{static_cast<T*>(AlignedAlloc(alignment_bytes, total_bytes))};
-        if (!ptr)
-            throw std::bad_alloc();
+  [[nodiscard]] T* operator[](std::size_t array_index) {
+    return memory_block_.get() + array_index * stride();
+  }
+  [[nodiscard]] const T* operator[](std::size_t array_index) const {
+    return memory_block_.get() + array_index * stride();
+  }
 
-        // Initialize the pointer to all default and transfer ownership to memory_block_:
-        std::fill_n(ptr, total_elements, T{});
-        memory_block_.reset(ptr);
-    }
-
-    // Getters:
-    // Padded stride length:
-    [[nodiscard]] std::size_t stride() const { return stride_length_; }
-
-    // Number of elements:
-    [[nodiscard]] std::size_t num_elements() const { return num_elements_; }
-
-    // Raw pointer accessors:
-    // Mutable:
-    T* operator[](std::size_t array_index) { return memory_block_.get() + array_index * stride(); }
-
-    // Immutable:
-    const T* operator[](std::size_t array_index) const {
-        return memory_block_.get() + array_index * stride();
-    }
+  [[nodiscard]] static constexpr std::size_t round_up(std::size_t unpadded) {
+    return (unpadded + elements_per_align_ - 1) & ~(elements_per_align_ - 1);
+  }
 };

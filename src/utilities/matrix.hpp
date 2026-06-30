@@ -5,116 +5,109 @@
 #include <limits>
 #include <utility>
 
-/*
-see https://www.geeksforgeeks.org/dsa/doolittle-algorithm-lu-decomposition/
-In-Place LU with partial pivoting in LU (size N*N, row-major)
-pivot is length >= N storing row permutation indices
-return numbers of row swaps (parity info, if you need det sign).
-*/
-inline int lower_upper_decomp(double* lowerUpper, int* pivot, std::size_t N, std::size_t stride) {
-    // Track row swaps
-    int swapCount{};
+inline int lower_upper_decomp(
+  double* lower_upper,
+  int* pivot,
+  std::size_t N,
+  std::size_t stride
+) {
+  int swap_count{};
 
-    for (std::size_t row = 0; row < N; ++row)
-        pivot[row] = static_cast<int>(row);
+  for (std::size_t row = 0; row < N; ++row) {
+    pivot[row] = static_cast<int>(row);
+  }
 
-    for (std::size_t col = 0; col < N; ++col) {
-        // Pivot selection
-        // Find row >= col maximizing |LU(row, col)|
-        std::size_t pivotRow{col};
-        double maxAbs{std::abs(lowerUpper[col * stride + col])};
+  for (std::size_t col = 0; col < N; ++col) {
+    std::size_t pivot_row{col};
+    double max_abs{std::abs(lower_upper[col * stride + col])};
 
-        for (std::size_t row = col + 1; row < N; ++row) {
-            const double value = std::abs(lowerUpper[row * stride + col]);
-            if (value > maxAbs) {
-                maxAbs = value;
-                pivotRow = row;
-            }
-        }
-
-        // max abs = 0.0 implies the pivot column is 0 & det = 0.
-        constexpr double PIVOT_TOLERANCE{1e-12};
-        if (maxAbs < PIVOT_TOLERANCE) {
-            lowerUpper[col * stride + col] = 0.0;
-            continue;
-        }
-
-        if (pivotRow != col) {
-            for (std::size_t col2 = 0; col2 < N; ++col2) {
-                std::swap(lowerUpper[col * stride + col2], lowerUpper[pivotRow * stride + col2]);
-            }
-            std::swap(pivot[col], pivot[pivotRow]);
-            ++swapCount;
-        }
-
-        // eliminate
-        const double pivotValue{lowerUpper[col * stride + col]};
-        for (std::size_t row = col + 1; row < N; ++row) {
-            lowerUpper[row * stride + col] /= pivotValue; // L (i,k)
-            const double multiplier{lowerUpper[row * stride + col]};
-            for (std::size_t col2 = col + 1; col2 < N; ++col2) {
-                lowerUpper[row * stride + col2] -= multiplier * lowerUpper[col * stride + col2];
-            }
-        }
+    for (std::size_t row = col + 1; row < N; ++row) {
+      const double value{std::abs(lower_upper[row * stride + col])};
+      if (value > max_abs) {
+        max_abs = value;
+        pivot_row = row;
+      }
     }
 
-    return swapCount;
+    constexpr double PIVOT_TOLERANCE{1e-12};
+    if (max_abs < PIVOT_TOLERANCE) {
+      lower_upper[col * stride + col] = 0.0;
+      continue;
+    }
+
+    if (pivot_row != col) {
+      for (std::size_t col2 = 0; col2 < N; ++col2) {
+        std::swap(lower_upper[col * stride + col2], lower_upper[pivot_row * stride + col2]);
+      }
+      std::swap(pivot[col], pivot[pivot_row]);
+      ++swap_count;
+    }
+
+    const double pivot_value{lower_upper[col * stride + col]};
+    for (std::size_t row = col + 1; row < N; ++row) {
+      lower_upper[row * stride + col] /= pivot_value;
+      const double multiplier{lower_upper[row * stride + col]};
+      for (std::size_t col2 = col + 1; col2 < N; ++col2) {
+        lower_upper[row * stride + col2] -= multiplier * lower_upper[col * stride + col2];
+      }
+    }
+  }
+
+  return swap_count;
 }
 
-/*
-see https://www.geeksforgeeks.org/dsa/doolittle-algorithm-lu-decomposition/
-solve (P^-1)LU x = b. given combined LU and pivot permutation piv.
-piv encodes the row permutation applied during LU so that
-we first permute b: y = P b, then solve L z = y, then U x = z.
-*/
-inline void solve_lower_upper(const double* LU, const int* pivot, const double* b, double* x,
-                              std::size_t N, std::size_t stride) {
-    // Apply permutation: x = Pb
-    // store y in x temporarily
-    for (std::size_t row = 0; row < N; ++row) {
-        const std::size_t permRow{static_cast<std::size_t>(pivot[row])};
-        x[row] = b[permRow];
+inline void solve_lower_upper(
+  const double* lower_upper,
+  const int* pivot,
+  const double* b,
+  double* x,
+  std::size_t N,
+  std::size_t stride
+) {
+  for (std::size_t row = 0; row < N; ++row) {
+    const std::size_t permuted_row{static_cast<std::size_t>(pivot[row])};
+    x[row] = b[permuted_row];
+  }
+
+  for (std::size_t row = 0; row < N; ++row) {
+    double sum{x[row]};
+    for (std::size_t col = 0; col < row; ++col) {
+      sum -= lower_upper[row * stride + col] * x[col];
+    }
+    x[row] = sum;
+  }
+
+  for (std::size_t rev = 0; rev < N; ++rev) {
+    const std::size_t row{N - 1 - rev};
+    double sum{x[row]};
+    for (std::size_t col = row + 1; col < N; ++col) {
+      sum -= lower_upper[row * stride + col] * x[col];
     }
 
-    // forward solve: ly = Pb (L has implicit on diagonal)
-    for (std::size_t row = 0; row < N; ++row) {
-        double sum = x[row];
-        for (std::size_t col = 0; col < row; ++col) {
-            sum -= LU[row * stride + col] * x[col];
-        }
-        x[row] = sum;
-    }
-
-    // backward solve: Ux = y
-    for (std::size_t rev = 0; rev < N; ++rev) {
-        const std::size_t row = N - 1 - rev;
-        double sum = x[row];
-        for (std::size_t col = row + 1; col < N; ++col) {
-            sum -= LU[row * stride + col] * x[col];
-        }
-
-        const double diag{LU[row * stride + row]};
-        x[row] = (std::abs(diag) > std::numeric_limits<double>::min()) ? (sum / diag) : 0.0;
-    }
+    const double diag{lower_upper[row * stride + row]};
+    x[row] = (std::abs(diag) > std::numeric_limits<double>::min()) ? (sum / diag) : 0.0;
+  }
 }
 
-// Canonical representative rule for +-n deduplication:
-// The canonical form is: the first nonzero component is positive
-// The zero vector (0,0,0) is its own canonical representative
-inline bool is_canonical(int n_x, int n_y, int n_z) {
-    if (n_x > 0)
-        return true;
-    if (n_x < 0)
-        return false;
-    if (n_y > 0)
-        return true;
-    if (n_y < 0)
-        return false;
-    if (n_z > 0)
-        return true;
-    if (n_z < 0)
-        return false;
-
-    // (0,0,0)
+[[nodiscard]] inline bool is_canonical(int n_x, int n_y, int n_z) {
+  if (n_x > 0) {
     return true;
+  }
+  if (n_x < 0) {
+    return false;
+  }
+  if (n_y > 0) {
+    return true;
+  }
+  if (n_y < 0) {
+    return false;
+  }
+  if (n_z > 0) {
+    return true;
+  }
+  if (n_z < 0) {
+    return false;
+  }
+
+  return true;
 }
