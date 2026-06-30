@@ -33,9 +33,9 @@ void phy_copy_positions(const Particles& source, Particles& dest) {
     const std::size_t n{source.num_particles_get()};
 
     for (std::size_t i = 0; i < n; ++i) {
-        dest.pos_x_get()[i] = source.pos_x_get()[i];
-        dest.pos_y_get()[i] = source.pos_y_get()[i];
-        dest.pos_z_get()[i] = source.pos_z_get()[i];
+        dest.pos().x_[i] = source.pos().x_[i];
+        dest.pos().y_[i] = source.pos().y_[i];
+        dest.pos().z_[i] = source.pos().z_[i];
     }
 }
 
@@ -48,11 +48,11 @@ double exact_real_potential(const Particles& particles, double box_length) {
     for (std::size_t i = 0; i < n; ++i) {
         for (std::size_t j = i + 1; j < n; ++j) {
             const double dx{
-                minimum_image(particles.pos_x_get()[i] - particles.pos_x_get()[j], box_length)};
+                minimum_image(particles.pos().x_[i] - particles.pos().x_[j], box_length)};
             const double dy{
-                minimum_image(particles.pos_y_get()[i] - particles.pos_y_get()[j], box_length)};
+                minimum_image(particles.pos().y_[i] - particles.pos().y_[j], box_length)};
             const double dz{
-                minimum_image(particles.pos_z_get()[i] - particles.pos_z_get()[j], box_length)};
+                minimum_image(particles.pos().z_[i] - particles.pos().z_[j], box_length)};
 
             const double r{std::sqrt(dx * dx + dy * dy + dz * dz)};
             total += std::erfc(alpha * r) / r;
@@ -104,9 +104,9 @@ double exact_reciprocal_potential(const Particles& particles, double box_length)
                 double s_imag{};
 
                 for (std::size_t i = 0; i < n; ++i) {
-                    const double phase{gx * particles.pos_x_get()[i] +
-                                       gy * particles.pos_y_get()[i] +
-                                       gz * particles.pos_z_get()[i]};
+                    const double phase{gx * particles.pos().x_[i] +
+                                       gy * particles.pos().y_[i] +
+                                       gz * particles.pos().z_[i]};
                     s_real += std::cos(phase);
                     s_imag += std::sin(phase);
                 }
@@ -140,14 +140,14 @@ TEST_CASE("Fully polarized Jastrow cusp matches the same-spin analytical form ne
     const JastrowPade jastrow{box_length, 0.25, 1.0};
     Particles particles{2U};
 
-    particles.pos_x_get()[0] = 0.0;
-    particles.pos_y_get()[0] = 0.0;
-    particles.pos_z_get()[0] = 0.0;
+    particles.pos().x_[0] = 0.0;
+    particles.pos().y_[0] = 0.0;
+    particles.pos().z_[0] = 0.0;
 
     for (const double r : {1.0e-5, 2.0e-5, 5.0e-5, 1.0e-4}) {
-        particles.pos_x_get()[1] = r;
-        particles.pos_y_get()[1] = 0.0;
-        particles.pos_z_get()[1] = 0.0;
+        particles.pos().x_[1] = r;
+        particles.pos().y_[1] = 0.0;
+        particles.pos().z_[1] = 0.0;
 
         const double expected_value{0.25 * r / (1.0 + r)};
         const double actual_value{jastrow.value(particles)};
@@ -189,17 +189,17 @@ TEST_CASE("Slater determinant changes sign under particle exchange while log_abs
     constexpr double box_length{9.0};
 
     Particles original{n};
-    original.pos_x_get()[0] = 0.7;
-    original.pos_y_get()[0] = 1.4;
-    original.pos_z_get()[0] = 2.1;
+    original.pos().x_[0] = 0.7;
+    original.pos().y_[0] = 1.4;
+    original.pos().z_[0] = 2.1;
 
-    original.pos_x_get()[1] = 2.8;
-    original.pos_y_get()[1] = 0.9;
-    original.pos_z_get()[1] = 1.6;
+    original.pos().x_[1] = 2.8;
+    original.pos().y_[1] = 0.9;
+    original.pos().z_[1] = 1.6;
 
-    original.pos_x_get()[2] = 4.3;
-    original.pos_y_get()[2] = 3.2;
-    original.pos_z_get()[2] = 0.5;
+    original.pos().x_[2] = 4.3;
+    original.pos().y_[2] = 3.2;
+    original.pos().z_[2] = 0.5;
 
     SlaterPlaneWave slater_original{original, box_length};
     const double log_original{slater_original.log_abs_det(original)};
@@ -209,9 +209,9 @@ TEST_CASE("Slater determinant changes sign under particle exchange while log_abs
 
     Particles swapped{n};
     phy_copy_positions(original, swapped);
-    std::swap(swapped.pos_x_get()[0], swapped.pos_x_get()[1]);
-    std::swap(swapped.pos_y_get()[0], swapped.pos_y_get()[1]);
-    std::swap(swapped.pos_z_get()[0], swapped.pos_z_get()[1]);
+    std::swap(swapped.pos().x_[0], swapped.pos().x_[1]);
+    std::swap(swapped.pos().y_[0], swapped.pos().y_[1]);
+    std::swap(swapped.pos().z_[0], swapped.pos().z_[1]);
 
     SlaterPlaneWave slater_swapped{swapped, box_length};
     const double log_swapped{slater_swapped.log_abs_det(swapped)};
@@ -231,17 +231,17 @@ TEST_CASE("SlaterPlaneWave is periodic under box translations of a single partic
     constexpr double box_length{10.0};
 
     Particles particles{n};
-    particles.pos_x_get()[0] = 1.1;
-    particles.pos_y_get()[0] = 2.2;
-    particles.pos_z_get()[0] = 3.3;
+    particles.pos().x_[0] = 1.1;
+    particles.pos().y_[0] = 2.2;
+    particles.pos().z_[0] = 3.3;
 
-    particles.pos_x_get()[1] = 4.4;
-    particles.pos_y_get()[1] = 5.5;
-    particles.pos_z_get()[1] = 6.6;
+    particles.pos().x_[1] = 4.4;
+    particles.pos().y_[1] = 5.5;
+    particles.pos().z_[1] = 6.6;
 
-    particles.pos_x_get()[2] = 7.7;
-    particles.pos_y_get()[2] = 1.8;
-    particles.pos_z_get()[2] = 2.9;
+    particles.pos().x_[2] = 7.7;
+    particles.pos().y_[2] = 1.8;
+    particles.pos().z_[2] = 2.9;
 
     SlaterPlaneWave baseline{particles, box_length};
     const double baseline_log_det{baseline.log_abs_det(particles)};
@@ -249,9 +249,9 @@ TEST_CASE("SlaterPlaneWave is periodic under box translations of a single partic
 
     Particles shifted{n};
     phy_copy_positions(particles, shifted);
-    shifted.pos_x_get()[1] += box_length;
-    shifted.pos_y_get()[1] -= box_length;
-    shifted.pos_z_get()[1] += 2.0 * box_length;
+    shifted.pos().x_[1] += box_length;
+    shifted.pos().y_[1] -= box_length;
+    shifted.pos().z_[1] += 2.0 * box_length;
 
     SlaterPlaneWave translated{shifted, box_length};
     const double translated_log_det{translated.log_abs_det(shifted)};
@@ -286,9 +286,9 @@ TEST_CASE("Randomized determinant_ratio matches exact determinant ratio over man
         Particles particles{n};
 
         for (std::size_t i = 0; i < n; ++i) {
-            particles.pos_x_get()[i] = position_dist(rng);
-            particles.pos_y_get()[i] = position_dist(rng);
-            particles.pos_z_get()[i] = position_dist(rng);
+            particles.pos().x_[i] = position_dist(rng);
+            particles.pos().y_[i] = position_dist(rng);
+            particles.pos().z_[i] = position_dist(rng);
         }
 
         SlaterPlaneWave slater{particles, box_length};
@@ -302,12 +302,12 @@ TEST_CASE("Randomized determinant_ratio matches exact determinant ratio over man
         REQUIRE(std::abs(det_old) > 1e-12);
 
         const std::size_t moved{sample % n};
-        particles.pos_x_get()[moved] =
-            wrap_coordinate(particles.pos_x_get()[moved] + move_dist(rng), box_length);
-        particles.pos_y_get()[moved] =
-            wrap_coordinate(particles.pos_y_get()[moved] + move_dist(rng), box_length);
-        particles.pos_z_get()[moved] =
-            wrap_coordinate(particles.pos_z_get()[moved] + move_dist(rng), box_length);
+        particles.pos().x_[moved] =
+            wrap_coordinate(particles.pos().x_[moved] + move_dist(rng), box_length);
+        particles.pos().y_[moved] =
+            wrap_coordinate(particles.pos().y_[moved] + move_dist(rng), box_length);
+        particles.pos().z_[moved] =
+            wrap_coordinate(particles.pos().z_[moved] + move_dist(rng), box_length);
 
         slater.update_trig_cache(moved, particles);
         const double* const new_row{slater.build_row(moved)};
@@ -335,17 +335,17 @@ TEST_CASE("SlaterPlaneWave reports a singular determinant for duplicate particle
     constexpr double box_length{10.0};
 
     Particles particles{n};
-    particles.pos_x_get()[0] = 1.25;
-    particles.pos_y_get()[0] = 2.50;
-    particles.pos_z_get()[0] = 3.75;
+    particles.pos().x_[0] = 1.25;
+    particles.pos().y_[0] = 2.50;
+    particles.pos().z_[0] = 3.75;
 
-    particles.pos_x_get()[1] = particles.pos_x_get()[0];
-    particles.pos_y_get()[1] = particles.pos_y_get()[0];
-    particles.pos_z_get()[1] = particles.pos_z_get()[0];
+    particles.pos().x_[1] = particles.pos().x_[0];
+    particles.pos().y_[1] = particles.pos().y_[0];
+    particles.pos().z_[1] = particles.pos().z_[0];
 
-    particles.pos_x_get()[2] = 4.10;
-    particles.pos_y_get()[2] = 0.90;
-    particles.pos_z_get()[2] = 1.70;
+    particles.pos().x_[2] = 4.10;
+    particles.pos().y_[2] = 0.90;
+    particles.pos().z_[2] = 1.70;
 
     SlaterPlaneWave slater{particles, box_length};
     const double log_abs_det{slater.log_abs_det(particles)};
@@ -380,12 +380,12 @@ TEST_CASE("Repeated accepted Slater updates preserve predictive determinant rati
         const double dy{-0.0025 * static_cast<double>((step % 7U) + 1U)};
         const double dz{0.002 * static_cast<double>((step % 3U) + 1U)};
 
-        particles.pos_x_get()[moved] =
-            wrap_coordinate(particles.pos_x_get()[moved] + dx, box_length);
-        particles.pos_y_get()[moved] =
-            wrap_coordinate(particles.pos_y_get()[moved] + dy, box_length);
-        particles.pos_z_get()[moved] =
-            wrap_coordinate(particles.pos_z_get()[moved] + dz, box_length);
+        particles.pos().x_[moved] =
+            wrap_coordinate(particles.pos().x_[moved] + dx, box_length);
+        particles.pos().y_[moved] =
+            wrap_coordinate(particles.pos().y_[moved] + dy, box_length);
+        particles.pos().z_[moved] =
+            wrap_coordinate(particles.pos().z_[moved] + dz, box_length);
 
         maintained.update_trig_cache(moved, particles);
         const double* const accepted_row{maintained.build_row(moved)};
@@ -436,12 +436,12 @@ TEST_CASE("Repeated accepted Slater updates preserve predictive determinant rati
         const double probe_dy{-0.0011 * static_cast<double>((step % 6U) + 1U)};
         const double probe_dz{0.0013 * static_cast<double>((step % 5U) + 1U)};
 
-        probe_particles.pos_x_get()[probe] =
-            wrap_coordinate(probe_particles.pos_x_get()[probe] + probe_dx, box_length);
-        probe_particles.pos_y_get()[probe] =
-            wrap_coordinate(probe_particles.pos_y_get()[probe] + probe_dy, box_length);
-        probe_particles.pos_z_get()[probe] =
-            wrap_coordinate(probe_particles.pos_z_get()[probe] + probe_dz, box_length);
+        probe_particles.pos().x_[probe] =
+            wrap_coordinate(probe_particles.pos().x_[probe] + probe_dx, box_length);
+        probe_particles.pos().y_[probe] =
+            wrap_coordinate(probe_particles.pos().y_[probe] + probe_dy, box_length);
+        probe_particles.pos().z_[probe] =
+            wrap_coordinate(probe_particles.pos().z_[probe] + probe_dz, box_length);
 
         maintained.save_trig_row(probe);
         rebuilt.save_trig_row(probe);
@@ -486,24 +486,24 @@ TEST_CASE("WaveFunction log_psi and derivatives are invariant under integer box 
     std::vector<double> baseline_lap(n);
 
     for (std::size_t i = 0; i < n; ++i) {
-        baseline_grad_x[i] = particles.grad_log_psi_x_get()[i];
-        baseline_grad_y[i] = particles.grad_log_psi_y_get()[i];
-        baseline_grad_z[i] = particles.grad_log_psi_z_get()[i];
+        baseline_grad_x[i] = particles.grad_log_psi().x_[i];
+        baseline_grad_y[i] = particles.grad_log_psi().y_[i];
+        baseline_grad_z[i] = particles.grad_log_psi().z_[i];
         baseline_lap[i] = particles.lap_log_psi_get()[i];
     }
 
     Particles shifted{n};
     phy_copy_positions(particles, shifted);
 
-    shifted.pos_x_get()[3] += box_length;
-    shifted.pos_y_get()[3] -= 2.0 * box_length;
-    shifted.pos_z_get()[3] += 3.0 * box_length;
+    shifted.pos().x_[3] += box_length;
+    shifted.pos().y_[3] -= 2.0 * box_length;
+    shifted.pos().z_[3] += 3.0 * box_length;
 
     // After shifting:
     for (std::size_t i = 0; i < n; ++i) {
-        shifted.pos_x_get()[i] -= box_length * std::floor(shifted.pos_x_get()[i] / box_length);
-        shifted.pos_y_get()[i] -= box_length * std::floor(shifted.pos_y_get()[i] / box_length);
-        shifted.pos_z_get()[i] -= box_length * std::floor(shifted.pos_z_get()[i] / box_length);
+        shifted.pos().x_[i] -= box_length * std::floor(shifted.pos().x_[i] / box_length);
+        shifted.pos().y_[i] -= box_length * std::floor(shifted.pos().y_[i] / box_length);
+        shifted.pos().z_[i] -= box_length * std::floor(shifted.pos().z_[i] / box_length);
     }
 
     WaveFunction translated{shifted, box_length};
@@ -516,9 +516,9 @@ TEST_CASE("WaveFunction log_psi and derivatives are invariant under integer box 
 
     for (std::size_t i = 0; i < n; ++i) {
         CAPTURE(i);
-        REQUIRE(std::abs(baseline_grad_x[i] - shifted.grad_log_psi_x_get()[i]) <= 1e-10);
-        REQUIRE(std::abs(baseline_grad_y[i] - shifted.grad_log_psi_y_get()[i]) <= 1e-10);
-        REQUIRE(std::abs(baseline_grad_z[i] - shifted.grad_log_psi_z_get()[i]) <= 1e-10);
+        REQUIRE(std::abs(baseline_grad_x[i] - shifted.grad_log_psi().x_[i]) <= 1e-10);
+        REQUIRE(std::abs(baseline_grad_y[i] - shifted.grad_log_psi().y_[i]) <= 1e-10);
+        REQUIRE(std::abs(baseline_grad_z[i] - shifted.grad_log_psi().z_[i]) <= 1e-10);
         REQUIRE(std::abs(baseline_lap[i] - shifted.lap_log_psi_get()[i]) <= 1e-7);
     }
 }
@@ -536,9 +536,9 @@ TEST_CASE("EnergyTracker matches an exact Ewald reference on many random small c
         Particles particles{n};
 
         for (std::size_t i = 0; i < n; ++i) {
-            particles.pos_x_get()[i] = dist(rng);
-            particles.pos_y_get()[i] = dist(rng);
-            particles.pos_z_get()[i] = dist(rng);
+            particles.pos().x_[i] = dist(rng);
+            particles.pos().y_[i] = dist(rng);
+            particles.pos().z_[i] = dist(rng);
         }
 
         EnergyTracker tracker{box_length, static_cast<double>(n)};
@@ -562,17 +562,17 @@ TEST_CASE("EnergyTracker remains close to the exact Ewald reference across many 
     constexpr std::size_t steps{48U};
 
     Particles particles{n};
-    particles.pos_x_get()[0] = 0.55;
-    particles.pos_y_get()[0] = 1.20;
-    particles.pos_z_get()[0] = 2.10;
+    particles.pos().x_[0] = 0.55;
+    particles.pos().y_[0] = 1.20;
+    particles.pos().z_[0] = 2.10;
 
-    particles.pos_x_get()[1] = 3.15;
-    particles.pos_y_get()[1] = 2.45;
-    particles.pos_z_get()[1] = 1.05;
+    particles.pos().x_[1] = 3.15;
+    particles.pos().y_[1] = 2.45;
+    particles.pos().z_[1] = 1.05;
 
-    particles.pos_x_get()[2] = 5.60;
-    particles.pos_y_get()[2] = 0.85;
-    particles.pos_z_get()[2] = 4.45;
+    particles.pos().x_[2] = 5.60;
+    particles.pos().y_[2] = 0.85;
+    particles.pos().z_[2] = 4.45;
 
     EnergyTracker tracker{box_length, static_cast<double>(n)};
     tracker.initialize_structure_factors(particles);
@@ -582,21 +582,21 @@ TEST_CASE("EnergyTracker remains close to the exact Ewald reference across many 
     for (std::size_t step = 0; step < steps; ++step) {
         const std::size_t moved{step % n};
 
-        const double old_x{particles.pos_x_get()[moved]};
-        const double old_y{particles.pos_y_get()[moved]};
-        const double old_z{particles.pos_z_get()[moved]};
+        const double old_x{particles.pos().x_[moved]};
+        const double old_y{particles.pos().y_[moved]};
+        const double old_z{particles.pos().z_[moved]};
 
         const double dx{0.017 * static_cast<double>((step % 4U) + 1U)};
         const double dy{-0.012 * static_cast<double>((step % 5U) + 1U)};
         const double dz{0.010 * static_cast<double>((step % 3U) + 1U)};
 
-        particles.pos_x_get()[moved] = wrap_coordinate(old_x + dx, box_length);
-        particles.pos_y_get()[moved] = wrap_coordinate(old_y + dy, box_length);
-        particles.pos_z_get()[moved] = wrap_coordinate(old_z + dz, box_length);
+        particles.pos().x_[moved] = wrap_coordinate(old_x + dx, box_length);
+        particles.pos().y_[moved] = wrap_coordinate(old_y + dy, box_length);
+        particles.pos().z_[moved] = wrap_coordinate(old_z + dz, box_length);
 
-        tracker.update_structure_factors(old_x, old_y, old_z, particles.pos_x_get()[moved],
-                                         particles.pos_y_get()[moved],
-                                         particles.pos_z_get()[moved]);
+        tracker.update_structure_factors(old_x, old_y, old_z, particles.pos().x_[moved],
+                                         particles.pos().y_[moved],
+                                         particles.pos().z_[moved]);
         tracker.update_real_energy(moved, old_x, old_y, old_z, particles);
 
         const double tracker_total{tracker.eval_total_energy(particles)};

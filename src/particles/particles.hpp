@@ -2,6 +2,7 @@
 
 #include "../utilities/aligned_soa.hpp"
 #include "../utilities/macros.hpp"
+#include "../utilities/ptr3d.hpp"
 
 #include <algorithm>
 #include <cstdlib>
@@ -37,35 +38,41 @@ public:
     // Length of the padded stride
     [[nodiscard]] std::size_t padding_stride_get() const { return particle_data_.stride(); }
 
-    // Raw Pointers:
-    // X position of particle
-    [[nodiscard]] double* pos_x_get() noexcept { return particle_data_[POS_X_]; }
-    [[nodiscard]] double const* pos_x_get() const noexcept { return particle_data_[POS_X_]; }
-
-    // Y position of particle
-    [[nodiscard]] double* pos_y_get() noexcept { return particle_data_[POS_Y_]; }
-    [[nodiscard]] double const* pos_y_get() const noexcept { return particle_data_[POS_Y_]; }
-
-    // Z position of particle
-    [[nodiscard]] double* pos_z_get() noexcept { return particle_data_[POS_Z_]; }
-    [[nodiscard]] double const* pos_z_get() const noexcept { return particle_data_[POS_Z_]; }
-
-    // X component of gradient( log|PSI| )
-    [[nodiscard]] double* grad_log_psi_x_get() noexcept { return particle_data_[GRAD_X_]; }
-    [[nodiscard]] double const* grad_log_psi_x_get() const noexcept {
-        return particle_data_[GRAD_X_];
+    [[nodiscard]]
+    Ptr3D<const double> pos() const noexcept {
+        return {
+            particle_data_[POS_X_],
+            particle_data_[POS_Y_],
+            particle_data_[POS_Z_]
+        };
     }
 
-    // Y component of gradient( log|PSI| )
-    [[nodiscard]] double* grad_log_psi_y_get() noexcept { return particle_data_[GRAD_Y_]; }
-    [[nodiscard]] double const* grad_log_psi_y_get() const noexcept {
-        return particle_data_[GRAD_Y_];
+    [[nodiscard]]
+    Ptr3D<double> pos() noexcept {
+        return {
+            particle_data_[POS_X_],
+            particle_data_[POS_Y_],
+            particle_data_[POS_Z_]
+        };
     }
 
-    // Z component of gradient( log|PSI| )
-    [[nodiscard]] double* grad_log_psi_z_get() noexcept { return particle_data_[GRAD_Z_]; }
-    [[nodiscard]] double const* grad_log_psi_z_get() const noexcept {
-        return particle_data_[GRAD_Z_];
+    // Gradient( log|PSI| )
+    [[nodiscard]]
+    Ptr3D<const double> grad_log_psi() const noexcept {
+        return {
+            particle_data_[GRAD_X_],
+            particle_data_[GRAD_Y_],
+            particle_data_[GRAD_Z_]
+        };
+    }
+
+    [[nodiscard]]
+    Ptr3D<double> grad_log_psi() noexcept {
+        return {
+            particle_data_[GRAD_X_],
+            particle_data_[GRAD_Y_],
+            particle_data_[GRAD_Z_]
+        };
     }
 
     // Laplacian of Log|PSI|

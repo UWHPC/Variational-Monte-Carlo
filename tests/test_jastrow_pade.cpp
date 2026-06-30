@@ -10,9 +10,9 @@ namespace {
 double valueAtOffset(const JastrowPade& jastrow, const Particles& reference, std::size_t particle,
                      double dx, double dy, double dz) {
     Particles shifted{copy_particle_positions(reference)};
-    shifted.pos_x_get()[particle] += dx;
-    shifted.pos_y_get()[particle] += dy;
-    shifted.pos_z_get()[particle] += dz;
+    shifted.pos().x_[particle] += dx;
+    shifted.pos().y_[particle] += dy;
+    shifted.pos().z_[particle] += dz;
     return jastrow.value(shifted);
 }
 
@@ -22,13 +22,13 @@ TEST_CASE("Jastrow value uses minimum-image pair distances", "[jastrow]") {
     const JastrowPade jastrow{10.0, 0.25, 1.0};
     Particles particles{2U};
 
-    particles.pos_x_get()[0] = 0.1;
-    particles.pos_y_get()[0] = 0.0;
-    particles.pos_z_get()[0] = 0.0;
+    particles.pos().x_[0] = 0.1;
+    particles.pos().y_[0] = 0.0;
+    particles.pos().z_[0] = 0.0;
 
-    particles.pos_x_get()[1] = 9.9;
-    particles.pos_y_get()[1] = 0.0;
-    particles.pos_z_get()[1] = 0.0;
+    particles.pos().x_[1] = 9.9;
+    particles.pos().y_[1] = 0.0;
+    particles.pos().z_[1] = 0.0;
 
     const double r{0.2};
     const double expected{(0.25 * r) / (1.0 + r)};
@@ -39,13 +39,13 @@ TEST_CASE("Jastrow value skips degenerate pairs", "[jastrow]") {
     const JastrowPade jastrow{10.0, 0.25, 1.0};
     Particles particles{2U};
 
-    particles.pos_x_get()[0] = 1.0;
-    particles.pos_y_get()[0] = 2.0;
-    particles.pos_z_get()[0] = 3.0;
+    particles.pos().x_[0] = 1.0;
+    particles.pos().y_[0] = 2.0;
+    particles.pos().z_[0] = 3.0;
 
-    particles.pos_x_get()[1] = 1.0;
-    particles.pos_y_get()[1] = 2.0;
-    particles.pos_z_get()[1] = 3.0;
+    particles.pos().x_[1] = 1.0;
+    particles.pos().y_[1] = 2.0;
+    particles.pos().z_[1] = 3.0;
 
     require_near(jastrow.value(particles), 0.0);
 }
@@ -54,13 +54,13 @@ TEST_CASE("Jastrow derivatives match the analytic two-particle result", "[jastro
     const JastrowPade jastrow{100.0, 0.25, 1.0};
     Particles particles{2U};
 
-    particles.pos_x_get()[0] = 0.0;
-    particles.pos_y_get()[0] = 0.0;
-    particles.pos_z_get()[0] = 0.0;
+    particles.pos().x_[0] = 0.0;
+    particles.pos().y_[0] = 0.0;
+    particles.pos().z_[0] = 0.0;
 
-    particles.pos_x_get()[1] = 1.0;
-    particles.pos_y_get()[1] = 0.0;
-    particles.pos_z_get()[1] = 0.0;
+    particles.pos().x_[1] = 1.0;
+    particles.pos().y_[1] = 0.0;
+    particles.pos().z_[1] = 0.0;
 
     const std::size_t stride{particles.padding_stride_get()};
     std::vector<double> gradX(stride, 0.0);
@@ -95,13 +95,13 @@ TEST_CASE("Jastrow derivatives are unchanged for degenerate pairs", "[jastrow]")
     const JastrowPade jastrow{10.0, 0.25, 1.0};
     Particles particles{2U};
 
-    particles.pos_x_get()[0] = 4.0;
-    particles.pos_y_get()[0] = 5.0;
-    particles.pos_z_get()[0] = 6.0;
+    particles.pos().x_[0] = 4.0;
+    particles.pos().y_[0] = 5.0;
+    particles.pos().z_[0] = 6.0;
 
-    particles.pos_x_get()[1] = 4.0;
-    particles.pos_y_get()[1] = 5.0;
-    particles.pos_z_get()[1] = 6.0;
+    particles.pos().x_[1] = 4.0;
+    particles.pos().y_[1] = 5.0;
+    particles.pos().z_[1] = 6.0;
 
     const std::size_t stride{particles.padding_stride_get()};
     std::vector<double> gradX(stride, 3.0);
@@ -123,17 +123,17 @@ TEST_CASE("Jastrow derivatives match finite-difference gradients and Laplacians"
     const JastrowPade jastrow{20.0, 0.6, 0.9};
     Particles particles{3U};
 
-    particles.pos_x_get()[0] = 1.1;
-    particles.pos_y_get()[0] = 2.2;
-    particles.pos_z_get()[0] = 0.7;
+    particles.pos().x_[0] = 1.1;
+    particles.pos().y_[0] = 2.2;
+    particles.pos().z_[0] = 0.7;
 
-    particles.pos_x_get()[1] = 3.8;
-    particles.pos_y_get()[1] = 1.4;
-    particles.pos_z_get()[1] = 2.5;
+    particles.pos().x_[1] = 3.8;
+    particles.pos().y_[1] = 1.4;
+    particles.pos().z_[1] = 2.5;
 
-    particles.pos_x_get()[2] = 0.2;
-    particles.pos_y_get()[2] = 4.1;
-    particles.pos_z_get()[2] = 3.3;
+    particles.pos().x_[2] = 0.2;
+    particles.pos().y_[2] = 4.1;
+    particles.pos().z_[2] = 3.3;
 
     const std::size_t stride{particles.padding_stride_get()};
     std::vector<double> gradX(stride, 0.0);

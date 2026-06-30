@@ -3,6 +3,7 @@
 #include "../particles/particles.hpp"
 #include "../utilities/aligned_soa.hpp"
 #include "../utilities/macros.hpp"
+#include "../utilities/ptr3d.hpp"
 
 #include <cstddef>
 #include <cstdlib>
@@ -107,36 +108,46 @@ public:
     [[nodiscard]] int const* pivot_get() const noexcept { return int_vectors_[PIVOT_]; }
 
     // X component of n (length = num_unique_k_)
-    [[nodiscard]] int* n_vector_x_get() noexcept { return int_vectors_[N_X_]; }
-    [[nodiscard]] int const* n_vector_x_get() const noexcept { return int_vectors_[N_X_]; }
+    [[nodiscard]]
+    Ptr3D<int> n_vector() noexcept {
+        return{
+            int_vectors_[N_X_],
+            int_vectors_[N_Y_],
+            int_vectors_[N_Z_],
+        };
+    }
 
-    // Y component of n
-    [[nodiscard]] int* n_vector_y_get() noexcept { return int_vectors_[N_Y_]; }
-    [[nodiscard]] int const* n_vector_y_get() const noexcept { return int_vectors_[N_Y_]; }
+    [[nodiscard]]
+    Ptr3D<const int> n_vector() const noexcept {
+        return{
+            int_vectors_[N_X_],
+            int_vectors_[N_Y_],
+            int_vectors_[N_Z_],
+        };
+    }
 
-    // Z component of n
-    [[nodiscard]] int* n_vector_z_get() noexcept { return int_vectors_[N_Z_]; }
-    [[nodiscard]] int const* n_vector_z_get() const noexcept { return int_vectors_[N_Z_]; }
+    [[nodiscard]]
+    Ptr3D<double> k_vector() noexcept {
+        return {
+            double_vectors_[K_X_],
+            double_vectors_[K_Y_],
+            double_vectors_[K_Z_]
+        };
+    }
 
-    // Solution vector
+    Ptr3D<const double> k_vector() const noexcept {
+        return {
+            double_vectors_[K_X_],
+            double_vectors_[K_Y_],
+            double_vectors_[K_Z_]
+        };
+    }
+
     [[nodiscard]] double* solution_get() noexcept { return double_vectors_[SOLUTION_]; }
     [[nodiscard]] double const* solution_get() const noexcept { return double_vectors_[SOLUTION_]; }
 
-    // RHS vector
     [[nodiscard]] double* rhs_get() noexcept { return double_vectors_[RHS_]; }
     [[nodiscard]] double const* rhs_get() const noexcept { return double_vectors_[RHS_]; }
-
-    // X component of k (length = num_unique_k_)
-    [[nodiscard]] double* k_vector_x_get() noexcept { return double_vectors_[K_X_]; }
-    [[nodiscard]] double const* k_vector_x_get() const noexcept { return double_vectors_[K_X_]; }
-
-    // Y component of k
-    [[nodiscard]] double* k_vector_y_get() noexcept { return double_vectors_[K_Y_]; }
-    [[nodiscard]] double const* k_vector_y_get() const noexcept { return double_vectors_[K_Y_]; }
-
-    // Z component of k
-    [[nodiscard]] double* k_vector_z_get() noexcept { return double_vectors_[K_Z_]; }
-    [[nodiscard]] double const* k_vector_z_get() const noexcept { return double_vectors_[K_Z_]; }
 
     [[nodiscard]] double* sin_cache_get() noexcept { return trig_cache_[SIN_CACHE_]; }
     [[nodiscard]] double const* sin_cache_get() const noexcept { return trig_cache_[SIN_CACHE_]; }
@@ -165,8 +176,12 @@ public:
     void accept_move(std::size_t particle, const double* new_row, double ratio) noexcept;
 
     // Accumulates Slater contributions into grad/lap (length = stride/at least N).
-    void add_derivatives(double* RESTRICT grad_x, double* RESTRICT grad_y, double* RESTRICT grad_z,
-                         double* RESTRICT laplacian) const noexcept;
+    void add_derivatives(
+        double* RESTRICT grad_x,
+        double* RESTRICT grad_y,
+        double* RESTRICT grad_z,
+        double* RESTRICT laplacian
+    ) const noexcept;
 
 private:
     // Scratch buffer: new Slater row for moved particle

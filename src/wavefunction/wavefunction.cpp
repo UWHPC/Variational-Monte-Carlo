@@ -12,24 +12,13 @@ double WaveFunction::evaluate_log_psi(const Particles& particles) {
 void WaveFunction::evaluate_derivatives(Particles& particles) noexcept {
     const std::size_t padded_stride{particles.padding_stride_get()};
 
-    double* RESTRICT log_grad_x{particles.grad_log_psi_x_get()};
-    double* RESTRICT log_grad_y{particles.grad_log_psi_y_get()};
-    double* RESTRICT log_grad_z{particles.grad_log_psi_z_get()};
+    auto [log_grad_x, log_grad_y, log_grad_z]{particles.grad_log_psi().align()};
     double* RESTRICT log_lap{particles.lap_log_psi_get()};
 
-    double* RESTRICT jastrow_grad_x{jastrow_grad_x_get()};
-    double* RESTRICT jastrow_grad_y{jastrow_grad_y_get()};
-    double* RESTRICT jastrow_grad_z{jastrow_grad_z_get()};
+    auto [jastrow_grad_x, jastrow_grad_y, jastrow_grad_z]{j_grad().align()};
     double* RESTRICT jastrow_lap{jastrow_lap_get()};
 
-    ASSUME_ALIGNED(log_grad_x, SIMD_BYTES);
-    ASSUME_ALIGNED(log_grad_y, SIMD_BYTES);
-    ASSUME_ALIGNED(log_grad_z, SIMD_BYTES);
     ASSUME_ALIGNED(log_lap, SIMD_BYTES);
-
-    ASSUME_ALIGNED(jastrow_grad_x, SIMD_BYTES);
-    ASSUME_ALIGNED(jastrow_grad_y, SIMD_BYTES);
-    ASSUME_ALIGNED(jastrow_grad_z, SIMD_BYTES);
     ASSUME_ALIGNED(jastrow_lap, SIMD_BYTES);
 
     std::fill_n(log_grad_x, padded_stride, 0.0);
@@ -74,24 +63,13 @@ void WaveFunction::evaluate_derivatives(Particles& particles, bool move_accepted
     }
     const std::size_t padded_stride{particles.padding_stride_get()};
 
-    double* RESTRICT log_grad_x{particles.grad_log_psi_x_get()};
-    double* RESTRICT log_grad_y{particles.grad_log_psi_y_get()};
-    double* RESTRICT log_grad_z{particles.grad_log_psi_z_get()};
+    auto [log_grad_x, log_grad_y, log_grad_z]{particles.grad_log_psi().align()};
     double* RESTRICT log_lap{particles.lap_log_psi_get()};
 
-    double* RESTRICT jastrow_grad_x{jastrow_grad_x_get()};
-    double* RESTRICT jastrow_grad_y{jastrow_grad_y_get()};
-    double* RESTRICT jastrow_grad_z{jastrow_grad_z_get()};
+    auto [jastrow_grad_x, jastrow_grad_y, jastrow_grad_z]{j_grad().align()};
     double* RESTRICT jastrow_lap{jastrow_lap_get()};
 
-    ASSUME_ALIGNED(log_grad_x, SIMD_BYTES);
-    ASSUME_ALIGNED(log_grad_y, SIMD_BYTES);
-    ASSUME_ALIGNED(log_grad_z, SIMD_BYTES);
     ASSUME_ALIGNED(log_lap, SIMD_BYTES);
-
-    ASSUME_ALIGNED(jastrow_grad_x, SIMD_BYTES);
-    ASSUME_ALIGNED(jastrow_grad_y, SIMD_BYTES);
-    ASSUME_ALIGNED(jastrow_grad_z, SIMD_BYTES);
     ASSUME_ALIGNED(jastrow_lap, SIMD_BYTES);
 
     jastrow_pade_.update_derivatives_for_move(particles, moved, old_x, old_y, old_z, jastrow_grad_x,

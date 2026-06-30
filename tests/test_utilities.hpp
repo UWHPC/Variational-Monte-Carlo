@@ -25,16 +25,16 @@ inline void require_near(double actual, double expected, double tolerance = 1e-1
 
 inline void copy_positions(const Particles& source, Particles& dest) {
     const std::size_t N{source.num_particles_get()};
-    std::copy_n(source.pos_x_get(), N, dest.pos_x_get());
-    std::copy_n(source.pos_y_get(), N, dest.pos_y_get());
-    std::copy_n(source.pos_z_get(), N, dest.pos_z_get());
+    std::copy_n(source.pos().x_, N, dest.pos().x_);
+    std::copy_n(source.pos().y_, N, dest.pos().y_);
+    std::copy_n(source.pos().z_, N, dest.pos().z_);
 }
 
 inline void copy_derivatives(const Particles& source, Particles& dest) {
     const std::size_t N{source.num_particles_get()};
-    std::copy_n(source.grad_log_psi_x_get(), N, dest.grad_log_psi_x_get());
-    std::copy_n(source.grad_log_psi_y_get(), N, dest.grad_log_psi_y_get());
-    std::copy_n(source.grad_log_psi_z_get(), N, dest.grad_log_psi_z_get());
+    std::copy_n(source.grad_log_psi().x_, N, dest.grad_log_psi().x_);
+    std::copy_n(source.grad_log_psi().y_, N, dest.grad_log_psi().y_);
+    std::copy_n(source.grad_log_psi().z_, N, dest.grad_log_psi().z_);
     std::copy_n(source.lap_log_psi_get(), N, dest.lap_log_psi_get());
 }
 
@@ -98,9 +98,9 @@ inline double minimum_image(double dx, double box_length) {
 
 inline double exact_kinetic_energy(const SlaterPlaneWave& slater) {
     const std::size_t N{slater.num_orbitals_get()};
-    const double* k_x{slater.k_vector_x_get()};
-    const double* k_y{slater.k_vector_y_get()};
-    const double* k_z{slater.k_vector_z_get()};
+    const double* k_x{slater.k_vector().x_};
+    const double* k_y{slater.k_vector().y_};
+    const double* k_z{slater.k_vector().z_};
     const auto& K_INDEX{slater.orbital_k_index_get()};
 
     double T_exact{};
@@ -115,9 +115,9 @@ inline double local_kinetic_energy(const Particles& particles) {
     const std::size_t N{particles.num_particles_get()};
     double T_local{};
     for (std::size_t i = 0; i < N; ++i) {
-        const double GX{particles.grad_log_psi_x_get()[i]};
-        const double GY{particles.grad_log_psi_y_get()[i]};
-        const double GZ{particles.grad_log_psi_z_get()[i]};
+        const double GX{particles.grad_log_psi().x_[i]};
+        const double GY{particles.grad_log_psi().y_[i]};
+        const double GZ{particles.grad_log_psi().z_[i]};
         const double LAP{particles.lap_log_psi_get()[i]};
         T_local += -0.5 * (LAP + GX * GX + GY * GY + GZ * GZ);
     }
@@ -132,9 +132,9 @@ inline void set_stable_closed_shell_positions(Particles& particles) {
     const std::size_t N{particles.num_particles_get()};
 
     for (std::size_t i = 0; i < N; ++i) {
-        particles.pos_x_get()[i] = 1.0 + static_cast<double>(i) * 1.1;
-        particles.pos_y_get()[i] = 0.5 + static_cast<double>(i) * 0.7;
-        particles.pos_z_get()[i] = 0.3 + static_cast<double>(i) * 1.3;
+        particles.pos().x_[i] = 1.0 + static_cast<double>(i) * 1.1;
+        particles.pos().y_[i] = 0.5 + static_cast<double>(i) * 0.7;
+        particles.pos().z_[i] = 0.3 + static_cast<double>(i) * 1.3;
     }
 }
 

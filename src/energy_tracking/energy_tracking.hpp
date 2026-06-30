@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../particles/particles.hpp"
+#include "../utilities/ptr3d.hpp"
 #include "../utilities/aligned_soa.hpp"
 
 #include <cmath>
@@ -57,14 +58,14 @@ private:
     [[nodiscard]] double ewald_correction_get() const noexcept { return ewald_correction_; }
     [[nodiscard]] double ewald_background_get() const noexcept { return ewald_background_; }
 
-    [[nodiscard]] double* G_vector_x_get() noexcept { return data_[G_X_]; }
-    [[nodiscard]] double* G_vector_y_get() noexcept { return data_[G_Y_]; }
-    [[nodiscard]] double* G_vector_z_get() noexcept { return data_[G_Z_]; }
-    [[nodiscard]] double* G_vector_weights_get() noexcept { return data_[G_WEIGHTS_]; }
+    [[nodiscard]] Ptr3D<double> G_vector() noexcept {
+        return {data_[G_X_], data_[G_Y_], data_[G_Z_]};
+    }
+    [[nodiscard]] Ptr3D<const double> G_vector() const noexcept {
+        return {data_[G_X_], data_[G_Y_], data_[G_Z_]};
+    }
 
-    [[nodiscard]] const double* G_vector_x_get() const noexcept { return data_[G_X_]; }
-    [[nodiscard]] const double* G_vector_y_get() const noexcept { return data_[G_Y_]; }
-    [[nodiscard]] const double* G_vector_z_get() const noexcept { return data_[G_Z_]; }
+    [[nodiscard]] double* G_vector_weights_get() noexcept { return data_[G_WEIGHTS_]; }
     [[nodiscard]] const double* G_vector_weights_get() const noexcept { return data_[G_WEIGHTS_]; }
 
     [[nodiscard]] double* sum_real_get() noexcept { return data_[S_REAL_]; }

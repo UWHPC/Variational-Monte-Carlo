@@ -16,16 +16,16 @@ TEST_CASE("Particles allocates aligned padded blocks and zero-initializes them",
     REQUIRE(stride >= numParticles);
     REQUIRE(stride % doublesPerAlignment == 0U);
 
-    const auto baseAddress{reinterpret_cast<std::uintptr_t>(particles.pos_x_get())};
+    const auto baseAddress{reinterpret_cast<std::uintptr_t>(particles.pos().x_)};
     REQUIRE(baseAddress % SIMD_BYTES == 0U);
 
     for (std::size_t i = 0; i < stride; ++i) {
-        REQUIRE(particles.pos_x_get()[i] == 0.0);
-        REQUIRE(particles.pos_y_get()[i] == 0.0);
-        REQUIRE(particles.pos_z_get()[i] == 0.0);
-        REQUIRE(particles.grad_log_psi_x_get()[i] == 0.0);
-        REQUIRE(particles.grad_log_psi_y_get()[i] == 0.0);
-        REQUIRE(particles.grad_log_psi_z_get()[i] == 0.0);
+        REQUIRE(particles.pos().x_[i] == 0.0);
+        REQUIRE(particles.pos().y_[i] == 0.0);
+        REQUIRE(particles.pos().z_[i] == 0.0);
+        REQUIRE(particles.grad_log_psi().x_[i] == 0.0);
+        REQUIRE(particles.grad_log_psi().y_[i] == 0.0);
+        REQUIRE(particles.grad_log_psi().z_[i] == 0.0);
         REQUIRE(particles.lap_log_psi_get()[i] == 0.0);
     }
 }
@@ -34,19 +34,19 @@ TEST_CASE("Particles exposes non-overlapping slices for each component", "[parti
     Particles particles{2U};
 
     const std::ptrdiff_t stride{static_cast<std::ptrdiff_t>(particles.padding_stride_get())};
-    REQUIRE(particles.pos_y_get() - particles.pos_x_get() == stride);
-    REQUIRE(particles.pos_z_get() - particles.pos_y_get() == stride);
-    REQUIRE(particles.grad_log_psi_x_get() - particles.pos_z_get() == stride);
-    REQUIRE(particles.grad_log_psi_y_get() - particles.grad_log_psi_x_get() == stride);
-    REQUIRE(particles.grad_log_psi_z_get() - particles.grad_log_psi_y_get() == stride);
-    REQUIRE(particles.lap_log_psi_get() - particles.grad_log_psi_z_get() == stride);
+    REQUIRE(particles.pos().y_ - particles.pos().x_ == stride);
+    REQUIRE(particles.pos().z_ - particles.pos().y_ == stride);
+    REQUIRE(particles.grad_log_psi().x_ - particles.pos().z_ == stride);
+    REQUIRE(particles.grad_log_psi().y_ - particles.grad_log_psi().x_ == stride);
+    REQUIRE(particles.grad_log_psi().z_ - particles.grad_log_psi().y_ == stride);
+    REQUIRE(particles.lap_log_psi_get() - particles.grad_log_psi().z_ == stride);
 
-    particles.pos_x_get()[0] = 1.0;
-    particles.pos_y_get()[0] = 2.0;
-    particles.pos_z_get()[0] = 3.0;
+    particles.pos().x_[0] = 1.0;
+    particles.pos().y_[0] = 2.0;
+    particles.pos().z_[0] = 3.0;
 
-    REQUIRE(particles.pos_x_get()[0] == 1.0);
-    REQUIRE(particles.pos_y_get()[0] == 2.0);
-    REQUIRE(particles.pos_z_get()[0] == 3.0);
-    REQUIRE(particles.grad_log_psi_x_get()[0] == 0.0);
+    REQUIRE(particles.pos().x_[0] == 1.0);
+    REQUIRE(particles.pos().y_[0] == 2.0);
+    REQUIRE(particles.pos().z_[0] == 3.0);
+    REQUIRE(particles.grad_log_psi().x_[0] == 0.0);
 }

@@ -23,9 +23,9 @@ TEST_CASE("Free gas N=1: kinetic energy is exactly zero", "[validation]") {
     std::uniform_real_distribution<double> uniform{0.0, L};
 
     for (int sample = 0; sample < 5; ++sample) {
-        particles.pos_x_get()[0] = uniform(rng);
-        particles.pos_y_get()[0] = uniform(rng);
-        particles.pos_z_get()[0] = uniform(rng);
+        particles.pos().x_[0] = uniform(rng);
+        particles.pos().y_[0] = uniform(rng);
+        particles.pos().z_[0] = uniform(rng);
 
         wf.evaluate_log_psi(particles);
         wf.evaluate_derivatives(particles);
@@ -56,9 +56,9 @@ TEST_CASE("Free gas N=7: local kinetic energy matches exact value at every sampl
 
     for (int sample = 0; sample < 10; ++sample) {
         for (std::size_t i = 0; i < N; ++i) {
-            particles.pos_x_get()[i] = uniform(rng);
-            particles.pos_y_get()[i] = uniform(rng);
-            particles.pos_z_get()[i] = uniform(rng);
+            particles.pos().x_[i] = uniform(rng);
+            particles.pos().y_[i] = uniform(rng);
+            particles.pos().z_[i] = uniform(rng);
         }
 
         wf.evaluate_log_psi(particles);
@@ -90,9 +90,9 @@ TEST_CASE("Free gas N=19: local kinetic energy matches exact value at every samp
 
     for (int sample = 0; sample < 10; ++sample) {
         for (std::size_t i = 0; i < N; ++i) {
-            particles.pos_x_get()[i] = uniform(rng);
-            particles.pos_y_get()[i] = uniform(rng);
-            particles.pos_z_get()[i] = uniform(rng);
+            particles.pos().x_[i] = uniform(rng);
+            particles.pos().y_[i] = uniform(rng);
+            particles.pos().z_[i] = uniform(rng);
         }
 
         wf.evaluate_log_psi(particles);
@@ -120,9 +120,9 @@ TEST_CASE("Free gas zero-variance: local kinetic energy is configuration-indepen
 
     for (int sample = 0; sample < NUM_SAMPLES; ++sample) {
         for (std::size_t i = 0; i < N; ++i) {
-            particles.pos_x_get()[i] = uniform(rng);
-            particles.pos_y_get()[i] = uniform(rng);
-            particles.pos_z_get()[i] = uniform(rng);
+            particles.pos().x_[i] = uniform(rng);
+            particles.pos().y_[i] = uniform(rng);
+            particles.pos().z_[i] = uniform(rng);
         }
 
         wf.evaluate_log_psi(particles);
@@ -151,9 +151,9 @@ TEST_CASE("Free gas: EnergyTracker kinetic term matches manual computation", "[v
     std::uniform_real_distribution<double> uniform{0.0, L};
 
     for (std::size_t i = 0; i < N; ++i) {
-        particles.pos_x_get()[i] = uniform(rng);
-        particles.pos_y_get()[i] = uniform(rng);
-        particles.pos_z_get()[i] = uniform(rng);
+        particles.pos().x_[i] = uniform(rng);
+        particles.pos().y_[i] = uniform(rng);
+        particles.pos().z_[i] = uniform(rng);
     }
 
     wf.evaluate_log_psi(particles);
@@ -218,9 +218,9 @@ TEST_CASE("Free gas partial shell N=16: zero-variance property still holds", "[v
 
     for (int sample = 0; sample < NUM_SAMPLES; ++sample) {
         for (std::size_t i = 0; i < N; ++i) {
-            particles.pos_x_get()[i] = uniform(rng);
-            particles.pos_y_get()[i] = uniform(rng);
-            particles.pos_z_get()[i] = uniform(rng);
+            particles.pos().x_[i] = uniform(rng);
+            particles.pos().y_[i] = uniform(rng);
+            particles.pos().z_[i] = uniform(rng);
         }
 
         wf.evaluate_log_psi(particles);

@@ -35,9 +35,24 @@ public:
         return slater_plane_wave_;
     }
 
-    [[nodiscard]] double* jastrow_grad_x_get() noexcept { return derivatives_[GRAD_X_]; }
-    [[nodiscard]] double* jastrow_grad_y_get() noexcept { return derivatives_[GRAD_Y_]; }
-    [[nodiscard]] double* jastrow_grad_z_get() noexcept { return derivatives_[GRAD_Z_]; }
+    [[nodiscard]]
+    Ptr3D<double> j_grad() noexcept {
+        return {
+            derivatives_[GRAD_X_],
+            derivatives_[GRAD_Y_],
+            derivatives_[GRAD_Z_]
+        };
+    }
+    
+    [[nodiscard]]
+    Ptr3D<const double> j_grad() const noexcept {
+        return {
+            derivatives_[GRAD_X_],
+            derivatives_[GRAD_Y_],
+            derivatives_[GRAD_Z_]
+        };
+    }
+
     [[nodiscard]] double* jastrow_lap_get() noexcept { return derivatives_[LAP_]; }
 
     [[nodiscard]] bool jastrow_cache_valid_get() const noexcept { return jastrow_cache_valid_; }
