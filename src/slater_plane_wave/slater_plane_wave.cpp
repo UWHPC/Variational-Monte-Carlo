@@ -82,7 +82,7 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, double box_lengthL)
     // Assign orbitals
     // Orbital 0: k=0 -> cos(0 dot r) = cos(0) = 1
     // For each nonzero canonical k: orbital 2m-1 -> cos(k dot r), orbital 2m -> sin(k dot r)
-    auto [n_x, n_y, n_z]{n_vector().align()};
+    const auto nv{n_vector().align()};
 
     auto& orb_k_idx{orbital_k_index_get()};
     auto& orb_type{orbital_type_get()};
@@ -94,9 +94,9 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, double box_lengthL)
         const auto& cand{n_candidates[c]};
         const bool mag_not_zero{cand.n_mag_sq != 0};
 
-        n_x[k_idx] = cand.n_cand_x;
-        n_y[k_idx] = cand.n_cand_y;
-        n_z[k_idx] = cand.n_cand_z;
+        nv.x_[k_idx] = cand.n_cand_x;
+        nv.y_[k_idx] = cand.n_cand_y;
+        nv.z_[k_idx] = cand.n_cand_z;
 
         // Cos orbital (every k-vector gets one)
         orb_k_idx[orb_idx] = k_idx;
@@ -116,16 +116,16 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, double box_lengthL)
     num_unique_k_set() = k_idx;
     trig_row_stride_ = AlignedSoA<double>::round_up(k_idx);
 
-    auto [k_x, k_y, k_z]{k_vector().align()};
+    const auto kv{k_vector().align()};
 
     const double inv_L{1.0 / box_length_get()};
 
     // Follows the calculation: K = (2pi/L) * n;
     #pragma omp simd
     for (std::size_t i = 0; i < k_idx; ++i) {
-        k_x[i] = 2 * std::numbers::pi * inv_L * static_cast<double>(n_x[i]);
-        k_y[i] = 2 * std::numbers::pi * inv_L * static_cast<double>(n_y[i]);
-        k_z[i] = 2 * std::numbers::pi * inv_L * static_cast<double>(n_z[i]);
+        kv.x_[i] = 2 * std::numbers::pi * inv_L * static_cast<double>(nv.x_[i]);
+        kv.y_[i] = 2 * std::numbers::pi * inv_L * static_cast<double>(nv.y_[i]);
+        kv.z_[i] = 2 * std::numbers::pi * inv_L * static_cast<double>(nv.z_[i]);
     }
 
     trig_cache_ = AlignedSoA<double>(num_particles * trig_row_stride_get(), NUM_TRIG_ARRAYS_);
@@ -158,8 +158,8 @@ void SlaterPlaneWave::update_trig_cache(std::size_t particle, const Particles& p
     const std::size_t num_k{num_unique_k_get()};
     const std::size_t ROW_STRIDE{trig_row_stride_get()};
 
-    auto [p_x, p_y, p_z]{particles.pos().align()};
-    auto [k_x, k_y, k_z]{k_vector().align()};
+    const auto pos{particles.pos().align()};
+    const auto kv{k_vector().align()};
 
     double* RESTRICT c_row{cos_cache_get() + particle * ROW_STRIDE};
     double* RESTRICT s_row{sin_cache_get() + particle * ROW_STRIDE};
@@ -170,9 +170,9 @@ void SlaterPlaneWave::update_trig_cache(std::size_t particle, const Particles& p
     #pragma omp simd
     for (std::size_t k = 0; k < num_k; ++k) {
         const double dot{
-            k_x[k] * p_x[particle] +
-            k_y[k] * p_y[particle] + 
-            k_z[k] * p_z[particle]
+            kv.x_[k] * pos.x_[particle] +
+            kv.y_[k] * pos.y_[particle] + 
+            kv.z_[k] * pos.z_[particle]
         };
 
         PORTABLE_SINCOS(dot, &s_row[k], &c_row[k]);
@@ -184,8 +184,8 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
     const std::size_t S{matrix_row_stride_get()};
     const std::size_t padded_N{particles.padding_stride_get()};
 
-    auto [p_x, p_y, p_z]{particles.pos().align()};
-    auto [k_x, k_y, k_z]{k_vector().align()};
+    const auto pos{particles.pos().align()};
+    const auto kv{k_vector().align()};
 
     const auto& k_index{orbital_k_index_get()};
     const auto& orb_type{orbital_type_get()};
@@ -224,9 +224,9 @@ double SlaterPlaneWave::log_abs_det(const Particles& particles) {
         #pragma omp simd
         for (std::size_t k = 0; k < num_k; ++k) {
             const double dot{
-                k_x[k] * p_x[particle] +
-                k_y[k] * p_y[particle] +
-                k_z[k] * p_z[particle]
+                kv.x_[k] * pos.x_[particle] +
+                kv.y_[k] * pos.y_[particle] +
+                kv.z_[k] * pos.z_[particle]
             };
             const std::size_t i{offset + k};
 
@@ -400,7 +400,7 @@ void SlaterPlaneWave::add_derivatives(double* RESTRICT grad_x, double* RESTRICT 
     const std::size_t N{num_orbitals_get()};
     const std::size_t S{matrix_row_stride_get()};
 
-    auto [k_x, k_y, k_z]{k_vector().align()};
+    const auto kv{k_vector().align()};
 
     const auto& k_index{orbital_k_index_get()};
     const auto& o_type{orbital_type_get()};
@@ -430,9 +430,9 @@ void SlaterPlaneWave::add_derivatives(double* RESTRICT grad_x, double* RESTRICT 
         for (std::size_t orbital = 0; orbital < N; ++orbital) {
             const std::size_t k_idx{k_index[orbital]};
 
-            const double k_x_orbital{k_x[k_idx]};
-            const double k_y_orbital{k_y[k_idx]};
-            const double k_z_orbital{k_z[k_idx]};
+            const double k_x_orbital{kv.x_[k_idx]};
+            const double k_y_orbital{kv.y_[k_idx]};
+            const double k_z_orbital{kv.z_[k_idx]};
 
             const double k_sq{k_x_orbital * k_x_orbital + k_y_orbital * k_y_orbital +
                               k_z_orbital * k_z_orbital};

@@ -10,7 +10,7 @@ double JastrowPade::value(const Particles& particles) const noexcept {
     const double half_L{0.5 * L};
     const double neg_half_L{-1.0 * half_L};
 
-    const auto [pos_x, pos_y, pos_z]{particles.pos().align()};
+    const auto p{particles.pos().align()};
 
     const double a_local{a_get()};
     const double b_local{b_get()};
@@ -23,9 +23,9 @@ double JastrowPade::value(const Particles& particles) const noexcept {
         for (std::size_t j = 0; j < num_particles; ++j) {
             const double mask{i == j ? 0.0 : 1.0};
 
-            double displ_x{pos_x[i] - pos_x[j]};
-            double displ_y{pos_y[i] - pos_y[j]};
-            double displ_z{pos_z[i] - pos_z[j]};
+            double displ_x{p.x_[i] - p.x_[j]};
+            double displ_y{p.y_[i] - p.y_[j]};
+            double displ_z{p.z_[i] - p.z_[j]};
 
             // Boolean masks - reduce to 0 if false, and 1 if true.
             displ_x += L * (displ_x <= neg_half_L) + neg_L * (displ_x > half_L);
@@ -57,7 +57,7 @@ void JastrowPade::add_derivatives(const Particles& particles, double* RESTRICT g
     const double half_L{0.5 * L};
     const double neg_half_L{-1.0 * half_L};
 
-    const auto [pos_x, pos_y, pos_z]{particles.pos().align()};
+    const auto p{particles.pos().align()};
 
     ASSUME_ALIGNED(grad_x, SIMD_BYTES);
     ASSUME_ALIGNED(grad_y, SIMD_BYTES);
@@ -76,9 +76,9 @@ void JastrowPade::add_derivatives(const Particles& particles, double* RESTRICT g
         for (std::size_t j = 0; j < num_particles; ++j) {
             const double valid_idx{i == j ? 0.0 : 1.0};
 
-            double displ_x{pos_x[i] - pos_x[j]};
-            double displ_y{pos_y[i] - pos_y[j]};
-            double displ_z{pos_z[i] - pos_z[j]};
+            double displ_x{p.x_[i] - p.x_[j]};
+            double displ_y{p.y_[i] - p.y_[j]};
+            double displ_z{p.z_[i] - p.z_[j]};
 
             // Boolean masks - reduce to 0 if false, and 1 if true.
             displ_x += L * (displ_x <= neg_half_L) + neg_L * (displ_x > half_L);
@@ -132,14 +132,14 @@ double JastrowPade::delta_value(const Particles& particles, std::size_t moved, d
     const double half_L{0.5 * L};
     const double neg_half_L{-1.0 * half_L};
 
-    const auto [pos_x, pos_y, pos_z]{particles.pos().align()};
+    const auto p{particles.pos().align()};
 
     const double a_local{a_get()};
     const double b_local{b_get()};
 
-    const double new_x{pos_x[moved]};
-    const double new_y{pos_y[moved]};
-    const double new_z{pos_z[moved]};
+    const double new_x{p.x_[moved]};
+    const double new_y{p.y_[moved]};
+    const double new_z{p.z_[moved]};
 
     double delta{};
 
@@ -149,9 +149,9 @@ double JastrowPade::delta_value(const Particles& particles, std::size_t moved, d
         const double valid_mask{(j == moved) ? 0.0 : 1.0};
 
         // Old pair:
-        double displ_old_x{old_x - pos_x[j]};
-        double displ_old_y{old_y - pos_y[j]};
-        double displ_old_z{old_z - pos_z[j]};
+        double displ_old_x{old_x - p.x_[j]};
+        double displ_old_y{old_y - p.y_[j]};
+        double displ_old_z{old_z - p.z_[j]};
 
         displ_old_x += L * (displ_old_x <= neg_half_L) + neg_L * (displ_old_x > half_L);
         displ_old_y += L * (displ_old_y <= neg_half_L) + neg_L * (displ_old_y > half_L);
@@ -162,9 +162,9 @@ double JastrowPade::delta_value(const Particles& particles, std::size_t moved, d
         const double denom_old{1.0 / (1.0 + b_local * dist_old)};
 
         // New pair:
-        double displ_new_x{new_x - pos_x[j]};
-        double displ_new_y{new_y - pos_y[j]};
-        double displ_new_z{new_z - pos_z[j]};
+        double displ_new_x{new_x - p.x_[j]};
+        double displ_new_y{new_y - p.y_[j]};
+        double displ_new_z{new_z - p.z_[j]};
 
         displ_new_x += L * (displ_new_x <= neg_half_L) + neg_L * (displ_new_x > half_L);
         displ_new_y += L * (displ_new_y <= neg_half_L) + neg_L * (displ_new_y > half_L);
@@ -198,7 +198,7 @@ void JastrowPade::update_derivatives_for_move(const Particles& particles, std::s
     const double half_L{0.5 * L};
     const double neg_half_L{-1.0 * half_L};
 
-    const auto [pos_x, pos_y, pos_z]{particles.pos().align()};
+    const auto p{particles.pos().align()};
 
     ASSUME_ALIGNED(grad_x, SIMD_BYTES);
     ASSUME_ALIGNED(grad_y, SIMD_BYTES);
@@ -209,9 +209,9 @@ void JastrowPade::update_derivatives_for_move(const Particles& particles, std::s
     const double b_local{b_get()};
     const double m2ab{-2.0 * a_local * b_local};
 
-    const double new_x{pos_x[moved]};
-    const double new_y{pos_y[moved]};
-    const double new_z{pos_z[moved]};
+    const double new_x{p.x_[moved]};
+    const double new_y{p.y_[moved]};
+    const double new_z{p.z_[moved]};
 
     // Moved variables out of the loop
     double m_grad_x{}, m_grad_y{}, m_grad_z{}, m_lap{};
@@ -222,9 +222,9 @@ void JastrowPade::update_derivatives_for_move(const Particles& particles, std::s
         const bool is_moved{j == moved};
 
         // Old pair:
-        double displ_old_x{old_x - pos_x[j]};
-        double displ_old_y{old_y - pos_y[j]};
-        double displ_old_z{old_z - pos_z[j]};
+        double displ_old_x{old_x - p.x_[j]};
+        double displ_old_y{old_y - p.y_[j]};
+        double displ_old_z{old_z - p.z_[j]};
 
         displ_old_x += L * (displ_old_x <= neg_half_L) + neg_L * (displ_old_x > half_L);
         displ_old_y += L * (displ_old_y <= neg_half_L) + neg_L * (displ_old_y > half_L);
@@ -247,9 +247,9 @@ void JastrowPade::update_derivatives_for_move(const Particles& particles, std::s
                                   (second_deriv_old + 2.0 * first_deriv_old * inv_dist_old)};
 
         // New pair:
-        double displ_new_x{new_x - pos_x[j]};
-        double displ_new_y{new_y - pos_y[j]};
-        double displ_new_z{new_z - pos_z[j]};
+        double displ_new_x{new_x - p.x_[j]};
+        double displ_new_y{new_y - p.y_[j]};
+        double displ_new_z{new_z - p.z_[j]};
 
         displ_new_x += L * (displ_new_x <= neg_half_L) + neg_L * (displ_new_x > half_L);
         displ_new_y += L * (displ_new_y <= neg_half_L) + neg_L * (displ_new_y > half_L);
