@@ -1,9 +1,15 @@
 #pragma once
 
-#include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
+#include <cmath>
+#include <concepts>
 #include <memory>
-#include <math.h>
+#include <type_traits>
+
+template <typename T>
+concept arithmetic = std::is_arithmetic_v<T>;
 
 // Restrict pointers:
 #if defined(__GNUC__) || defined(__clang__)
@@ -14,30 +20,36 @@
 #define RESTRICT
 #endif
 
+#if defined(__AVX512F__)
+constexpr std::size_t SIMD_BYTES{64};
+#elif defined(__AVX2__) || defined(__AVX__)
+constexpr std::size_t SIMD_BYTES{32};
+#elif defined(__SSE2__) || defined(_M_X64) || defined(_M_AMD64) || defined(__ARM_NEON) ||           \
+    defined(__aarch64__)
+constexpr std::size_t SIMD_BYTES{16};
+#else
+constexpr std::size_t SIMD_BYTES{alignof(std::max_align_t)};
+#endif
+
 // Sincos support for all compilers
 #if defined(__APPLE__)
-inline void PORTABLE_SINCOS(double theta, double* s, double* c) {
-    __sincos(theta, s, c);
-}
+inline void PORTABLE_SINCOS(double theta, double* s, double* c) { __sincos(theta, s, c); }
 #elif defined(__GNUC__) || defined(__clang__)
 #include <math.h>
-inline void PORTABLE_SINCOS(double theta, double* s, double* c) {
-    sincos(theta, s, c);
-}
+inline void PORTABLE_SINCOS(double theta, double* s, double* c) { sincos(theta, s, c); }
 #else
 inline void PORTABLE_SINCOS(double theta, double* s, double* c) {
-    *s = std::sin(theta);
-    *c = std::cos(theta);
+  *s = std::sin(theta);
+  *c = std::cos(theta);
 }
 #endif
 
 // Hint for the compiler that pointers are aligned
 #if defined(__GNUC__) || defined(__clang__)
-    #define ASSUME_ALIGNED(ptr, align) \
-        (ptr) = static_cast<decltype(ptr)>(__builtin_assume_aligned((ptr), (align)))
+#define ASSUME_ALIGNED(ptr, align)                                                                 \
+  (ptr) = static_cast<decltype(ptr)>(__builtin_assume_aligned((ptr), (align)))
 #elif defined(_MSC_VER)
-    #define ASSUME_ALIGNED(ptr, align) \
-        __assume((reinterpret_cast<uintptr_t>(ptr) % (align)) == 0)
+#define ASSUME_ALIGNED(ptr, align) __assume((reinterpret_cast<uintptr_t>(ptr) % (align)) == 0)
 #else
-    #define ASSUME_ALIGNED(ptr, align) ((void)0)
+#define ASSUME_ALIGNED(ptr, align) (static_cast<void>(0))
 #endif
