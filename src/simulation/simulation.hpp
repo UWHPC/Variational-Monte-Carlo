@@ -24,39 +24,39 @@ private:
 
   std::size_t proposed_;
   std::size_t accepted_;
-  double log_psi_current_;
+  real_t log_psi_current_;
 
   std::mt19937_64 rng_;
-  std::uniform_real_distribution<double> uniform01_{0.0, 1.0};
-  std::uniform_real_distribution<double> proposal_;
+  std::uniform_real_distribution<real_t> uniform01_{0.0_r, 1.0_r};
+  std::uniform_real_distribution<real_t> proposal_;
   std::uniform_int_distribution<std::size_t> pick_particle_;
 
-  [[nodiscard]] double rand_uniform() { return uniform01_(rng_); }
-  [[nodiscard]] double rand_proposal() { return proposal_(rng_); }
+  [[nodiscard]] real_t rand_uniform() { return uniform01_(rng_); }
+  [[nodiscard]] real_t rand_proposal() { return proposal_(rng_); }
   [[nodiscard]] std::size_t rand_particle() { return pick_particle_(rng_); }
 
-  [[nodiscard]] double acceptance_rate() const {
+  [[nodiscard]] real_t acceptance_rate() const {
     if (proposed_ == 0U) {
-      return 0.0;
+      return 0.0_r;
     }
-    return static_cast<double>(accepted_) / static_cast<double>(proposed_);
+    return static_cast<real_t>(accepted_) / static_cast<real_t>(proposed_);
   }
 
   struct StepResult {
     bool accepted;
     std::size_t moved_particle;
-    double old_x;
-    double old_y;
-    double old_z;
+    real_t old_x;
+    real_t old_y;
+    real_t old_z;
   };
 
-  [[nodiscard]] std::vector<double> positions_snapshot() const;
+  [[nodiscard]] std::vector<real_t> positions_snapshot() const;
 
 public:
   struct MeasurementSummary {
-    double mean_energy;
-    std::optional<double> standard_error;
-    double acceptance_rate;
+    real_t mean_energy;
+    std::optional<real_t> standard_error;
+    real_t acceptance_rate;
   };
 
   explicit Simulation(Config cfg, std::unique_ptr<OutputWriter> output_writer = nullptr);

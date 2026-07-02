@@ -2,24 +2,23 @@
 
 #include <numbers>
 
-EnergyTracker::EnergyTracker(double box_length, double num_particles)
+EnergyTracker::EnergyTracker(real_t box_length, real_t num_particles)
 : box_length_{box_length}
-, ewald_alpha_{6.0 / box_length}
-, ewald_correction_{-6.0 * num_particles / (std::sqrt(std::numbers::pi) * box_length)}
-, ewald_background_{-std::numbers::pi * num_particles * num_particles / (72.0 * box_length)}
+, ewald_alpha_{6.0_r / box_length}
+, ewald_correction_{-6.0_r * num_particles / (std::sqrt(std::numbers::pi_v<real_t>) * box_length)}
+, ewald_background_{-std::numbers::pi_v<real_t> * num_particles * num_particles / (72.0_r * box_length)}
 , V_recip_{}
 , V_real_{}
 , num_g_vectors_{}
-, data_{}
-{
-  const double two_pi_over_L{2.0 * std::numbers::pi / box_length};
-  const double four_alpha_sq{4.0 * ewald_alpha_ * ewald_alpha_};
-  const double cutoff_factor{-std::log(EWALD_RECIPROCAL_TOLERANCE)};
+, data_{} {
+  const real_t two_pi_over_L{2.0_r * std::numbers::pi_v<real_t> / box_length};
+  const real_t four_alpha_sq{4.0_r * ewald_alpha_ * ewald_alpha_};
+  const real_t cutoff_factor{-std::log(EWALD_RECIPROCAL_TOLERANCE)};
 
-  const double g_max_mag_sq{four_alpha_sq * cutoff_factor};
+  const real_t g_max_mag_sq{four_alpha_sq * cutoff_factor};
   const int m_max{static_cast<int>(std::ceil(std::sqrt(g_max_mag_sq) / two_pi_over_L)) + 1};
 
-  std::vector<double> tmp_x, tmp_y, tmp_z, tmp_w;
+  std::vector<real_t> tmp_x, tmp_y, tmp_z, tmp_w;
 
   auto& g_x{tmp_x};
   auto& g_y{tmp_y};
@@ -39,10 +38,10 @@ EnergyTracker::EnergyTracker(double box_length, double num_particles)
         if (m_x == 0 && m_y == 0 && m_z <= 0)
           continue;
 
-        const double g_cand_x{two_pi_over_L * static_cast<double>(m_x)};
-        const double g_cand_y{two_pi_over_L * static_cast<double>(m_y)};
-        const double g_cand_z{two_pi_over_L * static_cast<double>(m_z)};
-        const double g_cand_mag_sq{
+        const real_t g_cand_x{two_pi_over_L * static_cast<real_t>(m_x)};
+        const real_t g_cand_y{two_pi_over_L * static_cast<real_t>(m_y)};
+        const real_t g_cand_z{two_pi_over_L * static_cast<real_t>(m_z)};
+        const real_t g_cand_mag_sq{
           g_cand_x * g_cand_x +
           g_cand_y * g_cand_y +
           g_cand_z * g_cand_z
@@ -55,7 +54,7 @@ EnergyTracker::EnergyTracker(double box_length, double num_particles)
         g_y.emplace_back(g_cand_y);
         g_z.emplace_back(g_cand_z);
         weights.emplace_back(
-          8.0 * std::numbers::pi * std::numbers::pi / g_cand_mag_sq *
+          8.0_r * std::numbers::pi_v<real_t> * std::numbers::pi_v<real_t> / g_cand_mag_sq *
           std::exp(-g_cand_mag_sq / four_alpha_sq)
         );
       }
@@ -64,7 +63,7 @@ EnergyTracker::EnergyTracker(double box_length, double num_particles)
 
   num_g_vectors_ = g_x.size();
 
-  data_ = AlignedSoA<double>(num_g_vectors_, NUM_ARRAYS);
+  data_ = AlignedSoA<real_t>(num_g_vectors_, NUM_ARRAYS);
 
   const auto g_dst{g_vector()};
   std::copy_n(tmp_x.data(), num_g_vectors_, g_dst.x_);
@@ -74,19 +73,19 @@ EnergyTracker::EnergyTracker(double box_length, double num_particles)
 }
 
 void EnergyTracker::initialize_reciprocal_energy() noexcept {
-  const double L{box_length_};
-  const double prefactor{1.0 / (2.0 * std::numbers::pi * L * L * L)};
+  const real_t L{box_length_};
+  const real_t prefactor{1.0_r / (2.0_r * std::numbers::pi_v<real_t> * L * L * L)};
 
   const std::size_t num_G{num_g_vectors_};
-  const double* RESTRICT g_weights{this->g_weights()};
-  const double* RESTRICT sum_real{this->sum_real()};
-  const double* RESTRICT sum_imag{this->sum_imag()};
+  const real_t* RESTRICT g_weights{this->g_weights()};
+  const real_t* RESTRICT sum_real{this->sum_real()};
+  const real_t* RESTRICT sum_imag{this->sum_imag()};
 
   ASSUME_ALIGNED(g_weights, SIMD_BYTES);
   ASSUME_ALIGNED(sum_real, SIMD_BYTES);
   ASSUME_ALIGNED(sum_imag, SIMD_BYTES);
 
-  double sum{};
+  real_t sum{};
   #pragma omp simd reduction(+ : sum)
   for (std::size_t g = 0; g < num_G; ++g) {
     sum += g_weights[g] * (sum_real[g] * sum_real[g] + sum_imag[g] * sum_imag[g]);
@@ -96,49 +95,49 @@ void EnergyTracker::initialize_reciprocal_energy() noexcept {
 
 void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept {
   const std::size_t N{particles.size()};
-  const double L{box_length_};
-  const double neg_L{-1.0 * L};
-  const double half_L{0.5 * L};
-  const double neg_half_L{-1.0 * half_L};
-  const double alpha{ewald_alpha_};
+  const real_t L{box_length_};
+  const real_t neg_L{-1.0_r * L};
+  const real_t half_L{0.5_r * L};
+  const real_t neg_half_L{-1.0_r * half_L};
+  const real_t alpha{ewald_alpha_};
 
   // Fast erfc constants
-  const double p{0.3275911};
-  const double a1{0.254829592};
-  const double a2{-0.284496736};
-  const double a3{1.421413741};
-  const double a4{-1.453152027};
-  const double a5{1.061405429};
+  const real_t p{0.3275911_r};
+  const real_t a1{0.254829592_r};
+  const real_t a2{-0.284496736_r};
+  const real_t a3{1.421413741_r};
+  const real_t a4{-1.453152027_r};
+  const real_t a5{1.061405429_r};
 
   const auto pos{particles.pos().align()};
 
-  double sum{};
+  real_t sum{};
   for (std::size_t i = 0; i < N; ++i) {
-    double local_sum{};
+    real_t local_sum{};
 
     #pragma omp simd reduction(+ : local_sum)
     for (std::size_t j = i + 1; j < N; ++j) {
-      double dx{pos.x_[i] - pos.x_[j]};
-      double dy{pos.y_[i] - pos.y_[j]};
-      double dz{pos.z_[i] - pos.z_[j]};
+      real_t dx{pos.x_[i] - pos.x_[j]};
+      real_t dy{pos.y_[i] - pos.y_[j]};
+      real_t dz{pos.z_[i] - pos.z_[j]};
 
       dx += L * (dx <= neg_half_L) + neg_L * (dx > half_L);
       dy += L * (dy <= neg_half_L) + neg_L * (dy > half_L);
       dz += L * (dz <= neg_half_L) + neg_L * (dz > half_L);
 
-      const double r{
+      const real_t r{
         std::sqrt(
           dx * dx +
           dy * dy +
           dz * dz
         )
       };
-      const double inv_r{(r < 1e-12) ? 1.0 : 1.0 / r};
+      const real_t inv_r{(r < 1e-12_r) ? 1.0_r : 1.0_r / r};
 
       // Abramowitz & Stegun formula for fast std::erfc approx.
-      const double erfc_arg{alpha * r};
-      const double t{1.0 / (1.0 + p * erfc_arg)};
-      const double tau{
+      const real_t erfc_arg{alpha * r};
+      const real_t t{1.0_r / (1.0_r + p * erfc_arg)};
+      const real_t tau{
         t * (
           a1 + t * (
             a2 + t * (
@@ -164,25 +163,25 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
   const auto pos{particles.pos().align()};
   const auto gv{g_vector().align()};
 
-  double* RESTRICT sum_real{this->sum_real()};
-  double* RESTRICT sum_imag{this->sum_imag()};
+  real_t* RESTRICT sum_real{this->sum_real()};
+  real_t* RESTRICT sum_imag{this->sum_imag()};
 
   ASSUME_ALIGNED(sum_real, SIMD_BYTES);
   ASSUME_ALIGNED(sum_imag, SIMD_BYTES);
 
   for (std::size_t g = 0; g < num_G; ++g) {
-    double cos_sum{};
-    double sin_sum{};
+    real_t cos_sum{};
+    real_t sin_sum{};
 
     #pragma omp simd reduction(+ : cos_sum, sin_sum)
     for (std::size_t j = 0; j < N; ++j) {
-      const double G_dot_r{
+      const real_t G_dot_r{
         gv.x_[g] * pos.x_[j] +
         gv.y_[g] * pos.y_[j] +
         gv.z_[g] * pos.z_[j]
       };
-      double cos_temp{};
-      double sin_temp{};
+      real_t cos_temp{};
+      real_t sin_temp{};
 
       PORTABLE_SINCOS(G_dot_r, &sin_temp, &cos_temp);
 
@@ -196,25 +195,25 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
 }
 
 void EnergyTracker::update_structure_factors(
-  double old_x,
-  double old_y,
-  double old_z,
-  double new_x,
-  double new_y,
-  double new_z
+  real_t old_x,
+  real_t old_y,
+  real_t old_z,
+  real_t new_x,
+  real_t new_y,
+  real_t new_z
 ) noexcept {
-  const double L{box_length_};
+  const real_t L{box_length_};
 
   const std::size_t num_G{num_g_vectors_};
-  const double prefactor{1.0 / (2.0 * std::numbers::pi * L * L * L)};
+  const real_t prefactor{1.0_r / (2.0_r * std::numbers::pi_v<real_t> * L * L * L)};
 
-  const double* RESTRICT g_weights{this->g_weights()};
+  const real_t* RESTRICT g_weights{this->g_weights()};
   const auto gv{g_vector().align()};
 
-  double* RESTRICT sum_real{this->sum_real()};
-  double* RESTRICT sum_imag{this->sum_imag()};
-  double* RESTRICT d_imag_temp{this->d_imag_temp()};
-  double* RESTRICT d_real_temp{this->d_real_temp()};
+  real_t* RESTRICT sum_real{this->sum_real()};
+  real_t* RESTRICT sum_imag{this->sum_imag()};
+  real_t* RESTRICT d_imag_temp{this->d_imag_temp()};
+  real_t* RESTRICT d_real_temp{this->d_real_temp()};
 
   ASSUME_ALIGNED(g_weights, SIMD_BYTES);
 
@@ -223,23 +222,23 @@ void EnergyTracker::update_structure_factors(
   ASSUME_ALIGNED(d_imag_temp, SIMD_BYTES);
   ASSUME_ALIGNED(d_real_temp, SIMD_BYTES);
 
-  double delta{};
+  real_t delta{};
 
   #pragma omp simd
   for (std::size_t g = 0; g < num_G; ++g) {
-    const double old_dot{
+    const real_t old_dot{
       gv.x_[g] * old_x +
       gv.y_[g] * old_y +
       gv.z_[g] * old_z
     };
-    const double new_dot{
+    const real_t new_dot{
       gv.x_[g] * new_x +
       gv.y_[g] * new_y +
       gv.z_[g] * new_z
     };
 
-    double new_sin{}, new_cos{};
-    double old_sin{}, old_cos{};
+    real_t new_sin{}, new_cos{};
+    real_t old_sin{}, old_cos{};
 
     PORTABLE_SINCOS(new_dot, &new_sin, &new_cos);
     PORTABLE_SINCOS(old_dot, &old_sin, &old_cos);
@@ -251,10 +250,10 @@ void EnergyTracker::update_structure_factors(
   // Accumulate delta and update sum_real / sum_imag
   #pragma omp simd reduction(+ : delta)
   for (std::size_t g = 0; g < num_G; ++g) {
-    const double dr{d_real_temp[g]};
-    const double di{d_imag_temp[g]};
+    const real_t dr{d_real_temp[g]};
+    const real_t di{d_imag_temp[g]};
 
-    delta += g_weights[g] * (2.0 * (sum_real[g] * dr + sum_imag[g] * di) + dr * dr + di * di);
+    delta += g_weights[g] * (2.0_r * (sum_real[g] * dr + sum_imag[g] * di) + dr * dr + di * di);
 
     sum_real[g] += dr;
     sum_imag[g] += di;
@@ -263,20 +262,20 @@ void EnergyTracker::update_structure_factors(
   V_recip_ += prefactor * delta;
 }
 
-double EnergyTracker::kinetic_energy(const Particles& particles) const noexcept {
+real_t EnergyTracker::kinetic_energy(const Particles& particles) const noexcept {
   const auto grad{particles.grad_log_psi().align()};
-  const double* RESTRICT lap{particles.lap_log_psi()};
+  const real_t* RESTRICT lap{particles.lap_log_psi()};
 
   ASSUME_ALIGNED(lap, SIMD_BYTES);
 
   // Kinetic
-  double T_sum{};
+  real_t T_sum{};
   const std::size_t N{particles.size()};
 
   #pragma omp simd reduction(+ : T_sum)
   for (std::size_t i = 0; i < N; ++i) {
     // Computes ||Grad(logPsi)||^2
-    const double grad_sq{
+    const real_t grad_sq{
       grad.x_[i] * grad.x_[i] +
       grad.y_[i] * grad.y_[i] +
       grad.z_[i] * grad.z_[i]
@@ -286,55 +285,55 @@ double EnergyTracker::kinetic_energy(const Particles& particles) const noexcept 
     T_sum += (lap[i] + grad_sq);
   }
 
-  return -0.5 * T_sum;
+  return -0.5_r * T_sum;
 }
 
 void EnergyTracker::update_real_energy(
   std::size_t moved_idx,
-  double old_x,
-  double old_y,
-  double old_z,
+  real_t old_x,
+  real_t old_y,
+  real_t old_z,
   const Particles& particles
 ) noexcept {
   const std::size_t N{particles.size()};
-  const double L{box_length_};
-  const double neg_L{-1.0 * L};
-  const double half_L{0.5 * L};
-  const double neg_half_L{-1.0 * half_L};
+  const real_t L{box_length_};
+  const real_t neg_L{-1.0_r * L};
+  const real_t half_L{0.5_r * L};
+  const real_t neg_half_L{-1.0_r * half_L};
 
-  const double alpha{ewald_alpha_};
+  const real_t alpha{ewald_alpha_};
 
   // Fast erfc constants
-  const double p{0.3275911};
-  const double a1{0.254829592};
-  const double a2{-0.284496736};
-  const double a3{1.421413741};
-  const double a4{-1.453152027};
-  const double a5{1.061405429};
+  const real_t p{0.3275911_r};
+  const real_t a1{0.254829592_r};
+  const real_t a2{-0.284496736_r};
+  const real_t a3{1.421413741_r};
+  const real_t a4{-1.453152027_r};
+  const real_t a5{1.061405429_r};
 
   const auto pos{particles.pos().align()};
 
-  const double new_x{pos.x_[moved_idx]};
-  const double new_y{pos.y_[moved_idx]};
-  const double new_z{pos.z_[moved_idx]};
+  const real_t new_x{pos.x_[moved_idx]};
+  const real_t new_y{pos.y_[moved_idx]};
+  const real_t new_z{pos.z_[moved_idx]};
 
-  double delta{};
+  real_t delta{};
 
   #pragma omp simd reduction(+ : delta)
   for (std::size_t j = 0; j < N; ++j) {
     // Branchless mask to safely skip the moved particle
-    const double valid_mask{(j == moved_idx) ? 0.0 : 1.0};
+    const real_t valid_mask{(j == moved_idx) ? 0.0_r : 1.0_r};
 
     // Old pair
-    double dx_old{old_x - pos.x_[j]};
-    double dy_old{old_y - pos.y_[j]};
-    double dz_old{old_z - pos.z_[j]};
+    real_t dx_old{old_x - pos.x_[j]};
+    real_t dy_old{old_y - pos.y_[j]};
+    real_t dz_old{old_z - pos.z_[j]};
 
     dx_old += L * (dx_old <= neg_half_L) + neg_L * (dx_old > half_L);
     dy_old += L * (dy_old <= neg_half_L) + neg_L * (dy_old > half_L);
     dz_old += L * (dz_old <= neg_half_L) + neg_L * (dz_old > half_L);
 
-    const double r_old{
+    const real_t r_old{
       std::sqrt(
         dx_old * dx_old +
         dy_old * dy_old +
@@ -343,12 +342,12 @@ void EnergyTracker::update_real_energy(
     };
 
     // Protect against 1.0 / 0.0 generating NaN
-    const double inv_r_old{(r_old < 1e-12) ? 1.0 : 1.0 / r_old};
+    const real_t inv_r_old{(r_old < 1e-12_r) ? 1.0_r : 1.0_r / r_old};
 
     // Abramowitz & Stegun formula for fast std::erfc approx.
-    const double erfc_arg_old{alpha * r_old};
-    const double t_old{1.0 / (1.0 + p * erfc_arg_old)};
-    const double tau_old{
+    const real_t erfc_arg_old{alpha * r_old};
+    const real_t t_old{1.0_r / (1.0_r + p * erfc_arg_old)};
+    const real_t tau_old{
       t_old * (
         a1 + t_old * (
           a2 + t_old * (
@@ -360,18 +359,18 @@ void EnergyTracker::update_real_energy(
       )
     };
 
-    double const erfc_old{tau_old * std::exp(-erfc_arg_old * erfc_arg_old) * inv_r_old};
+    real_t const erfc_old{tau_old * std::exp(-erfc_arg_old * erfc_arg_old) * inv_r_old};
 
     // New pair
-    double dx_new{new_x - pos.x_[j]};
-    double dy_new{new_y - pos.y_[j]};
-    double dz_new{new_z - pos.z_[j]};
+    real_t dx_new{new_x - pos.x_[j]};
+    real_t dy_new{new_y - pos.y_[j]};
+    real_t dz_new{new_z - pos.z_[j]};
 
     dx_new += L * (dx_new <= neg_half_L) + neg_L * (dx_new > half_L);
     dy_new += L * (dy_new <= neg_half_L) + neg_L * (dy_new > half_L);
     dz_new += L * (dz_new <= neg_half_L) + neg_L * (dz_new > half_L);
 
-    const double r_new{
+    const real_t r_new{
       std::sqrt(
         dx_new * dx_new +
         dy_new * dy_new +
@@ -380,14 +379,14 @@ void EnergyTracker::update_real_energy(
     };
 
     // Protect against 1.0 / 0.0 generating NaN
-    const double inv_r_new{(r_new < 1e-12) ? 1.0 : 1.0 / r_new};
+    const real_t inv_r_new{(r_new < 1e-12_r) ? 1.0_r : 1.0_r / r_new};
 
     // Combine operations and apply the mask
 
     // Abramowitz & Stegun formula for fast std::erfc approx.
-    const double erfc_arg_new{alpha * r_new};
-    const double t_new{1.0 / (1.0 + p * erfc_arg_new)};
-    const double tau_new{
+    const real_t erfc_arg_new{alpha * r_new};
+    const real_t t_new{1.0_r / (1.0_r + p * erfc_arg_new)};
+    const real_t tau_new{
       t_new * (
         a1 + t_new * (
           a2 + t_new * (
@@ -399,7 +398,7 @@ void EnergyTracker::update_real_energy(
       )
     };
 
-    double const erfc_new{tau_new * std::exp(-erfc_arg_new * erfc_arg_new) * inv_r_new};
+    real_t const erfc_new{tau_new * std::exp(-erfc_arg_new * erfc_arg_new) * inv_r_new};
 
     delta += valid_mask * (erfc_new - erfc_old);
   }
@@ -407,19 +406,19 @@ void EnergyTracker::update_real_energy(
   V_real_ += delta;
 }
 
-double EnergyTracker::potential_energy() const noexcept {
+real_t EnergyTracker::potential_energy() const noexcept {
   // Ewald constants:
-  const double ewald_self_correction_term{ewald_correction_};
-  const double ewald_background{ewald_background_};
+  const real_t ewald_self_correction_term{ewald_correction_};
+  const real_t ewald_background{ewald_background_};
 
   // Potentials calcualted in cache:
-  const double V_recip{V_recip_};
-  const double V_real{V_real_};
+  const real_t V_recip{V_recip_};
+  const real_t V_real{V_real_};
 
   // Self + background:
   return V_real + V_recip + ewald_self_correction_term + ewald_background;
 }
 
-double EnergyTracker::eval_total_energy(const Particles& particles) const noexcept {
+real_t EnergyTracker::eval_total_energy(const Particles& particles) const noexcept {
   return kinetic_energy(particles) + potential_energy();
 }

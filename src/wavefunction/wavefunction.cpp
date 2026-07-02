@@ -2,9 +2,9 @@
 
 #include <algorithm>
 
-double WaveFunction::evaluate_log_psi(const Particles& particles) {
-  const double log_det{slater_plane_wave().log_abs_det(particles)};
-  const double jastrow{jastrow_pade().value(particles)};
+real_t WaveFunction::evaluate_log_psi(const Particles& particles) {
+  const real_t log_det{slater_plane_wave().log_abs_det(particles)};
+  const real_t jastrow{jastrow_pade().value(particles)};
 
   return log_det + jastrow;
 }
@@ -13,23 +13,23 @@ void WaveFunction::evaluate_derivatives(Particles& particles) noexcept {
   const std::size_t padded_stride{particles.p_stride()};
 
   const auto log_grad{particles.grad_log_psi().align()};
-  double* RESTRICT log_lap{particles.lap_log_psi()};
+  real_t* RESTRICT log_lap{particles.lap_log_psi()};
 
   const auto jg{j_grad().align()};
-  double* RESTRICT jastrow_lap{j_lap()};
+  real_t* RESTRICT jastrow_lap{j_lap()};
 
   ASSUME_ALIGNED(log_lap, SIMD_BYTES);
   ASSUME_ALIGNED(jastrow_lap, SIMD_BYTES);
 
-  std::fill_n(log_grad.x_, padded_stride, 0.0);
-  std::fill_n(log_grad.y_, padded_stride, 0.0);
-  std::fill_n(log_grad.z_, padded_stride, 0.0);
-  std::fill_n(log_lap, padded_stride, 0.0);
+  std::fill_n(log_grad.x_, padded_stride, 0.0_r);
+  std::fill_n(log_grad.y_, padded_stride, 0.0_r);
+  std::fill_n(log_grad.z_, padded_stride, 0.0_r);
+  std::fill_n(log_lap, padded_stride, 0.0_r);
 
-  std::fill_n(jg.x_, padded_stride, 0.0);
-  std::fill_n(jg.y_, padded_stride, 0.0);
-  std::fill_n(jg.z_, padded_stride, 0.0);
-  std::fill_n(jastrow_lap, padded_stride, 0.0);
+  std::fill_n(jg.x_, padded_stride, 0.0_r);
+  std::fill_n(jg.y_, padded_stride, 0.0_r);
+  std::fill_n(jg.z_, padded_stride, 0.0_r);
+  std::fill_n(jastrow_lap, padded_stride, 0.0_r);
 
   slater_plane_wave_.add_derivatives(log_grad.x_, log_grad.y_, log_grad.z_, log_lap);
   jastrow_pade_.add_derivatives(particles, jg.x_, jg.y_, jg.z_, jastrow_lap);
@@ -49,7 +49,7 @@ void WaveFunction::evaluate_derivatives(
   Particles& particles,
   bool move_accepted,
   std::size_t moved,
-  double old_x, double old_y, double old_z
+  real_t old_x, real_t old_y, real_t old_z
 ) noexcept {
   if (!jastrow_cache_valid()) {
     evaluate_derivatives(particles);
@@ -67,10 +67,10 @@ void WaveFunction::evaluate_derivatives(
   const std::size_t padded_stride{particles.p_stride()};
 
   const auto log_grad{particles.grad_log_psi().align()};
-  double* RESTRICT log_lap{particles.lap_log_psi()};
+  real_t* RESTRICT log_lap{particles.lap_log_psi()};
 
   const auto jg{j_grad().align()};
-  double* RESTRICT jastrow_lap{j_lap()};
+  real_t* RESTRICT jastrow_lap{j_lap()};
 
   ASSUME_ALIGNED(log_lap, SIMD_BYTES);
   ASSUME_ALIGNED(jastrow_lap, SIMD_BYTES);
@@ -83,10 +83,10 @@ void WaveFunction::evaluate_derivatives(
     jastrow_lap
   );
 
-  std::fill_n(log_grad.x_, padded_stride, 0.0);
-  std::fill_n(log_grad.y_, padded_stride, 0.0);
-  std::fill_n(log_grad.z_, padded_stride, 0.0);
-  std::fill_n(log_lap, padded_stride, 0.0);
+  std::fill_n(log_grad.x_, padded_stride, 0.0_r);
+  std::fill_n(log_grad.y_, padded_stride, 0.0_r);
+  std::fill_n(log_grad.z_, padded_stride, 0.0_r);
+  std::fill_n(log_lap, padded_stride, 0.0_r);
 
   slater_plane_wave_.add_derivatives(
     log_grad.x_, log_grad.y_, log_grad.z_,

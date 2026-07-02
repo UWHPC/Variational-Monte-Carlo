@@ -16,6 +16,9 @@ project(Variational-Monte-Carlo LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# --- Floating point precision ---
+option(FP_64 "Use double precision (real_t = double) instead of single precision (real_t = float)" ON)
+
 # --- Dependencies ---
 find_package(OpenMP QUIET COMPONENTS CXX)
 
@@ -70,6 +73,10 @@ add_library(vmc_lib STATIC
 )
 
 target_include_directories(vmc_lib PUBLIC src)
+
+if(FP_64)
+    target_compile_definitions(vmc_lib PUBLIC FP_64)
+endif()
 
 if(OpenMP_CXX_FOUND)
     target_link_libraries(vmc_lib PUBLIC OpenMP::OpenMP_CXX)

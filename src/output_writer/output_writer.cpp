@@ -49,7 +49,7 @@ void write_json_string(std::ostream& out, std::string_view value) {
   out << '"';
 }
 
-void write_positions(std::ostream& out, const std::vector<double>& positions) {
+void write_positions(std::ostream& out, const std::vector<real_t>& positions) {
   out << '[';
   for (std::size_t i{}; i < positions.size(); ++i) {
     if (i != 0U) {
@@ -65,7 +65,7 @@ void write_positions(std::ostream& out, const std::vector<double>& positions) {
 JsonOutputWriter::JsonOutputWriter(std::ostream& out)
 : out_{out}
 {
-  out_.precision(std::numeric_limits<double>::max_digits10);
+  out_.precision(std::numeric_limits<real_t>::max_digits10);
 }
 
 void JsonOutputWriter::write_init(const InitData& data) {
@@ -134,7 +134,7 @@ BinOutputWriter::BinOutputWriter(std::ostream& out)
 
 void BinOutputWriter::write_init(const InitData& data) {
   const uint64_t np{static_cast<uint64_t>(data.num_particles)};
-  const double bl{data.box_length};
+  const real_t bl{data.box_length};
   const uint64_t ms{static_cast<uint64_t>(data.measure_steps)};
   out_.write(reinterpret_cast<const char*>(&np), sizeof(np));
   out_.write(reinterpret_cast<const char*>(&bl), sizeof(bl));
@@ -143,14 +143,14 @@ void BinOutputWriter::write_init(const InitData& data) {
 }
 
 void BinOutputWriter::write_frame(const FrameData& data) {
-  const double se{data.standard_error.value_or(0.0)};
-  out_.write(reinterpret_cast<const char*>(&data.local_energy), sizeof(double));
-  out_.write(reinterpret_cast<const char*>(&data.mean_energy), sizeof(double));
-  out_.write(reinterpret_cast<const char*>(&se), sizeof(double));
-  out_.write(reinterpret_cast<const char*>(&data.acceptance_rate), sizeof(double));
+  const real_t se{data.standard_error.value_or(0.0_r)};
+  out_.write(reinterpret_cast<const char*>(&data.local_energy), sizeof(real_t));
+  out_.write(reinterpret_cast<const char*>(&data.mean_energy), sizeof(real_t));
+  out_.write(reinterpret_cast<const char*>(&se), sizeof(real_t));
+  out_.write(reinterpret_cast<const char*>(&data.acceptance_rate), sizeof(real_t));
   out_.write(
     reinterpret_cast<const char*>(data.positions.data()),
-    static_cast<std::streamsize>(data.positions.size() * sizeof(double))
+    static_cast<std::streamsize>(data.positions.size() * sizeof(real_t))
   );
 }
 
