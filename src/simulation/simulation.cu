@@ -1,4 +1,4 @@
-#include "simulation.hpp"
+#include "simulation.cuh"
 
 #include <cmath>
 #include <iomanip>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "macros.hpp"
+#include "macros.cuh"
 
 #include <algorithm>
 #include <cstddef>
@@ -13,7 +13,14 @@
 #endif
 
 inline void* aligned_alloc_backend(std::size_t alignment, std::size_t size) {
-#if defined(_WIN32)
+#if defined(__CUDACC__)
+  static_cast<void>(alignment);
+
+  void* ptr{};
+  CUDA_CHECK(cudaMallocManaged(&ptr, size));
+
+  return ptr;
+#elif defined(_WIN32)
   return _aligned_malloc(size, alignment);
 #elif defined(__APPLE__) || defined(__GNUC__) || defined(__clang__)
   void* ptr{};
@@ -28,7 +35,9 @@ inline void* aligned_alloc_backend(std::size_t alignment, std::size_t size) {
 }
 
 inline void aligned_free_backend(void* ptr) {
-#if defined(_WIN32)
+#if defined(__CUDACC__)
+  cudaFree(ptr);
+#elif defined(_WIN32)
   _aligned_free(ptr);
 #else
   std::free(ptr);

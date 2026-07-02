@@ -1,4 +1,4 @@
-#include "wavefunction.hpp"
+#include "wavefunction.cuh"
 
 #include <algorithm>
 

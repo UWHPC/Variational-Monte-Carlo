@@ -22,7 +22,7 @@
 
 #include "test_utilities.hpp"
 
-#include "simulation/simulation.hpp"
+#include "simulation/simulation.cuh"
 
 #include <cmath>
 #include <cstddef>

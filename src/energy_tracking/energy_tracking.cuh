@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../particles/particles.hpp"
-#include "../utilities/aligned_soa.hpp"
+#include "../particles/particles.cuh"
+#include "../utilities/aligned_soa.cuh"
 #include "../utilities/ptr3d.hpp"
 
 #include <cmath>

@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../jastrow_pade/jastrow_pade.hpp"
-#include "../particles/particles.hpp"
-#include "../slater_plane_wave/slater_plane_wave.hpp"
-#include "../utilities/aligned_soa.hpp"
+#include "../jastrow_pade/jastrow_pade.cuh"
+#include "../particles/particles.cuh"
+#include "../slater_plane_wave/slater_plane_wave.cuh"
+#include "../utilities/aligned_soa.cuh"
 
 #include <cstddef>
 #include <vector>

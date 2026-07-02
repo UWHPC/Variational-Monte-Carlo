@@ -1,4 +1,4 @@
-#include "jastrow_pade.hpp"
+#include "jastrow_pade.cuh"
 
 #include <cmath>
 #include <cstddef>

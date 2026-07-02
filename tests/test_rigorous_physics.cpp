@@ -3,11 +3,11 @@
 #include <catch2/catch_message.hpp>
 #include <catch2/catch_test_macros.hpp>
 
-#include "energy_tracking/energy_tracking.hpp"
-#include "jastrow_pade/jastrow_pade.hpp"
-#include "particles/particles.hpp"
-#include "slater_plane_wave/slater_plane_wave.hpp"
-#include "wavefunction/wavefunction.hpp"
+#include "energy_tracking/energy_tracking.cuh"
+#include "jastrow_pade/jastrow_pade.cuh"
+#include "particles/particles.cuh"
+#include "slater_plane_wave/slater_plane_wave.cuh"
+#include "wavefunction/wavefunction.cuh"
 
 #include <algorithm>
 #include <cmath>

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../utilities/aligned_soa.hpp"
-#include "../utilities/macros.hpp"
+#include "../utilities/aligned_soa.cuh"
+#include "../utilities/macros.cuh"
 #include "../utilities/ptr3d.hpp"
 
 #include <algorithm>

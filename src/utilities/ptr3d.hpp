@@ -1,6 +1,6 @@
 #pragma once
 
-#include "macros.hpp"
+#include "macros.cuh"
 
 template <typename T> struct [[nodiscard]] Ptr3D {
   T* RESTRICT x_;

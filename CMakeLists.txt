@@ -25,7 +25,7 @@ if(VMC_ENABLE_CUDA)
   check_language(CUDA)
   if(CMAKE_CUDA_COMPILER)
     enable_language(CUDA)
-    set(CMAKE_CUDA_STANDARD 23)
+    set(CMAKE_CUDA_STANDARD 20)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
     if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
       set(CMAKE_CUDA_ARCHITECTURES native)
@@ -94,18 +94,17 @@ endif()
 
 # --- Source lists ---
 set(VMC_CUDA_SOURCES
-  # src/simulation/simulation.cu
+  src/jastrow_pade/jastrow_pade.cu
+  src/wavefunction/wavefunction.cu
+  src/slater_plane_wave/slater_plane_wave.cu
+  src/simulation/simulation.cu
+  src/energy_tracking/energy_tracking.cu
+  src/optimizer/jastrow_optimizer.cu
 )
 
 set(VMC_CXX_SOURCES
-  src/jastrow_pade/jastrow_pade.cpp
-  src/wavefunction/wavefunction.cpp
-  src/slater_plane_wave/slater_plane_wave.cpp
-  src/simulation/simulation.cpp
   src/blocking_analysis/blocking_analysis.cpp
   src/output_writer/output_writer.cpp
-  src/energy_tracking/energy_tracking.cpp
-  src/optimizer/jastrow_optimizer.cpp
 )
 
 set(VMC_CUDA_EXTENSION_SOURCES
@@ -140,6 +139,9 @@ endif()
 
 if(OpenMP_CXX_FOUND)
   target_link_libraries(vmc_lib PUBLIC OpenMP::OpenMP_CXX)
+  if(MSVC)
+    target_compile_options(vmc_lib PUBLIC $<$<COMPILE_LANGUAGE:CXX>:/openmp:experimental>)
+  endif()
 elseif(VMC_HAS_FOPENMP_SIMD)
   target_compile_options(vmc_lib PUBLIC -fopenmp-simd)
 endif()

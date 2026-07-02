@@ -1,7 +1,7 @@
 #include "config/config.hpp"
 #include "optimizer/jastrow_optimizer.hpp"
 #include "output_writer/output_writer.hpp"
-#include "simulation/simulation.hpp"
+#include "simulation/simulation.cuh"
 
 #include <chrono>
 #include <fstream>

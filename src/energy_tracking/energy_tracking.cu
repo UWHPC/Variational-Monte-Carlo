@@ -1,4 +1,4 @@
-#include "energy_tracking.hpp"
+#include "energy_tracking.cuh"
 
 #include <numbers>
 
