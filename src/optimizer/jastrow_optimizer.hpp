@@ -5,9 +5,9 @@
 class JastrowOptimizer {
 public:
   struct Result {
-    double optimal_b;
-    double energy;
-    double standard_error;
+    real_t optimal_b;
+    real_t energy;
+    real_t standard_error;
   };
 
   // Optimize the Jastrow b parameter for the given config.
@@ -18,16 +18,16 @@ public:
 
 private:
   struct EvalResult {
-    double b;
-    double energy;
-    double standard_error;
+    real_t b;
+    real_t energy;
+    real_t standard_error;
   };
 
   [[nodiscard]] static EvalResult evaluate(
     const Config& base_config,
-    double b,
+    real_t b,
     std::size_t warmup_sweeps,
     std::size_t measure_sweeps
   );
-  [[nodiscard]] static double compute_rs(const Config& cfg);
+  [[nodiscard]] static real_t compute_rs(const Config& cfg);
 };

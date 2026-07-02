@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../utilities/macros.hpp"
+
 #include <cctype>
 #include <cmath>
 #include <cstddef>
@@ -18,16 +20,16 @@ public:
   std::size_t num_particles{7U};
   std::size_t warmup_sweeps{100U};
   std::size_t measure_sweeps{100U};
-  double box_length{10.0};
+  real_t box_length{10.0_r};
   std::size_t block_size{100U};
   uint64_t master_seed{42U};
   bool is_master_thread{};
-  double jastrow_a{0.25};
-  double jastrow_b{1.0};
+  real_t jastrow_a{0.25_r};
+  real_t jastrow_b{1.0_r};
 
   std::size_t warmup_steps;
   std::size_t measure_steps;
-  double step_size;
+  real_t step_size;
 
   Config() { compute_derived(); }
 
@@ -68,7 +70,7 @@ private:
     if (block_size < 1U) {
       throw std::invalid_argument("[Config] Block_Size must be >= 1");
     }
-    if (box_length <= 0.0 || !std::isfinite(box_length)) {
+    if (box_length <= 0.0_r || !std::isfinite(box_length)) {
       throw std::invalid_argument("[Config] Box_Length must be finite and > 0");
     }
     if (measure_sweeps < 1U) {
@@ -76,7 +78,7 @@ private:
     }
     warmup_steps = num_particles * warmup_sweeps;
     measure_steps = num_particles * measure_sweeps;
-    step_size = box_length / 10.0;
+    step_size = box_length / 10.0_r;
   }
 
   using Map = std::unordered_map<std::string, std::string>;
@@ -113,9 +115,9 @@ private:
     return s.substr(start, end - start + 1);
   }
 
-  static void read(Map& map, std::string const& key, double& out) {
+  static void read(Map& map, std::string const& key, real_t& out) {
     if (auto it{map.find(key)}; it != map.end()) {
-      out = std::stod(it->second);
+      out = static_cast<real_t>(std::stod(it->second));
       map.erase(it);
     }
   }

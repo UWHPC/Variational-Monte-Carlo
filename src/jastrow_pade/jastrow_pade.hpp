@@ -4,48 +4,48 @@
 
 class JastrowPade {
 private:
-  double box_length_;
-  double a_;
-  double b_;
+  real_t box_length_;
+  real_t a_;
+  real_t b_;
 
 public:
-  explicit JastrowPade(double box_length, double a = 0.25, double b = 1) noexcept
+  explicit JastrowPade(real_t box_length, real_t a = 0.25_r, real_t b = 1.0_r) noexcept
   : box_length_{box_length}
   , a_{a}
   , b_{b}
   { }
 
-  [[nodiscard]] double box_length() const noexcept { return box_length_; }
-  [[nodiscard]] double a() const noexcept { return a_; }
-  [[nodiscard]] double b() const noexcept { return b_; }
+  [[nodiscard]] real_t box_length() const noexcept { return box_length_; }
+  [[nodiscard]] real_t a() const noexcept { return a_; }
+  [[nodiscard]] real_t b() const noexcept { return b_; }
 
-  [[nodiscard]] double value(const Particles& particles) const noexcept;
+  [[nodiscard]] real_t value(const Particles& particles) const noexcept;
 
   void add_derivatives(
     const Particles& particles,
-    double* RESTRICT grad_x,
-    double* RESTRICT grad_y,
-    double* RESTRICT grad_z,
-    double* RESTRICT laplacian
+    real_t* RESTRICT grad_x,
+    real_t* RESTRICT grad_y,
+    real_t* RESTRICT grad_z,
+    real_t* RESTRICT laplacian
   ) const noexcept;
 
-  [[nodiscard]] double delta_value(
+  [[nodiscard]] real_t delta_value(
     const Particles& particles,
     std::size_t moved,
-    double old_x,
-    double old_y,
-    double old_z
+    real_t old_x,
+    real_t old_y,
+    real_t old_z
   ) const noexcept;
 
   void update_derivatives_for_move(
     const Particles& particles,
     std::size_t moved,
-    double old_x,
-    double old_y,
-    double old_z,
-    double* RESTRICT grad_x,
-    double* RESTRICT grad_y,
-    double* RESTRICT grad_z,
-    double* RESTRICT laplacian
+    real_t old_x,
+    real_t old_y,
+    real_t old_z,
+    real_t* RESTRICT grad_x,
+    real_t* RESTRICT grad_y,
+    real_t* RESTRICT grad_z,
+    real_t* RESTRICT laplacian
   ) const noexcept;
 };

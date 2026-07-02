@@ -17,14 +17,14 @@ private:
   std::size_t steps_since_refresh_;
 
   enum ArrayIndex : std::size_t { GRAD_X, GRAD_Y, GRAD_Z, LAP, NUM_ARRAYS };
-  AlignedSoA<double> deriv_;
+  AlignedSoA<real_t> deriv_;
 
 public:
   explicit WaveFunction(
     const Particles& particles,
-    double box_length,
-    double a = 0.25,
-    double b = 1.0
+    real_t box_length,
+    real_t a = 0.25_r,
+    real_t b = 1.0_r
   )
   : jastrow_pade_{box_length, a, b}
   , slater_plane_wave_{particles, box_length}
@@ -39,11 +39,11 @@ public:
   [[nodiscard]]       SlaterPlaneWave& slater_plane_wave()       noexcept { return slater_plane_wave_; }
   [[nodiscard]] const SlaterPlaneWave& slater_plane_wave() const noexcept { return slater_plane_wave_; }
 
-  Ptr3D<      double> j_grad()       noexcept { return {deriv_[GRAD_X], deriv_[GRAD_Y], deriv_[GRAD_Z]}; }
-  Ptr3D<const double> j_grad() const noexcept { return {deriv_[GRAD_X], deriv_[GRAD_Y], deriv_[GRAD_Z]}; }
+  Ptr3D<      real_t> j_grad()       noexcept { return {deriv_[GRAD_X], deriv_[GRAD_Y], deriv_[GRAD_Z]}; }
+  Ptr3D<const real_t> j_grad() const noexcept { return {deriv_[GRAD_X], deriv_[GRAD_Y], deriv_[GRAD_Z]}; }
 
-  [[nodiscard]] double*       j_lap()       noexcept { return deriv_[LAP]; }
-  [[nodiscard]] double const* j_lap() const noexcept { return deriv_[LAP]; }
+  [[nodiscard]] real_t*       j_lap()       noexcept { return deriv_[LAP]; }
+  [[nodiscard]] real_t const* j_lap() const noexcept { return deriv_[LAP]; }
 
   [[nodiscard]] bool jastrow_cache_valid() const noexcept { return jastrow_cache_valid_; }
   void set_jastrow_cache_valid(bool value) noexcept { jastrow_cache_valid_ = value; }
@@ -56,8 +56,8 @@ public:
     Particles& particles,
     bool move_accepted,
     std::size_t moved,
-    double old_x, double old_y, double old_z
+    real_t old_x, real_t old_y, real_t old_z
   ) noexcept;
 
-  double evaluate_log_psi(const Particles& particles);
+  real_t evaluate_log_psi(const Particles& particles);
 };

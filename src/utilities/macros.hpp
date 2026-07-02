@@ -4,12 +4,28 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cmath>
+#include <complex>
 #include <concepts>
 #include <memory>
 #include <type_traits>
 
 template <typename T>
 concept arithmetic = std::is_arithmetic_v<T>;
+
+#ifdef FP_64
+using real_t = double;
+#else
+using real_t = float;
+#endif
+
+using complex_t = std::complex<real_t>;
+
+[[nodiscard]] constexpr real_t operator""_r(long double value) {
+  return static_cast<real_t>(value);
+}
+[[nodiscard]] constexpr real_t operator""_r(unsigned long long value) {
+  return static_cast<real_t>(value);
+}
 
 // Restrict pointers:
 #if defined(__GNUC__) || defined(__clang__)
@@ -34,11 +50,17 @@ constexpr std::size_t SIMD_BYTES{alignof(std::max_align_t)};
 // Sincos support for all compilers
 #if defined(__APPLE__)
 inline void PORTABLE_SINCOS(double theta, double* s, double* c) { __sincos(theta, s, c); }
+inline void PORTABLE_SINCOS(float theta, float* s, float* c) { __sincosf(theta, s, c); }
 #elif defined(__GNUC__) || defined(__clang__)
 #include <math.h>
 inline void PORTABLE_SINCOS(double theta, double* s, double* c) { sincos(theta, s, c); }
+inline void PORTABLE_SINCOS(float theta, float* s, float* c) { sincosf(theta, s, c); }
 #else
 inline void PORTABLE_SINCOS(double theta, double* s, double* c) {
+  *s = std::sin(theta);
+  *c = std::cos(theta);
+}
+inline void PORTABLE_SINCOS(float theta, float* s, float* c) {
   *s = std::sin(theta);
   *c = std::cos(theta);
 }

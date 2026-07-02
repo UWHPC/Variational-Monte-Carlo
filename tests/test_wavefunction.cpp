@@ -10,29 +10,29 @@ TEST_CASE("WaveFunction evaluateDerivatives clears buffers and delegates to Jast
           "[wavefunction]") {
   Particles particles{2U};
 
-  particles.pos().x_[0] = 0.0;
-  particles.pos().y_[0] = 0.0;
-  particles.pos().z_[0] = 0.0;
+  particles.pos().x_[0] = 0.0_r;
+  particles.pos().y_[0] = 0.0_r;
+  particles.pos().z_[0] = 0.0_r;
 
-  particles.pos().x_[1] = 1.0;
-  particles.pos().y_[1] = 0.0;
-  particles.pos().z_[1] = 0.0;
+  particles.pos().x_[1] = 1.0_r;
+  particles.pos().y_[1] = 0.0_r;
+  particles.pos().z_[1] = 0.0_r;
 
   const std::size_t stride{particles.p_stride()};
   for (std::size_t i = 0; i < stride; ++i) {
-    particles.grad_log_psi().x_[i] = 999.0;
-    particles.grad_log_psi().y_[i] = 999.0;
-    particles.grad_log_psi().z_[i] = 999.0;
-    particles.lap_log_psi()[i] = 999.0;
+    particles.grad_log_psi().x_[i] = 999.0_r;
+    particles.grad_log_psi().y_[i] = 999.0_r;
+    particles.grad_log_psi().z_[i] = 999.0_r;
+    particles.lap_log_psi()[i] = 999.0_r;
   }
 
-  WaveFunction waveFunction{particles, 10.0, 0.5, 1.0};
+  WaveFunction waveFunction{particles, 10.0_r, 0.5_r, 1.0_r};
 
   // Compute expected: zero-init then add both Slater and Jastrow
-  std::vector<double> expectedX(stride, 0.0);
-  std::vector<double> expectedY(stride, 0.0);
-  std::vector<double> expectedZ(stride, 0.0);
-  std::vector<double> expectedLap(stride, 0.0);
+  std::vector<real_t> expectedX(stride, 0.0_r);
+  std::vector<real_t> expectedY(stride, 0.0_r);
+  std::vector<real_t> expectedZ(stride, 0.0_r);
+  std::vector<real_t> expectedLap(stride, 0.0_r);
 
   // Need to call log_abs_det first to populate the inverse
   waveFunction.slater_plane_wave().log_abs_det(particles);
@@ -62,26 +62,26 @@ TEST_CASE("WaveFunction evaluate_log_psi returns finite for N=1", "[wavefunction
   // Total log_psi = 0
   Particles particles{1U};
 
-  particles.pos().x_[0] = 0.4;
-  particles.pos().y_[0] = 0.7;
-  particles.pos().z_[0] = 0.9;
+  particles.pos().x_[0] = 0.4_r;
+  particles.pos().y_[0] = 0.7_r;
+  particles.pos().z_[0] = 0.9_r;
 
-  WaveFunction waveFunction{particles, 10.0, 0.5, 1.0};
+  WaveFunction waveFunction{particles, 10.0_r, 0.5_r, 1.0_r};
 
-  const double logPsi{waveFunction.evaluate_log_psi(particles)};
-  require_near(logPsi, 0.0);
+  const real_t logPsi{waveFunction.evaluate_log_psi(particles)};
+  require_near(logPsi, 0.0_r);
 }
 
 TEST_CASE("WaveFunction default Jastrow parameter matches fully polarized cusp choice",
           "[wavefunction]") {
   Particles particles{2U};
-  WaveFunction waveFunction{particles, 9.0};
+  WaveFunction waveFunction{particles, 9.0_r};
 
-  const double actualA{waveFunction.jastrow_pade().a()};
-  const double actualB{waveFunction.jastrow_pade().b()};
+  const real_t actualA{waveFunction.jastrow_pade().a()};
+  const real_t actualB{waveFunction.jastrow_pade().b()};
 
   INFO("Default WaveFunction Jastrow parameters should match the fully polarized HEG choice.");
   CAPTURE(actualA, actualB);
-  require_near(actualA, 0.25);
-  require_near(actualB, 1.0);
+  require_near(actualA, 0.25_r);
+  require_near(actualB, 1.0_r);
 }

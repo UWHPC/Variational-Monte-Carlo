@@ -14,7 +14,7 @@ Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_write
 , particles_{config_.num_particles}
 , wave_function_{particles_, config_.box_length, config_.jastrow_a, config_.jastrow_b}
 , blocking_analysis_{config_.block_size}
-, energy_tracker_{config_.box_length, static_cast<double>(config_.num_particles)}
+, energy_tracker_{config_.box_length, static_cast<real_t>(config_.num_particles)}
 , output_writer_{std::move(output_writer)}
 , proposed_{}
 , accepted_{}
@@ -24,11 +24,11 @@ Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_write
 , pick_particle_{0, config_.num_particles - 1}
 { }
 
-std::vector<double> Simulation::positions_snapshot() const {
+std::vector<real_t> Simulation::positions_snapshot() const {
   const std::size_t N{particles_.size()};
   auto [p_x, p_y, p_z]{particles_.pos().align()};
 
-  std::vector<double> positions{};
+  std::vector<real_t> positions{};
   positions.reserve(N * 3U);
 
   for (std::size_t i{}; i < N; ++i) {
@@ -41,7 +41,7 @@ std::vector<double> Simulation::positions_snapshot() const {
 
 void Simulation::initialize_positions() {
   const std::size_t N{particles_.size()};
-  const double length{config_.box_length};
+  const real_t length{config_.box_length};
   auto [p_x, p_y, p_z]{particles_.pos().align()};
 
   constexpr std::size_t MAX_INIT_ATTEMPTS{100};
@@ -71,12 +71,12 @@ Simulation::StepResult Simulation::metropolis_step() {
   auto [p_x, p_y, p_z]{particles_.pos().align()};
 
   const std::size_t rand{rand_particle()};
-  const double L{config_.box_length};
-  const double inv_L{1.0 / L};
+  const real_t L{config_.box_length};
+  const real_t inv_L{1.0_r / L};
 
-  const double old_x{p_x[rand]};
-  const double old_y{p_y[rand]};
-  const double old_z{p_z[rand]};
+  const real_t old_x{p_x[rand]};
+  const real_t old_y{p_y[rand]};
+  const real_t old_z{p_z[rand]};
 
   p_x[rand] += rand_proposal();
   p_y[rand] += rand_proposal();
@@ -92,20 +92,20 @@ Simulation::StepResult Simulation::metropolis_step() {
   slater.save_trig_row(rand);
   slater.update_trig_cache(rand, particles_);
 
-  const double* new_row{slater.build_row(rand)};
-  const double slater_ratio{slater.determinant_ratio(rand, new_row)};
+  const real_t* new_row{slater.build_row(rand)};
+  const real_t slater_ratio{slater.determinant_ratio(rand, new_row)};
 
-  const double delta_jastrow{
+  const real_t delta_jastrow{
     wave_function_.jastrow_pade().delta_value(
       particles_,
       rand, old_x, old_y, old_z
     )
   };
-  const double log_ratio_sq{2.0 * std::log(std::abs(slater_ratio)) + 2.0 * delta_jastrow};
+  const real_t log_ratio_sq{2.0_r * std::log(std::abs(slater_ratio)) + 2.0_r * delta_jastrow};
 
-  const double u{std::max(rand_uniform(), std::numeric_limits<double>::min())};
-  const double log_u{std::log(u)};
-  const double min_term{std::min(0.0, log_ratio_sq)};
+  const real_t u{std::max(rand_uniform(), std::numeric_limits<real_t>::min())};
+  const real_t log_u{std::log(u)};
+  const real_t min_term{std::min(0.0_r, log_ratio_sq)};
 
   const bool accepted{log_u < min_term};
 
@@ -131,7 +131,7 @@ Simulation::StepResult Simulation::metropolis_step() {
 }
 
 void Simulation::warmup() {
-  double& step_size{config_.step_size};
+  real_t& step_size{config_.step_size};
 
   const std::size_t warmup_steps{config_.warmup_steps};
   const std::size_t warmup_batch_size{particles_.size()};
@@ -139,9 +139,9 @@ void Simulation::warmup() {
   std::size_t window_proposed{};
   std::size_t window_accepted{};
 
-  double acceptance_rate_window{};
-  const double acceptance_target{0.50};
-  const double gain{0.25};
+  real_t acceptance_rate_window{};
+  const real_t acceptance_target{0.50_r};
+  const real_t gain{0.25_r};
 
   for (std::size_t i{}; i < warmup_steps; i++) {
     window_proposed++;
@@ -151,15 +151,15 @@ void Simulation::warmup() {
 
     if (window_proposed % warmup_batch_size == 0) {
       acceptance_rate_window =
-          static_cast<double>(window_accepted) / static_cast<double>(window_proposed);
-      step_size *= exp(gain * (acceptance_rate_window - acceptance_target));
+          static_cast<real_t>(window_accepted) / static_cast<real_t>(window_proposed);
+      step_size *= static_cast<real_t>(exp(gain * (acceptance_rate_window - acceptance_target)));
 
-      const double MAX_STEP{config_.box_length * 0.5};
+      const real_t MAX_STEP{config_.box_length * 0.5_r};
       if (step_size > MAX_STEP) {
         step_size = MAX_STEP;
       }
 
-      proposal_.param(std::uniform_real_distribution<double>::param_type(-step_size, step_size));
+      proposal_.param(std::uniform_real_distribution<real_t>::param_type(-step_size, step_size));
 
       window_accepted = 0;
       window_proposed = 0;
@@ -177,9 +177,9 @@ Simulation::MeasurementSummary Simulation::measure() {
   proposed_ = 0U;
   accepted_ = 0U;
 
-  double running_energy_sum{};
-  double final_mean_energy{};
-  std::optional<double> final_standard_error{};
+  real_t running_energy_sum{};
+  real_t final_mean_energy{};
+  std::optional<real_t> final_standard_error{};
 
   for (std::size_t i = 0; i < measure_steps; ++i) {
     ++proposed_;
@@ -193,14 +193,14 @@ Simulation::MeasurementSummary Simulation::measure() {
       result.old_x, result.old_y, result.old_z
     );
 
-    const double E_local{energy_tracker.eval_total_energy(particles)};
+    const real_t E_local{energy_tracker.eval_total_energy(particles)};
     running_energy_sum += E_local;
     blocking_analysis.add(E_local);
 
-    const double running_mean{running_energy_sum / static_cast<double>(i + 1U)};
+    const real_t running_mean{running_energy_sum / static_cast<real_t>(i + 1U)};
     final_mean_energy = running_mean;
 
-    std::optional<double> frame_standard_error{};
+    std::optional<real_t> frame_standard_error{};
     if (blocking_analysis.ready()) {
       const auto [blocked_mean, standard_error]{blocking_analysis.mean_and_standard_error()};
       final_mean_energy = blocked_mean;

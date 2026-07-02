@@ -3,63 +3,63 @@
 #include <cmath>
 #include <cstddef>
 
-double JastrowPade::value(const Particles& particles) const noexcept {
+real_t JastrowPade::value(const Particles& particles) const noexcept {
   const std::size_t num_particles{particles.size()};
-  const double L{box_length_};
-  const double neg_L{-1.0 * L};
-  const double half_L{0.5 * L};
-  const double neg_half_L{-1.0 * half_L};
+  const real_t L{box_length_};
+  const real_t neg_L{-1.0_r * L};
+  const real_t half_L{0.5_r * L};
+  const real_t neg_half_L{-1.0_r * half_L};
 
   const auto p{particles.pos().align()};
 
-  const double a_local{a()};
-  const double b_local{b()};
+  const real_t a_local{a()};
+  const real_t b_local{b()};
 
-  double jastrow_pade{};
+  real_t jastrow_pade{};
   for (std::size_t i = 0; i < num_particles; ++i) {
-    double local_jastrow{};
+    real_t local_jastrow{};
 
     #pragma omp simd reduction(+ : local_jastrow)
     for (std::size_t j = 0; j < num_particles; ++j) {
-      const double mask{i == j ? 0.0 : 1.0};
+      const real_t mask{i == j ? 0.0_r : 1.0_r};
 
-      double displ_x{p.x_[i] - p.x_[j]};
-      double displ_y{p.y_[i] - p.y_[j]};
-      double displ_z{p.z_[i] - p.z_[j]};
+      real_t displ_x{p.x_[i] - p.x_[j]};
+      real_t displ_y{p.y_[i] - p.y_[j]};
+      real_t displ_z{p.z_[i] - p.z_[j]};
 
       displ_x += L * (displ_x <= neg_half_L) + neg_L * (displ_x > half_L);
       displ_y += L * (displ_y <= neg_half_L) + neg_L * (displ_y > half_L);
       displ_z += L * (displ_z <= neg_half_L) + neg_L * (displ_z > half_L);
 
-      const double dist_sq{
+      const real_t dist_sq{
         displ_x * displ_x +
         displ_y * displ_y +
         displ_z * displ_z
       };
-      const double dist{std::sqrt(dist_sq)};
+      const real_t dist{std::sqrt(dist_sq)};
 
-      const double denom{1.0 + b_local * dist};
-      const double inv_denom{1.0 / denom};
+      const real_t denom{1.0_r + b_local * dist};
+      const real_t inv_denom{1.0_r / denom};
 
       local_jastrow += mask * a_local * dist * inv_denom;
     }
     jastrow_pade += local_jastrow;
   }
-  return 0.5 * jastrow_pade;
+  return 0.5_r * jastrow_pade;
 }
 
 void JastrowPade::add_derivatives(
   const Particles& particles,
-  double* RESTRICT grad_x,
-  double* RESTRICT grad_y,
-  double* RESTRICT grad_z,
-  double* RESTRICT laplacian
+  real_t* RESTRICT grad_x,
+  real_t* RESTRICT grad_y,
+  real_t* RESTRICT grad_z,
+  real_t* RESTRICT laplacian
 ) const noexcept {
   const std::size_t num_particles{particles.size()};
-  const double L{box_length_};
-  const double neg_L{-1.0 * L};
-  const double half_L{0.5 * L};
-  const double neg_half_L{-1.0 * half_L};
+  const real_t L{box_length_};
+  const real_t neg_L{-1.0_r * L};
+  const real_t half_L{0.5_r * L};
+  const real_t neg_half_L{-1.0_r * half_L};
 
   const auto p{particles.pos().align()};
 
@@ -68,45 +68,45 @@ void JastrowPade::add_derivatives(
   ASSUME_ALIGNED(grad_z, SIMD_BYTES);
   ASSUME_ALIGNED(laplacian, SIMD_BYTES);
 
-  const double a_local{a()};
-  const double b_local{b()};
-  const double neg_two_a_b{-2.0 * a_local * b_local};
+  const real_t a_local{a()};
+  const real_t b_local{b()};
+  const real_t neg_two_a_b{-2.0_r * a_local * b_local};
 
   for (std::size_t i = 0; i < num_particles; ++i) {
-    double d_grad_x{}, d_grad_y{}, d_grad_z{}, d_lap{};
+    real_t d_grad_x{}, d_grad_y{}, d_grad_z{}, d_lap{};
 
     #pragma omp simd reduction(+ : d_grad_x, d_grad_y, d_grad_z, d_lap)
     for (std::size_t j = 0; j < num_particles; ++j) {
-      const double valid_idx{i == j ? 0.0 : 1.0};
+      const real_t valid_idx{i == j ? 0.0_r : 1.0_r};
 
-      double displ_x{p.x_[i] - p.x_[j]};
-      double displ_y{p.y_[i] - p.y_[j]};
-      double displ_z{p.z_[i] - p.z_[j]};
+      real_t displ_x{p.x_[i] - p.x_[j]};
+      real_t displ_y{p.y_[i] - p.y_[j]};
+      real_t displ_z{p.z_[i] - p.z_[j]};
 
       displ_x += L * (displ_x <= neg_half_L) + neg_L * (displ_x > half_L);
       displ_y += L * (displ_y <= neg_half_L) + neg_L * (displ_y > half_L);
       displ_z += L * (displ_z <= neg_half_L) + neg_L * (displ_z > half_L);
 
-      const double dist_sq{
+      const real_t dist_sq{
         displ_x * displ_x +
         displ_y * displ_y +
         displ_z * displ_z
       };
-      const double dist{std::sqrt(dist_sq)};
+      const real_t dist{std::sqrt(dist_sq)};
 
-      const bool degenerate{dist < 1e-12};
-      const double inv_dist{degenerate ? 1.0 : 1.0 / dist};
-      const double mask{degenerate ? 0.0 : valid_idx};
+      const bool degenerate{dist < 1e-12_r};
+      const real_t inv_dist{degenerate ? 1.0_r : 1.0_r / dist};
+      const real_t mask{degenerate ? 0.0_r : valid_idx};
 
-      const double denom{1.0 / (1.0 + b_local * dist)};
-      const double denom_sq{denom * denom};
-      const double denom_cb{denom_sq * denom};
+      const real_t denom{1.0_r / (1.0_r + b_local * dist)};
+      const real_t denom_sq{denom * denom};
+      const real_t denom_cb{denom_sq * denom};
 
-      const double first_deriv{a_local * denom_sq};
-      const double second_deriv{neg_two_a_b * denom_cb};
+      const real_t first_deriv{a_local * denom_sq};
+      const real_t second_deriv{neg_two_a_b * denom_cb};
 
-      const double grad_factor{mask * first_deriv * inv_dist};
-      const double laplacian_pair{mask * (second_deriv + 2.0 * first_deriv * inv_dist)};
+      const real_t grad_factor{mask * first_deriv * inv_dist};
+      const real_t laplacian_pair{mask * (second_deriv + 2.0_r * first_deriv * inv_dist)};
 
       d_grad_x += grad_factor * displ_x;
       d_grad_y += grad_factor * displ_y;
@@ -122,67 +122,67 @@ void JastrowPade::add_derivatives(
   }
 }
 
-double JastrowPade::delta_value(
+real_t JastrowPade::delta_value(
   const Particles& particles,
   std::size_t moved,
-  double old_x,
-  double old_y,
-  double old_z
+  real_t old_x,
+  real_t old_y,
+  real_t old_z
 ) const noexcept {
   const std::size_t num_particles{particles.size()};
-  const double L{box_length_};
-  const double neg_L{-1.0 * L};
-  const double half_L{0.5 * L};
-  const double neg_half_L{-1.0 * half_L};
+  const real_t L{box_length_};
+  const real_t neg_L{-1.0_r * L};
+  const real_t half_L{0.5_r * L};
+  const real_t neg_half_L{-1.0_r * half_L};
 
   const auto p{particles.pos().align()};
 
-  const double a_local{a()};
-  const double b_local{b()};
+  const real_t a_local{a()};
+  const real_t b_local{b()};
 
-  const double new_x{p.x_[moved]};
-  const double new_y{p.y_[moved]};
-  const double new_z{p.z_[moved]};
+  const real_t new_x{p.x_[moved]};
+  const real_t new_y{p.y_[moved]};
+  const real_t new_z{p.z_[moved]};
 
-  double delta{};
+  real_t delta{};
 
   #pragma omp simd reduction(+ : delta)
   for (std::size_t j = 0; j < num_particles; ++j) {
-    const double valid_mask{(j == moved) ? 0.0 : 1.0};
+    const real_t valid_mask{(j == moved) ? 0.0_r : 1.0_r};
 
-    double displ_old_x{old_x - p.x_[j]};
-    double displ_old_y{old_y - p.y_[j]};
-    double displ_old_z{old_z - p.z_[j]};
+    real_t displ_old_x{old_x - p.x_[j]};
+    real_t displ_old_y{old_y - p.y_[j]};
+    real_t displ_old_z{old_z - p.z_[j]};
 
     displ_old_x += L * (displ_old_x <= neg_half_L) + neg_L * (displ_old_x > half_L);
     displ_old_y += L * (displ_old_y <= neg_half_L) + neg_L * (displ_old_y > half_L);
     displ_old_z += L * (displ_old_z <= neg_half_L) + neg_L * (displ_old_z > half_L);
 
-    const double dist_old{
+    const real_t dist_old{
       std::sqrt(
         displ_old_x * displ_old_x +
         displ_old_y * displ_old_y +
         displ_old_z * displ_old_z
       )
     };
-    const double denom_old{1.0 / (1.0 + b_local * dist_old)};
+    const real_t denom_old{1.0_r / (1.0_r + b_local * dist_old)};
 
-    double displ_new_x{new_x - p.x_[j]};
-    double displ_new_y{new_y - p.y_[j]};
-    double displ_new_z{new_z - p.z_[j]};
+    real_t displ_new_x{new_x - p.x_[j]};
+    real_t displ_new_y{new_y - p.y_[j]};
+    real_t displ_new_z{new_z - p.z_[j]};
 
     displ_new_x += L * (displ_new_x <= neg_half_L) + neg_L * (displ_new_x > half_L);
     displ_new_y += L * (displ_new_y <= neg_half_L) + neg_L * (displ_new_y > half_L);
     displ_new_z += L * (displ_new_z <= neg_half_L) + neg_L * (displ_new_z > half_L);
 
-    const double dist_new{
+    const real_t dist_new{
       std::sqrt(
         displ_new_x * displ_new_x +
         displ_new_y * displ_new_y +
         displ_new_z * displ_new_z
       )
     };
-    const double denom_new{1.0 / (1.0 + b_local * dist_new)};
+    const real_t denom_new{1.0_r / (1.0_r + b_local * dist_new)};
 
     delta += valid_mask * a_local * (dist_new * denom_new - dist_old * denom_old);
   }
@@ -193,25 +193,25 @@ double JastrowPade::delta_value(
 void JastrowPade::update_derivatives_for_move(
   const Particles& particles,
   std::size_t moved,
-  double old_x,
-  double old_y,
-  double old_z,
-  double* RESTRICT grad_x,
-  double* RESTRICT grad_y,
-  double* RESTRICT grad_z,
-  double* RESTRICT laplacian
+  real_t old_x,
+  real_t old_y,
+  real_t old_z,
+  real_t* RESTRICT grad_x,
+  real_t* RESTRICT grad_y,
+  real_t* RESTRICT grad_z,
+  real_t* RESTRICT laplacian
 ) const noexcept {
-  grad_x[moved] = 0.0;
-  grad_y[moved] = 0.0;
-  grad_z[moved] = 0.0;
-  laplacian[moved] = 0.0;
+  grad_x[moved] = 0.0_r;
+  grad_y[moved] = 0.0_r;
+  grad_z[moved] = 0.0_r;
+  laplacian[moved] = 0.0_r;
 
   const std::size_t num_particles{particles.size()};
-  const double L{box_length_};
-  const double neg_L{-1.0 * L};
+  const real_t L{box_length_};
+  const real_t neg_L{-1.0_r * L};
 
-  const double half_L{0.5 * L};
-  const double neg_half_L{-1.0 * half_L};
+  const real_t half_L{0.5_r * L};
+  const real_t neg_half_L{-1.0_r * half_L};
 
   const auto p{particles.pos().align()};
 
@@ -220,29 +220,29 @@ void JastrowPade::update_derivatives_for_move(
   ASSUME_ALIGNED(grad_z, SIMD_BYTES);
   ASSUME_ALIGNED(laplacian, SIMD_BYTES);
 
-  const double a_local{a()};
-  const double b_local{b()};
-  const double m2ab{-2.0 * a_local * b_local};
+  const real_t a_local{a()};
+  const real_t b_local{b()};
+  const real_t m2ab{-2.0_r * a_local * b_local};
 
-  const double new_x{p.x_[moved]};
-  const double new_y{p.y_[moved]};
-  const double new_z{p.z_[moved]};
+  const real_t new_x{p.x_[moved]};
+  const real_t new_y{p.y_[moved]};
+  const real_t new_z{p.z_[moved]};
 
-  double m_grad_x{}, m_grad_y{}, m_grad_z{}, m_lap{};
+  real_t m_grad_x{}, m_grad_y{}, m_grad_z{}, m_lap{};
 
   #pragma omp simd reduction(+ : m_grad_x, m_grad_y, m_grad_z, m_lap)
   for (std::size_t j = 0; j < num_particles; ++j) {
     const bool is_moved{j == moved};
 
-    double displ_old_x{old_x - p.x_[j]};
-    double displ_old_y{old_y - p.y_[j]};
-    double displ_old_z{old_z - p.z_[j]};
+    real_t displ_old_x{old_x - p.x_[j]};
+    real_t displ_old_y{old_y - p.y_[j]};
+    real_t displ_old_z{old_z - p.z_[j]};
 
     displ_old_x += L * (displ_old_x <= neg_half_L) + neg_L * (displ_old_x > half_L);
     displ_old_y += L * (displ_old_y <= neg_half_L) + neg_L * (displ_old_y > half_L);
     displ_old_z += L * (displ_old_z <= neg_half_L) + neg_L * (displ_old_z > half_L);
 
-    const double dist_old{
+    const real_t dist_old{
       std::sqrt(
         displ_old_x * displ_old_x +
         displ_old_y * displ_old_y +
@@ -250,27 +250,27 @@ void JastrowPade::update_derivatives_for_move(
       )
     };
 
-    const double inv_dist_old{(dist_old < 1e-12) ? 1.0 : 1.0 / dist_old};
-    const double mask_old{(is_moved || dist_old < 1e-12) ? 0.0 : 1.0};
+    const real_t inv_dist_old{(dist_old < 1e-12_r) ? 1.0_r : 1.0_r / dist_old};
+    const real_t mask_old{(is_moved || dist_old < 1e-12_r) ? 0.0_r : 1.0_r};
 
-    const double inv_denom_old{1.0 / (1.0 + b_local * dist_old)};
-    const double inv_denom_sq_old{inv_denom_old * inv_denom_old};
+    const real_t inv_denom_old{1.0_r / (1.0_r + b_local * dist_old)};
+    const real_t inv_denom_sq_old{inv_denom_old * inv_denom_old};
 
-    const double first_deriv_old{a_local * inv_denom_sq_old};
-    const double second_deriv_old{m2ab * inv_denom_sq_old * inv_denom_old};
+    const real_t first_deriv_old{a_local * inv_denom_sq_old};
+    const real_t second_deriv_old{m2ab * inv_denom_sq_old * inv_denom_old};
 
-    const double grad_factor_old{mask_old * first_deriv_old * inv_dist_old};
-    const double lap_pair_old{mask_old * (second_deriv_old + 2.0 * first_deriv_old * inv_dist_old)};
+    const real_t grad_factor_old{mask_old * first_deriv_old * inv_dist_old};
+    const real_t lap_pair_old{mask_old * (second_deriv_old + 2.0_r * first_deriv_old * inv_dist_old)};
 
-    double displ_new_x{new_x - p.x_[j]};
-    double displ_new_y{new_y - p.y_[j]};
-    double displ_new_z{new_z - p.z_[j]};
+    real_t displ_new_x{new_x - p.x_[j]};
+    real_t displ_new_y{new_y - p.y_[j]};
+    real_t displ_new_z{new_z - p.z_[j]};
 
     displ_new_x += L * (displ_new_x <= neg_half_L) + neg_L * (displ_new_x > half_L);
     displ_new_y += L * (displ_new_y <= neg_half_L) + neg_L * (displ_new_y > half_L);
     displ_new_z += L * (displ_new_z <= neg_half_L) + neg_L * (displ_new_z > half_L);
 
-    const double dist_new{
+    const real_t dist_new{
       std::sqrt(
         displ_new_x * displ_new_x +
         displ_new_y * displ_new_y +
@@ -278,17 +278,17 @@ void JastrowPade::update_derivatives_for_move(
       )
     };
 
-    const double inv_dist_new{(dist_new < 1e-12) ? 1.0 : 1.0 / dist_new};
-    const double mask_new{(is_moved || dist_new < 1e-12) ? 0.0 : 1.0};
+    const real_t inv_dist_new{(dist_new < 1e-12_r) ? 1.0_r : 1.0_r / dist_new};
+    const real_t mask_new{(is_moved || dist_new < 1e-12_r) ? 0.0_r : 1.0_r};
 
-    const double inv_denom_new{1.0 / (1.0 + b_local * dist_new)};
-    const double inv_denom_sq_new{inv_denom_new * inv_denom_new};
+    const real_t inv_denom_new{1.0_r / (1.0_r + b_local * dist_new)};
+    const real_t inv_denom_sq_new{inv_denom_new * inv_denom_new};
 
-    const double first_deriv_new{a_local * inv_denom_sq_new};
-    const double second_deriv_new{m2ab * inv_denom_sq_new * inv_denom_new};
+    const real_t first_deriv_new{a_local * inv_denom_sq_new};
+    const real_t second_deriv_new{m2ab * inv_denom_sq_new * inv_denom_new};
 
-    const double grad_factor_new{mask_new * first_deriv_new * inv_dist_new};
-    const double lap_pair_new{mask_new * (second_deriv_new + 2.0 * first_deriv_new * inv_dist_new)};
+    const real_t grad_factor_new{mask_new * first_deriv_new * inv_dist_new};
+    const real_t lap_pair_new{mask_new * (second_deriv_new + 2.0_r * first_deriv_new * inv_dist_new)};
 
     m_grad_x += grad_factor_new * displ_new_x;
     m_grad_y += grad_factor_new * displ_new_y;

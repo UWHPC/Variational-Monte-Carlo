@@ -10,7 +10,7 @@ TEST_CASE("Particles allocates aligned padded blocks and zero-initializes them",
   Particles particles{numParticles};
 
   const std::size_t stride{particles.p_stride()};
-  const std::size_t doublesPerAlignment{SIMD_BYTES / sizeof(double)};
+  const std::size_t doublesPerAlignment{SIMD_BYTES / sizeof(real_t)};
 
   REQUIRE(particles.size() == numParticles);
   REQUIRE(stride >= numParticles);
@@ -20,13 +20,13 @@ TEST_CASE("Particles allocates aligned padded blocks and zero-initializes them",
   REQUIRE(baseAddress % SIMD_BYTES == 0U);
 
   for (std::size_t i = 0; i < stride; ++i) {
-    REQUIRE(particles.pos().x_[i] == 0.0);
-    REQUIRE(particles.pos().y_[i] == 0.0);
-    REQUIRE(particles.pos().z_[i] == 0.0);
-    REQUIRE(particles.grad_log_psi().x_[i] == 0.0);
-    REQUIRE(particles.grad_log_psi().y_[i] == 0.0);
-    REQUIRE(particles.grad_log_psi().z_[i] == 0.0);
-    REQUIRE(particles.lap_log_psi()[i] == 0.0);
+    REQUIRE(particles.pos().x_[i] == 0.0_r);
+    REQUIRE(particles.pos().y_[i] == 0.0_r);
+    REQUIRE(particles.pos().z_[i] == 0.0_r);
+    REQUIRE(particles.grad_log_psi().x_[i] == 0.0_r);
+    REQUIRE(particles.grad_log_psi().y_[i] == 0.0_r);
+    REQUIRE(particles.grad_log_psi().z_[i] == 0.0_r);
+    REQUIRE(particles.lap_log_psi()[i] == 0.0_r);
   }
 }
 
@@ -41,12 +41,12 @@ TEST_CASE("Particles exposes non-overlapping slices for each component", "[parti
   REQUIRE(particles.grad_log_psi().z_ - particles.grad_log_psi().y_ == stride);
   REQUIRE(particles.lap_log_psi() - particles.grad_log_psi().z_ == stride);
 
-  particles.pos().x_[0] = 1.0;
-  particles.pos().y_[0] = 2.0;
-  particles.pos().z_[0] = 3.0;
+  particles.pos().x_[0] = 1.0_r;
+  particles.pos().y_[0] = 2.0_r;
+  particles.pos().z_[0] = 3.0_r;
 
-  REQUIRE(particles.pos().x_[0] == 1.0);
-  REQUIRE(particles.pos().y_[0] == 2.0);
-  REQUIRE(particles.pos().z_[0] == 3.0);
-  REQUIRE(particles.grad_log_psi().x_[0] == 0.0);
+  REQUIRE(particles.pos().x_[0] == 1.0_r);
+  REQUIRE(particles.pos().y_[0] == 2.0_r);
+  REQUIRE(particles.pos().z_[0] == 3.0_r);
+  REQUIRE(particles.grad_log_psi().x_[0] == 0.0_r);
 }
