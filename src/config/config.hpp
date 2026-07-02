@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../utilities/macros.hpp"
+#include "../utilities/macros.cuh"
 
 #include <cctype>
 #include <cmath>

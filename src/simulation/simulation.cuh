@@ -2,10 +2,10 @@
 
 #include "../blocking_analysis/blocking_analysis.hpp"
 #include "../config/config.hpp"
-#include "../energy_tracking/energy_tracking.hpp"
+#include "../energy_tracking/energy_tracking.cuh"
 #include "../output_writer/output_writer.hpp"
-#include "../particles/particles.hpp"
-#include "../wavefunction/wavefunction.hpp"
+#include "../particles/particles.cuh"
+#include "../wavefunction/wavefunction.cuh"
 
 #include <memory>
 #include <optional>

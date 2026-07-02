@@ -1,6 +1,6 @@
 #include "test_utilities.hpp"
 
-#include "jastrow_pade/jastrow_pade.hpp"
+#include "jastrow_pade/jastrow_pade.cuh"
 
 #include <cstddef>
 #include <vector>

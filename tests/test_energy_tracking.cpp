@@ -2,7 +2,7 @@
 
 #include <catch2/catch_message.hpp>
 
-#include "energy_tracking/energy_tracking.hpp"
+#include "energy_tracking/energy_tracking.cuh"
 
 #include <cstddef>
 

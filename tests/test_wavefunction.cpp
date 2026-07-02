@@ -2,7 +2,7 @@
 
 #include <catch2/catch_message.hpp>
 
-#include "../src/wavefunction/wavefunction.hpp"
+#include "../src/wavefunction/wavefunction.cuh"
 
 #include <vector>
 

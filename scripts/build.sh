@@ -1,7 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BUILD_TYPE="${1:-Release}"
+BUILD_TYPE="Release"
+CUDA=0
 
-cmake -S . -B build -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
-cmake --build build --target vmc
+for arg in "$@"; do
+  case "$arg" in
+    --cuda)
+      CUDA=1
+      ;;
+    *)
+      BUILD_TYPE="$arg"
+      ;;
+  esac
+done
+
+if [ "$CUDA" -eq 1 ]; then
+  BUILD_DIR="build-cuda"
+  CUDA_FLAG="ON"
+else
+  BUILD_DIR="build"
+  CUDA_FLAG="OFF"
+fi
+
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*)
+    echo "CUDA/MSVC builds on Windows must run from PowerShell (sourcing vcvars64.bat from Git Bash hangs)." >&2
+    echo "Run instead: .\\scripts\\build.ps1 $([ "$CUDA" -eq 1 ] && echo "-Cuda ")-BuildType $BUILD_TYPE" >&2
+    exit 1
+    ;;
+  *)
+    cmake -S . -B "$BUILD_DIR" -DVMC_ENABLE_CUDA=$CUDA_FLAG -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
+    cmake --build "$BUILD_DIR" --target vmc
+    ;;
+esac

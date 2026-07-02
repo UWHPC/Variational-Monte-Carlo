@@ -1,7 +1,7 @@
-#include "slater_plane_wave.hpp"
+#include "slater_plane_wave.cuh"
 #include "../utilities/matrix.hpp"
-#include "particles/particles.hpp"
-#include "utilities/aligned_soa.hpp"
+#include "particles/particles.cuh"
+#include "utilities/aligned_soa.cuh"
 
 #include <algorithm>
 #include <cmath>

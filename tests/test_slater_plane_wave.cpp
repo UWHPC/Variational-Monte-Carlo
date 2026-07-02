@@ -2,7 +2,7 @@
 
 #include <catch2/catch_message.hpp>
 
-#include "slater_plane_wave/slater_plane_wave.hpp"
+#include "slater_plane_wave/slater_plane_wave.cuh"
 
 #include <cmath>
 #include <numbers>

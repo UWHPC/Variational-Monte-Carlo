@@ -1,5 +1,5 @@
 #include "jastrow_optimizer.hpp"
-#include "../simulation/simulation.hpp"
+#include "../simulation/simulation.cuh"
 
 #include <algorithm>
 #include <cmath>

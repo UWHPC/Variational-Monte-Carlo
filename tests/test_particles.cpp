@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "particles/particles.hpp"
+#include "particles/particles.cuh"
 
 #include <cstddef>
 #include <cstdint>
