@@ -5,7 +5,7 @@
 EnergyTracker::EnergyTracker(real_t box_length, real_t num_particles)
 : box_length_{box_length}
 , ewald_alpha_{6.0_r / box_length}
-, ewald_correction_{-6.0_r * num_particles / (std::sqrt(std::numbers::pi_v<real_t>) * box_length)}
+, ewald_correction_{-6.0_r * num_particles / (vmc::sqrt(std::numbers::pi_v<real_t>) * box_length)}
 , ewald_background_{-std::numbers::pi_v<real_t> * num_particles * num_particles / (72.0_r * box_length)}
 , V_recip_{}
 , V_real_{}
@@ -13,10 +13,10 @@ EnergyTracker::EnergyTracker(real_t box_length, real_t num_particles)
 , data_{} {
   const real_t two_pi_over_L{2.0_r * std::numbers::pi_v<real_t> / box_length};
   const real_t four_alpha_sq{4.0_r * ewald_alpha_ * ewald_alpha_};
-  const real_t cutoff_factor{-std::log(EWALD_RECIPROCAL_TOLERANCE)};
+  const real_t cutoff_factor{-vmc::log(EWALD_RECIPROCAL_TOLERANCE)};
 
   const real_t g_max_mag_sq{four_alpha_sq * cutoff_factor};
-  const int m_max{static_cast<int>(std::ceil(std::sqrt(g_max_mag_sq) / two_pi_over_L)) + 1};
+  const int m_max{static_cast<int>(vmc::ceil(vmc::sqrt(g_max_mag_sq) / two_pi_over_L)) + 1};
 
   std::vector<real_t> tmp_x, tmp_y, tmp_z, tmp_w;
 
@@ -55,7 +55,7 @@ EnergyTracker::EnergyTracker(real_t box_length, real_t num_particles)
         g_z.emplace_back(g_cand_z);
         weights.emplace_back(
           8.0_r * std::numbers::pi_v<real_t> * std::numbers::pi_v<real_t> / g_cand_mag_sq *
-          std::exp(-g_cand_mag_sq / four_alpha_sq)
+          vmc::exp(-g_cand_mag_sq / four_alpha_sq)
         );
       }
     }
@@ -126,7 +126,7 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
       dz += L * (dz <= neg_half_L) + neg_L * (dz > half_L);
 
       const real_t r{
-        std::sqrt(
+        vmc::sqrt(
           dx * dx +
           dy * dy +
           dz * dz
@@ -149,7 +149,7 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
         )
       };
 
-      local_sum += tau * std::exp(-erfc_arg * erfc_arg) * inv_r;
+      local_sum += tau * vmc::exp(-erfc_arg * erfc_arg) * inv_r;
     }
     sum += local_sum;
   }
@@ -183,7 +183,7 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
       real_t cos_temp{};
       real_t sin_temp{};
 
-      PORTABLE_SINCOS(G_dot_r, &sin_temp, &cos_temp);
+      vmc::sincos(G_dot_r, &sin_temp, &cos_temp);
 
       cos_sum += cos_temp;
       sin_sum += sin_temp;
@@ -240,8 +240,8 @@ void EnergyTracker::update_structure_factors(
     real_t new_sin{}, new_cos{};
     real_t old_sin{}, old_cos{};
 
-    PORTABLE_SINCOS(new_dot, &new_sin, &new_cos);
-    PORTABLE_SINCOS(old_dot, &old_sin, &old_cos);
+    vmc::sincos(new_dot, &new_sin, &new_cos);
+    vmc::sincos(old_dot, &old_sin, &old_cos);
 
     d_real_temp[g] = new_cos - old_cos;
     d_imag_temp[g] = new_sin - old_sin;
@@ -334,7 +334,7 @@ void EnergyTracker::update_real_energy(
     dz_old += L * (dz_old <= neg_half_L) + neg_L * (dz_old > half_L);
 
     const real_t r_old{
-      std::sqrt(
+      vmc::sqrt(
         dx_old * dx_old +
         dy_old * dy_old +
         dz_old * dz_old
@@ -359,7 +359,7 @@ void EnergyTracker::update_real_energy(
       )
     };
 
-    real_t const erfc_old{tau_old * std::exp(-erfc_arg_old * erfc_arg_old) * inv_r_old};
+    real_t const erfc_old{tau_old * vmc::exp(-erfc_arg_old * erfc_arg_old) * inv_r_old};
 
     // New pair
     real_t dx_new{new_x - pos.x_[j]};
@@ -371,7 +371,7 @@ void EnergyTracker::update_real_energy(
     dz_new += L * (dz_new <= neg_half_L) + neg_L * (dz_new > half_L);
 
     const real_t r_new{
-      std::sqrt(
+      vmc::sqrt(
         dx_new * dx_new +
         dy_new * dy_new +
         dz_new * dz_new
@@ -398,7 +398,7 @@ void EnergyTracker::update_real_energy(
       )
     };
 
-    real_t const erfc_new{tau_new * std::exp(-erfc_arg_new * erfc_arg_new) * inv_r_new};
+    real_t const erfc_new{tau_new * vmc::exp(-erfc_arg_new * erfc_arg_new) * inv_r_new};
 
     delta += valid_mask * (erfc_new - erfc_old);
   }

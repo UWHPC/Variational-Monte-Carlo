@@ -36,6 +36,12 @@ endif()
 
 # --- Floating point precision ---
 option(FP_64 "Use double precision (real_t = double) instead of single precision (real_t = float)" ON)
+option(VMC_FAST_MATH "Use fast approximate math intrinsics (__sincosf, __expf, ...) in CUDA device code; forces single precision (FP_64=OFF)" OFF)
+
+if(VMC_FAST_MATH AND FP_64)
+  message(STATUS "VMC_FAST_MATH is ON: forcing single precision (FP_64=OFF).")
+  set(FP_64 OFF)
+endif()
 
 # --- Dependencies ---
 find_package(OpenMP QUIET COMPONENTS CXX)
@@ -135,6 +141,10 @@ endif()
 
 if(FP_64)
   target_compile_definitions(vmc_lib PUBLIC FP_64)
+endif()
+
+if(VMC_FAST_MATH)
+  target_compile_definitions(vmc_lib PUBLIC VMC_FAST_MATH)
 endif()
 
 if(OpenMP_CXX_FOUND)

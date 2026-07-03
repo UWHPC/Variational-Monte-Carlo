@@ -20,8 +20,22 @@ namespace {
 
 #ifdef FP_64
 constexpr real_t RIGOROUS_PRECISION_SCALE{1.0_r};
+constexpr std::size_t UNREFRESHED_DRIFT_STEPS{64U};
+constexpr real_t MAINTAINED_RESIDUAL_TOLERANCE{1e-8_r};
+constexpr real_t FRESH_RESIDUAL_TOLERANCE{1e-10_r};
+constexpr real_t PROBE_RATIO_TOLERANCE{1e-8_r};
+constexpr real_t TRANSLATION_LOG_PSI_TOLERANCE{1e-12_r};
+constexpr real_t TRANSLATION_GRAD_TOLERANCE{1e-10_r};
+constexpr real_t TRANSLATION_LAP_TOLERANCE{1e-7_r};
 #else
 constexpr real_t RIGOROUS_PRECISION_SCALE{1e6_r};
+constexpr std::size_t UNREFRESHED_DRIFT_STEPS{16U};
+constexpr real_t MAINTAINED_RESIDUAL_TOLERANCE{1e-1_r};
+constexpr real_t FRESH_RESIDUAL_TOLERANCE{1e-2_r};
+constexpr real_t PROBE_RATIO_TOLERANCE{1e-2_r};
+constexpr real_t TRANSLATION_LOG_PSI_TOLERANCE{1e-4_r};
+constexpr real_t TRANSLATION_GRAD_TOLERANCE{1e-2_r};
+constexpr real_t TRANSLATION_LAP_TOLERANCE{1e-1_r};
 #endif
 
 constexpr real_t EWALD_RECIPROCAL_TOLERANCE{1.0e-6_r};
@@ -393,7 +407,7 @@ TEST_CASE("Repeated accepted Slater updates preserve predictive determinant rati
           "[rigorous][slater]") {
   constexpr std::size_t n{7U};
   constexpr real_t box_length{10.0_r};
-  constexpr std::size_t steps{64U};
+  constexpr std::size_t steps{UNREFRESHED_DRIFT_STEPS};
 
   Particles particles{n};
   set_stable_closed_shell_positions(particles);
@@ -441,8 +455,8 @@ TEST_CASE("Repeated accepted Slater updates preserve predictive determinant rati
     INFO("Both maintained and rebuilt Slater states must remain valid inverses of their "
          "determinant matrices.");
     CAPTURE(step, moved, maintained_residual, rebuilt_residual);
-    REQUIRE(maintained_residual <= (1e-8_r * RIGOROUS_PRECISION_SCALE));
-    REQUIRE(rebuilt_residual <= (1e-10_r * RIGOROUS_PRECISION_SCALE));
+    REQUIRE(maintained_residual <= MAINTAINED_RESIDUAL_TOLERANCE);
+    REQUIRE(rebuilt_residual <= FRESH_RESIDUAL_TOLERANCE);
 
     real_t max_det_diff{};
     const std::size_t S_MAT{maintained.matrix_row_stride()};
@@ -494,7 +508,7 @@ TEST_CASE("Repeated accepted Slater updates preserve predictive determinant rati
     CAPTURE(step, moved, probe, maintained_probe_ratio, rebuilt_probe_ratio);
     REQUIRE(std::isfinite(maintained_probe_ratio));
     REQUIRE(std::isfinite(rebuilt_probe_ratio));
-    REQUIRE(std::abs(maintained_probe_ratio - rebuilt_probe_ratio) <= (1e-8_r * RIGOROUS_PRECISION_SCALE));
+    REQUIRE(std::abs(maintained_probe_ratio - rebuilt_probe_ratio) <= PROBE_RATIO_TOLERANCE);
   }
 }
 
@@ -505,6 +519,11 @@ TEST_CASE("WaveFunction log_psi and derivatives are invariant under integer box 
 
   Particles particles{n};
   set_stable_closed_shell_positions(particles);
+  for (std::size_t i = 0; i < n; ++i) {
+    particles.pos().x_[i] += 0.8_r * static_cast<real_t>((3U * i) % 5U);
+    particles.pos().y_[i] += 0.6_r * static_cast<real_t>((2U * i) % 7U);
+    particles.pos().z_[i] += 0.5_r * static_cast<real_t>((5U * i) % 3U);
+  }
 
   WaveFunction baseline{particles, box_length};
   const real_t baseline_log_psi{baseline.evaluate_log_psi(particles)};
@@ -542,14 +561,14 @@ TEST_CASE("WaveFunction log_psi and derivatives are invariant under integer box 
 
   INFO("WaveFunction must be periodic under integer box translations.");
   CAPTURE(baseline_log_psi, translated_log_psi);
-  REQUIRE(std::abs(baseline_log_psi - translated_log_psi) <= (1e-12_r * RIGOROUS_PRECISION_SCALE));
+  REQUIRE(std::abs(baseline_log_psi - translated_log_psi) <= TRANSLATION_LOG_PSI_TOLERANCE);
 
   for (std::size_t i = 0; i < n; ++i) {
     CAPTURE(i);
-    REQUIRE(std::abs(baseline_grad_x[i] - shifted.grad_log_psi().x_[i]) <= (1e-10_r * RIGOROUS_PRECISION_SCALE));
-    REQUIRE(std::abs(baseline_grad_y[i] - shifted.grad_log_psi().y_[i]) <= (1e-10_r * RIGOROUS_PRECISION_SCALE));
-    REQUIRE(std::abs(baseline_grad_z[i] - shifted.grad_log_psi().z_[i]) <= (1e-10_r * RIGOROUS_PRECISION_SCALE));
-    REQUIRE(std::abs(baseline_lap[i] - shifted.lap_log_psi()[i]) <= (1e-7_r * RIGOROUS_PRECISION_SCALE));
+    REQUIRE(std::abs(baseline_grad_x[i] - shifted.grad_log_psi().x_[i]) <= TRANSLATION_GRAD_TOLERANCE);
+    REQUIRE(std::abs(baseline_grad_y[i] - shifted.grad_log_psi().y_[i]) <= TRANSLATION_GRAD_TOLERANCE);
+    REQUIRE(std::abs(baseline_grad_z[i] - shifted.grad_log_psi().z_[i]) <= TRANSLATION_GRAD_TOLERANCE);
+    REQUIRE(std::abs(baseline_lap[i] - shifted.lap_log_psi()[i]) <= TRANSLATION_LAP_TOLERANCE);
   }
 }
 

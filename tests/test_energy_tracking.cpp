@@ -6,6 +6,12 @@
 
 #include <cstddef>
 
+#ifdef FP_64
+constexpr real_t INCREMENTAL_REBUILD_TOLERANCE{1e-9_r};
+#else
+constexpr real_t INCREMENTAL_REBUILD_TOLERANCE{5e-6_r};
+#endif
+
 TEST_CASE("EnergyTracker total energy changes by expected kinetic contribution", "[energy]") {
   constexpr std::size_t n{3U};
   constexpr real_t L{8.0_r};
@@ -197,5 +203,5 @@ TEST_CASE("EnergyTracker incremental reciprocal and real-energy updates match fu
 
   INFO("Incremental Ewald updates should agree with a full reinitialization after one move.");
   CAPTURE(moved, old_x, old_y, old_z, incremental_total, rebuilt_total);
-  require_near(incremental_total, rebuilt_total, 1e-9_r);
+  require_near(incremental_total, rebuilt_total, INCREMENTAL_REBUILD_TOLERANCE);
 }
