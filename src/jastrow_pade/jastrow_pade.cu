@@ -36,7 +36,7 @@ real_t JastrowPade::value(const Particles& particles) const noexcept {
         displ_y * displ_y +
         displ_z * displ_z
       };
-      const real_t dist{std::sqrt(dist_sq)};
+      const real_t dist{vmc::sqrt(dist_sq)};
 
       const real_t denom{1.0_r + b_local * dist};
       const real_t inv_denom{1.0_r / denom};
@@ -92,7 +92,7 @@ void JastrowPade::add_derivatives(
         displ_y * displ_y +
         displ_z * displ_z
       };
-      const real_t dist{std::sqrt(dist_sq)};
+      const real_t dist{vmc::sqrt(dist_sq)};
 
       const bool degenerate{dist < 1e-12_r};
       const real_t inv_dist{degenerate ? 1.0_r : 1.0_r / dist};
@@ -159,7 +159,7 @@ real_t JastrowPade::delta_value(
     displ_old_z += L * (displ_old_z <= neg_half_L) + neg_L * (displ_old_z > half_L);
 
     const real_t dist_old{
-      std::sqrt(
+      vmc::sqrt(
         displ_old_x * displ_old_x +
         displ_old_y * displ_old_y +
         displ_old_z * displ_old_z
@@ -176,7 +176,7 @@ real_t JastrowPade::delta_value(
     displ_new_z += L * (displ_new_z <= neg_half_L) + neg_L * (displ_new_z > half_L);
 
     const real_t dist_new{
-      std::sqrt(
+      vmc::sqrt(
         displ_new_x * displ_new_x +
         displ_new_y * displ_new_y +
         displ_new_z * displ_new_z
@@ -243,7 +243,7 @@ void JastrowPade::update_derivatives_for_move(
     displ_old_z += L * (displ_old_z <= neg_half_L) + neg_L * (displ_old_z > half_L);
 
     const real_t dist_old{
-      std::sqrt(
+      vmc::sqrt(
         displ_old_x * displ_old_x +
         displ_old_y * displ_old_y +
         displ_old_z * displ_old_z
@@ -271,7 +271,7 @@ void JastrowPade::update_derivatives_for_move(
     displ_new_z += L * (displ_new_z <= neg_half_L) + neg_L * (displ_new_z > half_L);
 
     const real_t dist_new{
-      std::sqrt(
+      vmc::sqrt(
         displ_new_x * displ_new_x +
         displ_new_y * displ_new_y +
         displ_new_z * displ_new_z

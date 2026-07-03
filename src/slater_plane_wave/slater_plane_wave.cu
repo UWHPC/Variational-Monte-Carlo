@@ -31,10 +31,10 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, real_t box_lengthL)
 , matrix_row_stride_{AlignedSoA<real_t>::round_up(particles.size())}
 , matrix_size_{matrix_row_stride_ * particles.size()}
 , box_length_{box_lengthL}
-, orbital_k_index_(particles.size())
-, orbital_type_(particles.size(), 0)
+, orbital_k_index_(particles.size(), NUM_ORB_K)
+, orbital_type_(particles.size(), NUM_ORB_TYPE)
 , int_vec_{particles.size(), NUM_INT_VECTORS}
-, double_vec_{particles.size(), NUM_DOUBLE_VECTORS}
+, fp_vec_{particles.size(), NUM_DOUBLE_VECTORS}
 , trig_cache_{}
 , matrices_{matrix_row_stride_ * particles.size(), NUM_MATRIX} {
 
@@ -94,8 +94,8 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, real_t box_lengthL)
   // For each nonzero canonical k: orbital 2m-1 -> cos(k dot r), orbital 2m -> sin(k dot r)
   const auto nv{n_vector().align()};
 
-  auto& orb_k_idx{orbital_k_index()};
-  auto& orb_type{orbital_type()};
+  auto* orb_k_idx{orbital_k_index()};
+  auto* orb_type{orbital_type()};
 
   std::size_t orb_idx{};
   std::size_t k_idx{};
@@ -185,7 +185,7 @@ void SlaterPlaneWave::update_trig_cache(std::size_t particle, const Particles& p
       kv.z_[k] * pos.z_[particle]
     };
 
-    PORTABLE_SINCOS(dot, &s_row[k], &c_row[k]);
+    vmc::sincos(dot, &s_row[k], &c_row[k]);
   }
 }
 
@@ -239,7 +239,7 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
       };
       const std::size_t i{offset + k};
 
-      PORTABLE_SINCOS(dot, &sin_cache[i], &cos_cache[i]);
+      vmc::sincos(dot, &sin_cache[i], &cos_cache[i]);
     }
 
     // Build D from cache
@@ -269,9 +269,9 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
   #pragma omp simd reduction(+ : log_abs_det)
   for (std::size_t diag = 0; diag < N; ++diag) {
     const real_t U_ii{lower_upper_matrix[diag * S + diag]};
-    const real_t abs_U_ii{std::abs(U_ii)};
+    const real_t abs_U_ii{vmc::abs(U_ii)};
 
-    log_abs_det += std::log(abs_U_ii);
+    log_abs_det += vmc::log(abs_U_ii);
   }
 
   if (!std::isfinite(log_abs_det)) {

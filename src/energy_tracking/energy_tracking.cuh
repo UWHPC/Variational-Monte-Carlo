@@ -2,6 +2,7 @@
 
 #include "../particles/particles.cuh"
 #include "../utilities/aligned_soa.cuh"
+#include "../utilities/math.cuh"
 #include "../utilities/ptr3d.hpp"
 
 #include <cmath>
@@ -23,14 +24,14 @@ private:
   std::size_t num_g_vectors_;
 
   enum ArrayIndex : std::size_t {
-    G_X_,
-    G_Y_,
-    G_Z_,
-    G_WEIGHTS_,
-    S_REAL_,
-    S_IMAG_,
-    D_REAL_TEMP_,
-    D_IMAG_TEMP_,
+    G_X,
+    G_Y,
+    G_Z,
+    G_WEIGHTS,
+    S_REAL,
+    S_IMAG,
+    D_REAL_TEMP,
+    D_IMAG_TEMP,
     NUM_ARRAYS
   };
   AlignedSoA<real_t> data_;
@@ -63,23 +64,23 @@ public:
   real_t eval_total_energy(const Particles& particles) const noexcept;
 
 private:
-  Ptr3D<      real_t> g_vector()       noexcept { return {data_[G_X_], data_[G_Y_], data_[G_Z_]}; }
-  Ptr3D<const real_t> g_vector() const noexcept { return {data_[G_X_], data_[G_Y_], data_[G_Z_]}; }
+  Ptr3D<      real_t> g_vector()       noexcept { return {data_[G_X], data_[G_Y], data_[G_Z]}; }
+  Ptr3D<const real_t> g_vector() const noexcept { return {data_[G_X], data_[G_Y], data_[G_Z]}; }
 
-  [[nodiscard]] real_t*       g_weights()       noexcept { return data_[G_WEIGHTS_]; }
-  [[nodiscard]] real_t const* g_weights() const noexcept { return data_[G_WEIGHTS_]; }
+  [[nodiscard]] real_t*       g_weights()       noexcept { return data_[G_WEIGHTS]; }
+  [[nodiscard]] real_t const* g_weights() const noexcept { return data_[G_WEIGHTS]; }
 
-  [[nodiscard]] real_t*       sum_real()       noexcept { return data_[S_REAL_]; }
-  [[nodiscard]] real_t const* sum_real() const noexcept { return data_[S_REAL_]; }
+  [[nodiscard]] real_t*       sum_real()       noexcept { return data_[S_REAL]; }
+  [[nodiscard]] real_t const* sum_real() const noexcept { return data_[S_REAL]; }
 
-  [[nodiscard]] real_t*       sum_imag()       noexcept { return data_[S_IMAG_]; }
-  [[nodiscard]] real_t const* sum_imag() const noexcept { return data_[S_IMAG_]; }
+  [[nodiscard]] real_t*       sum_imag()       noexcept { return data_[S_IMAG]; }
+  [[nodiscard]] real_t const* sum_imag() const noexcept { return data_[S_IMAG]; }
 
-  [[nodiscard]] real_t*       d_real_temp()       noexcept { return data_[D_REAL_TEMP_]; }
-  [[nodiscard]] real_t const* d_real_temp() const noexcept { return data_[D_REAL_TEMP_]; }
+  [[nodiscard]] real_t*       d_real_temp()       noexcept { return data_[D_REAL_TEMP]; }
+  [[nodiscard]] real_t const* d_real_temp() const noexcept { return data_[D_REAL_TEMP]; }
 
-  [[nodiscard]] real_t*       d_imag_temp()       noexcept { return data_[D_IMAG_TEMP_]; }
-  [[nodiscard]] real_t const* d_imag_temp() const noexcept { return data_[D_IMAG_TEMP_]; }
+  [[nodiscard]] real_t*       d_imag_temp()       noexcept { return data_[D_IMAG_TEMP]; }
+  [[nodiscard]] real_t const* d_imag_temp() const noexcept { return data_[D_IMAG_TEMP]; }
 
   real_t kinetic_energy(const Particles& particles) const noexcept;
   real_t potential_energy() const noexcept;

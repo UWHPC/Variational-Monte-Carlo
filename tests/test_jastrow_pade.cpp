@@ -7,6 +7,18 @@
 
 namespace {
 
+#ifdef FP_64
+constexpr real_t FD_STEP{1e-5_r};
+constexpr real_t FD_GRAD_TOLERANCE{1e-7_r};
+constexpr real_t FD_LAP_TOLERANCE{2e-4_r};
+constexpr real_t GRAD_SUM_TOLERANCE{1e-12_r};
+#else
+constexpr real_t FD_STEP{2e-2_r};
+constexpr real_t FD_GRAD_TOLERANCE{5e-4_r};
+constexpr real_t FD_LAP_TOLERANCE{2e-2_r};
+constexpr real_t GRAD_SUM_TOLERANCE{1e-6_r};
+#endif
+
 real_t valueAtOffset(
   const JastrowPade& jastrow,
   const Particles& reference,
@@ -146,7 +158,7 @@ TEST_CASE("Jastrow derivatives match finite-difference gradients and Laplacians"
   std::vector<real_t> lap(stride, 0.0_r);
   jastrow.add_derivatives(particles, gradX.data(), gradY.data(), gradZ.data(), lap.data());
 
-  const real_t h{1e-5_r};
+  const real_t h{FD_STEP};
   const real_t valueCenter{jastrow.value(particles)};
 
   const real_t dJdx{
@@ -187,12 +199,12 @@ TEST_CASE("Jastrow derivatives match finite-difference gradients and Laplacians"
     ) / (h * h)
   };
 
-  require_near(gradX[0], dJdx, 1e-7_r);
-  require_near(gradY[0], dJdy, 1e-7_r);
-  require_near(gradZ[0], dJdz, 1e-7_r);
-  require_near(lap[0], d2Jdx2 + d2Jdy2 + d2Jdz2, 2e-4_r);
+  require_near(gradX[0], dJdx, FD_GRAD_TOLERANCE);
+  require_near(gradY[0], dJdy, FD_GRAD_TOLERANCE);
+  require_near(gradZ[0], dJdz, FD_GRAD_TOLERANCE);
+  require_near(lap[0], d2Jdx2 + d2Jdy2 + d2Jdz2, FD_LAP_TOLERANCE);
 
-  require_near(gradX[0] + gradX[1] + gradX[2], 0.0_r, 1e-12_r);
-  require_near(gradY[0] + gradY[1] + gradY[2], 0.0_r, 1e-12_r);
-  require_near(gradZ[0] + gradZ[1] + gradZ[2], 0.0_r, 1e-12_r);
+  require_near(gradX[0] + gradX[1] + gradX[2], 0.0_r, GRAD_SUM_TOLERANCE);
+  require_near(gradY[0] + gradY[1] + gradY[2], 0.0_r, GRAD_SUM_TOLERANCE);
+  require_near(gradZ[0] + gradZ[1] + gradZ[2], 0.0_r, GRAD_SUM_TOLERANCE);
 }

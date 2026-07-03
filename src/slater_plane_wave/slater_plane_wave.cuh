@@ -3,6 +3,7 @@
 #include "../particles/particles.cuh"
 #include "../utilities/aligned_soa.cuh"
 #include "../utilities/macros.cuh"
+#include "../utilities/math.cuh"
 #include "../utilities/ptr3d.hpp"
 
 #include <cstddef>
@@ -20,8 +21,11 @@ private:
   std::size_t matrix_size_;
   real_t box_length_;
 
-  std::vector<std::size_t> orbital_k_index_;
-  std::vector<std::uint8_t> orbital_type_;
+  enum OrbKIndex : std::size_t { K, NUM_ORB_K };
+  AlignedSoA<std::size_t> orbital_k_index_;
+  
+  enum OrbType : std::size_t { O, NUM_ORB_TYPE };
+  AlignedSoA<std::uint8_t> orbital_type_;
 
   enum PivotIndex : std::size_t { N_X, N_Y, N_Z, PIVOT, NUM_INT_VECTORS };
   AlignedSoA<int> int_vec_;
@@ -36,7 +40,7 @@ private:
     INV_D_COL,
     NUM_DOUBLE_VECTORS
   };
-  AlignedSoA<real_t> double_vec_;
+  AlignedSoA<real_t> fp_vec_;
 
   enum TrigIndex : std::size_t { SIN_CACHE, COS_CACHE, NUM_TRIG_ARRAYS };
   AlignedSoA<real_t> trig_cache_;
@@ -57,11 +61,11 @@ public:
   [[nodiscard]] std::size_t matrix_size() const noexcept { return matrix_size_; }
   [[nodiscard]] real_t box_length() const noexcept { return box_length_; }
 
-  [[nodiscard]]       std::vector<std::size_t>& orbital_k_index()       noexcept { return orbital_k_index_; }
-  [[nodiscard]] const std::vector<std::size_t>& orbital_k_index() const noexcept { return orbital_k_index_; }
+  [[nodiscard]]       std::size_t* orbital_k_index()       noexcept { return orbital_k_index_[K]; }
+  [[nodiscard]] const std::size_t* orbital_k_index() const noexcept { return orbital_k_index_[K]; }
 
-  [[nodiscard]]       std::vector<std::uint8_t>& orbital_type()       noexcept { return orbital_type_; }
-  [[nodiscard]] const std::vector<std::uint8_t>& orbital_type() const noexcept { return orbital_type_; }
+  [[nodiscard]]       std::uint8_t* orbital_type()       noexcept { return orbital_type_[O]; }
+  [[nodiscard]] const std::uint8_t* orbital_type() const noexcept { return orbital_type_[O]; }
 
   [[nodiscard]] real_t*       determinant()       noexcept { return matrices_[D]; }
   [[nodiscard]] real_t const* determinant() const noexcept { return matrices_[D]; }
@@ -78,14 +82,14 @@ public:
   Ptr3D<      int> n_vector()       noexcept { return {int_vec_[N_X], int_vec_[N_Y], int_vec_[N_Z]}; }
   Ptr3D<const int> n_vector() const noexcept { return {int_vec_[N_X], int_vec_[N_Y], int_vec_[N_Z]}; }
 
-  Ptr3D<      real_t> k_vector()       noexcept { return {double_vec_[K_X], double_vec_[K_Y], double_vec_[K_Z]}; }
-  Ptr3D<const real_t> k_vector() const noexcept { return {double_vec_[K_X], double_vec_[K_Y], double_vec_[K_Z]}; }
+  Ptr3D<      real_t> k_vector()       noexcept { return {fp_vec_[K_X], fp_vec_[K_Y], fp_vec_[K_Z]}; }
+  Ptr3D<const real_t> k_vector() const noexcept { return {fp_vec_[K_X], fp_vec_[K_Y], fp_vec_[K_Z]}; }
 
-  [[nodiscard]] real_t*       solution()       noexcept { return double_vec_[SOLUTION]; }
-  [[nodiscard]] real_t const* solution() const noexcept { return double_vec_[SOLUTION]; }
+  [[nodiscard]] real_t*       solution()       noexcept { return fp_vec_[SOLUTION]; }
+  [[nodiscard]] real_t const* solution() const noexcept { return fp_vec_[SOLUTION]; }
 
-  [[nodiscard]] real_t*       rhs()       noexcept { return double_vec_[RHS]; }
-  [[nodiscard]] real_t const* rhs() const noexcept { return double_vec_[RHS]; }
+  [[nodiscard]] real_t*       rhs()       noexcept { return fp_vec_[RHS]; }
+  [[nodiscard]] real_t const* rhs() const noexcept { return fp_vec_[RHS]; }
 
   [[nodiscard]] real_t*       sin_cache()       noexcept { return trig_cache_[SIN_CACHE]; }
   [[nodiscard]] real_t const* sin_cache() const noexcept { return trig_cache_[SIN_CACHE]; }
@@ -98,6 +102,9 @@ public:
 
   void update_trig_cache(std::size_t particle, const Particles& particles) noexcept;
 
+  #if defined(__CUDACC__)
+  real_t cudaLogAbsDet(const Particles& particles);
+  #endif
   real_t log_abs_det(const Particles& particles);
 
   real_t* build_row(std::size_t particle) noexcept;
@@ -117,6 +124,6 @@ public:
   ) const noexcept;
 
 private:
-  [[nodiscard]] real_t* new_row() noexcept { return double_vec_[NEW_ROW]; }
-  [[nodiscard]] real_t* inv_d_col() noexcept { return double_vec_[INV_D_COL]; }
+  [[nodiscard]] real_t* new_row() noexcept { return fp_vec_[NEW_ROW]; }
+  [[nodiscard]] real_t* inv_d_col() noexcept { return fp_vec_[INV_D_COL]; }
 };

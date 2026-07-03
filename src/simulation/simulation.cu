@@ -83,9 +83,9 @@ Simulation::StepResult Simulation::metropolis_step() {
   p_z[rand] += rand_proposal();
 
   // Branchless wrapping for [0, L)
-  p_x[rand] -= L * std::floor(p_x[rand] * inv_L);
-  p_y[rand] -= L * std::floor(p_y[rand] * inv_L);
-  p_z[rand] -= L * std::floor(p_z[rand] * inv_L);
+  p_x[rand] -= L * vmc::floor(p_x[rand] * inv_L);
+  p_y[rand] -= L * vmc::floor(p_y[rand] * inv_L);
+  p_z[rand] -= L * vmc::floor(p_z[rand] * inv_L);
 
   auto& slater{wave_function_.slater_plane_wave()};
 
@@ -101,16 +101,16 @@ Simulation::StepResult Simulation::metropolis_step() {
       rand, old_x, old_y, old_z
     )
   };
-  const real_t log_ratio_sq{2.0_r * std::log(std::abs(slater_ratio)) + 2.0_r * delta_jastrow};
+  const real_t log_ratio_sq{2.0_r * vmc::log(vmc::abs(slater_ratio)) + 2.0_r * delta_jastrow};
 
   const real_t u{std::max(rand_uniform(), std::numeric_limits<real_t>::min())};
-  const real_t log_u{std::log(u)};
+  const real_t log_u{vmc::log(u)};
   const real_t min_term{std::min(0.0_r, log_ratio_sq)};
 
   const bool accepted{log_u < min_term};
 
   if (accepted) {
-    log_psi_current_ += std::log(std::abs(slater_ratio)) + delta_jastrow;
+    log_psi_current_ += vmc::log(vmc::abs(slater_ratio)) + delta_jastrow;
     slater.accept_move(rand, new_row, slater_ratio);
 
     energy_tracker_.update_structure_factors(
@@ -152,7 +152,7 @@ void Simulation::warmup() {
     if (window_proposed % warmup_batch_size == 0) {
       acceptance_rate_window =
           static_cast<real_t>(window_accepted) / static_cast<real_t>(window_proposed);
-      step_size *= static_cast<real_t>(exp(gain * (acceptance_rate_window - acceptance_target)));
+      step_size *= vmc::exp(gain * (acceptance_rate_window - acceptance_target));
 
       const real_t MAX_STEP{config_.box_length * 0.5_r};
       if (step_size > MAX_STEP) {

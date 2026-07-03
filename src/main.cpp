@@ -91,7 +91,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
               << "Final Aggregated Energy: " << std::setprecision(6) << final_mean;
 
     if (threads_with_se > 0U) {
-      const real_t final_se{std::sqrt(global_variance_sum) * inv_num_threads};
+      const real_t final_se{vmc::sqrt(global_variance_sum) * inv_num_threads};
       std::cout << " +/- " << final_se;
     } else {
       std::cout << " +/- N/A (insufficient blocks)";
