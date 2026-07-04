@@ -99,21 +99,9 @@ public:
 
   void save_trig_row(std::size_t particle) noexcept;
   void restore_trig_row(std::size_t particle) noexcept;
-
   void update_trig_cache(std::size_t particle, const Particles& particles) noexcept;
 
-  #if defined(__CUDACC__)
-  real_t cudaLogAbsDet(const Particles& particles);
-  #endif
-  real_t cpu_log_abs_det(const Particles& particles);
-
-  real_t log_abs_det(const Particles& particles) {
-  #if defined(__CUDACC__)
-    return cudaLogAbsDet(particles);
-  #else
-    return cpu_log_abs_det(particles);
-  #endif
-  }
+  real_t log_abs_det(const Particles& particles);
 
   real_t* build_row(std::size_t particle) noexcept;
 

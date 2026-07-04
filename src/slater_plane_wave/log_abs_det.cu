@@ -2,7 +2,6 @@
 
 #if defined(__CUDACC__)
 #include <cublas_v2.h>
-
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -164,8 +163,23 @@ void cudaBuildIdentity(
 }
 
 } // namespace
+#else
+#include "slater_plane_wave.cuh"
+#include "../utilities/matrix.hpp"
+#include "particles/particles.cuh"
+#include "utilities/aligned_soa.cuh"
 
-real_t SlaterPlaneWave::cudaLogAbsDet(const Particles& particles) {
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <cstring>
+#include <limits>
+#include <vector>
+#endif
+
+
+real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
+#if defined(__CUDACC__)
   AlignedSoA<real_t> log_abs_det{1, 1};
 
   const int N{static_cast<int>(particles.size())};
@@ -279,6 +293,97 @@ real_t SlaterPlaneWave::cudaLogAbsDet(const Particles& particles) {
   }
 
   return *log_abs_det[0];
-}
+#else
+  const std::size_t N{this->num_orbitals()};
+  const std::size_t S{this->matrix_row_stride()};
+  const std::size_t padded_N{particles.p_stride()};
 
+  const auto pos{particles.pos().align()};
+  const auto kv{this->k_vector().align()};
+
+  const auto* k_index{this->orbital_k_index()};
+  const auto* orb_type{this->orbital_type()};
+
+  real_t* RESTRICT det_matrix{this->determinant()}; ASSUME_ALIGNED(det_matrix, SIMD_BYTES);
+  real_t* RESTRICT lower_upper_matrix{this->lower_upper()}; ASSUME_ALIGNED(lower_upper_matrix, SIMD_BYTES);
+  real_t* RESTRICT inv_det_matrix{this->inv_determinant()}; ASSUME_ALIGNED(inv_det_matrix, SIMD_BYTES);
+
+  int* RESTRICT pivot_vector{this->pivot()}; ASSUME_ALIGNED(pivot_vector, SIMD_BYTES);
+
+  real_t* RESTRICT rhs{this->rhs()}; ASSUME_ALIGNED(rhs, SIMD_BYTES);
+  real_t* RESTRICT solution{this->solution()}; ASSUME_ALIGNED(solution, SIMD_BYTES);
+
+  const std::size_t num_k{this->num_unique_k()};
+  real_t* RESTRICT cos_cache{this->cos_cache()}; ASSUME_ALIGNED(cos_cache, SIMD_BYTES);
+  real_t* RESTRICT sin_cache{this->sin_cache()}; ASSUME_ALIGNED(sin_cache, SIMD_BYTES);
+
+  const std::size_t ROW_STRIDE{this->trig_row_stride()};
+  for (std::size_t particle = 0; particle < N; ++particle) {
+    const std::size_t offset{particle * ROW_STRIDE};
+    const real_t px{pos.x_[particle]};
+    const real_t py{pos.y_[particle]};
+    const real_t pz{pos.z_[particle]};
+
+    // Not vectorized: data dependency
+    #pragma omp simd
+    for (std::size_t k = 0; k < num_k; ++k) {
+      const real_t dot{
+        kv.x_[k] * px +
+        kv.y_[k] * py +
+        kv.z_[k] * pz
+      };
+      const std::size_t i{offset + k};
+
+      vmc::sincos(dot, &sin_cache[i], &cos_cache[i]);
+    }
+
+    // Not vectorized: non-contiguous memory accesses
+    #pragma omp simd
+    for (std::size_t orbital = 0; orbital < N; ++orbital) {
+      const std::size_t k_idx{k_index[orbital]};
+      const std::size_t trig_idx{offset + k_idx};
+      const std::size_t mat_idx{particle * S + orbital};
+      
+      const real_t type{static_cast<real_t>(orb_type[orbital])};
+      const real_t cos_term{cos_cache[trig_idx]};
+      const real_t sin_term{sin_cache[trig_idx]};
+
+      det_matrix[mat_idx] = cos_term + type * (sin_term - cos_term);
+    }
+  }
+
+  std::copy_n(det_matrix, S * N, lower_upper_matrix);
+
+  static_cast<void>(
+    lower_upper_decomp(lower_upper_matrix, pivot_vector, N, S)
+  );
+
+  real_t log_abs_det{};
+
+  // Not vectorzied: loop-carried data dependency
+  #pragma omp simd reduction(+ : log_abs_det)
+  for (std::size_t diag = 0; diag < N; ++diag) {
+    const real_t U_ii{lower_upper_matrix[diag * S + diag]};
+    const real_t abs_U_ii{vmc::abs(U_ii)};
+
+    log_abs_det += vmc::log(abs_U_ii);
+  }
+
+  if (!std::isfinite(log_abs_det)) {
+    return -std::numeric_limits<real_t>::infinity();
+  }
+
+  for (std::size_t column = 0; column < N; ++column) {
+    std::fill(rhs, rhs + padded_N, 0.0_r);
+    rhs[column] = 1.0_r;
+
+    solve_lower_upper(lower_upper_matrix, pivot_vector, rhs, solution, N, S);
+
+    for (std::size_t row = 0; row < N; ++row) {
+      inv_det_matrix[column * S + row] = solution[row];
+    }
+  }
+
+  return log_abs_det;
 #endif
+}
