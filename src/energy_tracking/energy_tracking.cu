@@ -101,20 +101,13 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
   const real_t neg_half_L{-1.0_r * half_L};
   const real_t alpha{ewald_alpha_};
 
-  // Fast erfc constants
-  const real_t p{0.3275911_r};
-  const real_t a1{0.254829592_r};
-  const real_t a2{-0.284496736_r};
-  const real_t a3{1.421413741_r};
-  const real_t a4{-1.453152027_r};
-  const real_t a5{1.061405429_r};
-
   const auto pos{particles.pos().align()};
 
   real_t sum{};
   for (std::size_t i = 0; i < N; ++i) {
     real_t local_sum{};
 
+    // Not vectorzied: loop contains a mathematical function
     #pragma omp simd reduction(+ : local_sum)
     for (std::size_t j = i + 1; j < N; ++j) {
       real_t dx{pos.x_[i] - pos.x_[j]};
@@ -133,23 +126,7 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
         )
       };
       const real_t inv_r{(r < 1e-12_r) ? 1.0_r : 1.0_r / r};
-
-      // Abramowitz & Stegun formula for fast std::erfc approx.
-      const real_t erfc_arg{alpha * r};
-      const real_t t{1.0_r / (1.0_r + p * erfc_arg)};
-      const real_t tau{
-        t * (
-          a1 + t * (
-            a2 + t * (
-              a3 + t * (
-                a4 + t * a5
-              )
-            )
-          )
-        )
-      };
-
-      local_sum += tau * vmc::exp(-erfc_arg * erfc_arg) * inv_r;
+      local_sum += vmc::erfc(alpha * r) * inv_r;
     }
     sum += local_sum;
   }
@@ -173,6 +150,7 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
     real_t cos_sum{};
     real_t sin_sum{};
 
+    // Not vectorzied: loop contains a mathematical function
     #pragma omp simd reduction(+ : cos_sum, sin_sum)
     for (std::size_t j = 0; j < N; ++j) {
       const real_t G_dot_r{
@@ -224,6 +202,7 @@ void EnergyTracker::update_structure_factors(
 
   real_t delta{};
 
+  // Not vectorzied: loop contains a mathematical function
   #pragma omp simd
   for (std::size_t g = 0; g < num_G; ++g) {
     const real_t old_dot{
@@ -300,16 +279,7 @@ void EnergyTracker::update_real_energy(
   const real_t neg_L{-1.0_r * L};
   const real_t half_L{0.5_r * L};
   const real_t neg_half_L{-1.0_r * half_L};
-
   const real_t alpha{ewald_alpha_};
-
-  // Fast erfc constants
-  const real_t p{0.3275911_r};
-  const real_t a1{0.254829592_r};
-  const real_t a2{-0.284496736_r};
-  const real_t a3{1.421413741_r};
-  const real_t a4{-1.453152027_r};
-  const real_t a5{1.061405429_r};
 
   const auto pos{particles.pos().align()};
 
@@ -319,6 +289,7 @@ void EnergyTracker::update_real_energy(
 
   real_t delta{};
 
+  // Not vectorzied: loop contains a mathematical function
   #pragma omp simd reduction(+ : delta)
   for (std::size_t j = 0; j < N; ++j) {
     // Branchless mask to safely skip the moved particle
@@ -340,26 +311,9 @@ void EnergyTracker::update_real_energy(
         dz_old * dz_old
       )
     };
-
     // Protect against 1.0 / 0.0 generating NaN
     const real_t inv_r_old{(r_old < 1e-12_r) ? 1.0_r : 1.0_r / r_old};
-
-    // Abramowitz & Stegun formula for fast std::erfc approx.
-    const real_t erfc_arg_old{alpha * r_old};
-    const real_t t_old{1.0_r / (1.0_r + p * erfc_arg_old)};
-    const real_t tau_old{
-      t_old * (
-        a1 + t_old * (
-          a2 + t_old * (
-            a3 + t_old * (
-              a4 + t_old * a5
-            )
-          )
-        )
-      )
-    };
-
-    real_t const erfc_old{tau_old * vmc::exp(-erfc_arg_old * erfc_arg_old) * inv_r_old};
+    const real_t erfc_old{vmc::erfc(alpha * r_old) * inv_r_old};
 
     // New pair
     real_t dx_new{new_x - pos.x_[j]};
@@ -380,25 +334,7 @@ void EnergyTracker::update_real_energy(
 
     // Protect against 1.0 / 0.0 generating NaN
     const real_t inv_r_new{(r_new < 1e-12_r) ? 1.0_r : 1.0_r / r_new};
-
-    // Combine operations and apply the mask
-
-    // Abramowitz & Stegun formula for fast std::erfc approx.
-    const real_t erfc_arg_new{alpha * r_new};
-    const real_t t_new{1.0_r / (1.0_r + p * erfc_arg_new)};
-    const real_t tau_new{
-      t_new * (
-        a1 + t_new * (
-          a2 + t_new * (
-            a3 + t_new * (
-              a4 + t_new * a5
-            )
-          )
-        )
-      )
-    };
-
-    real_t const erfc_new{tau_new * vmc::exp(-erfc_arg_new * erfc_arg_new) * inv_r_new};
+    const real_t erfc_new{vmc::erfc(alpha * r_new) * inv_r_new};
 
     delta += valid_mask * (erfc_new - erfc_old);
   }

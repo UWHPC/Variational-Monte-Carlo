@@ -1,6 +1,7 @@
 #pragma once
 
 #include "macros.cuh"
+#include "math.cuh"
 
 #include <cmath>
 #include <cstddef>

@@ -19,6 +19,7 @@ real_t JastrowPade::value(const Particles& particles) const noexcept {
   for (std::size_t i = 0; i < num_particles; ++i) {
     real_t local_jastrow{};
 
+    // Not vectorized: loop contains control flow
     #pragma omp simd reduction(+ : local_jastrow)
     for (std::size_t j = 0; j < num_particles; ++j) {
       const real_t mask{i == j ? 0.0_r : 1.0_r};
@@ -75,6 +76,7 @@ void JastrowPade::add_derivatives(
   for (std::size_t i = 0; i < num_particles; ++i) {
     real_t d_grad_x{}, d_grad_y{}, d_grad_z{}, d_lap{};
 
+    // Not vectorized: loop contains control flow
     #pragma omp simd reduction(+ : d_grad_x, d_grad_y, d_grad_z, d_lap)
     for (std::size_t j = 0; j < num_particles; ++j) {
       const real_t valid_idx{i == j ? 0.0_r : 1.0_r};
@@ -146,6 +148,7 @@ real_t JastrowPade::delta_value(
 
   real_t delta{};
 
+  // Not vectorized: loop contains control flow
   #pragma omp simd reduction(+ : delta)
   for (std::size_t j = 0; j < num_particles; ++j) {
     const real_t valid_mask{(j == moved) ? 0.0_r : 1.0_r};
@@ -230,6 +233,7 @@ void JastrowPade::update_derivatives_for_move(
 
   real_t m_grad_x{}, m_grad_y{}, m_grad_z{}, m_lap{};
 
+  // Not vectorized: loop contains control flow
   #pragma omp simd reduction(+ : m_grad_x, m_grad_y, m_grad_z, m_lap)
   for (std::size_t j = 0; j < num_particles; ++j) {
     const bool is_moved{j == moved};

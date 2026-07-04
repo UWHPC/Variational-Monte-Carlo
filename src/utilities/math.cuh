@@ -155,4 +155,58 @@ inline unsigned int cudaNumBlocks(std::size_t size, unsigned int threads) noexce
   return static_cast<unsigned int>((size + threads - 1)) / threads;
 }
 
+CUDA_CALLABLE [[nodiscard]]
+inline real_t erfc(real_t arg) noexcept {
+#if defined(__CUDACC__) && defined(__CUDA_ARCH__)
+  #ifdef FP_64
+    return ::erfc(arg);
+  #elif defined(VMC_FAST_MATH)
+    const real_t t{1.0_r / (1.0_r + 0.3275911_r * arg)};
+    constexpr real_t p{0.3275911_r};
+    constexpr real_t a1{0.254829592_r};
+    constexpr real_t a2{-0.284496736_r};
+    constexpr real_t a3{1.421413741_r};
+    constexpr real_t a4{-1.453152027_r};
+    constexpr real_t a5{1.061405429_r};
+    const real_t poly{
+      t * (
+        a1 + t * (
+          a2 + t * (
+            a3 + t * (
+              a4 + t * a5
+            )
+          )
+        )
+      )
+    };
+    return poly * exp(-arg * arg);
+  #else
+    return erfcf(arg);
+  #endif
+#else
+  #if defined(VMC_FAST_MATH)
+    const real_t t{1.0_r / (1.0_r + 0.3275911_r * arg)};
+    constexpr real_t a1{0.254829592_r};
+    constexpr real_t a2{-0.284496736_r};
+    constexpr real_t a3{1.421413741_r};
+    constexpr real_t a4{-1.453152027_r};
+    constexpr real_t a5{1.061405429_r};
+    const real_t poly{
+      t * (
+        a1 + t * (
+          a2 + t * (
+            a3 + t * (
+              a4 + t * a5
+            )
+          )
+        )
+      )
+    };
+    return poly * exp(-arg * arg);
+  #else
+    return std::erfc(arg);
+  #endif
+#endif
+}
+
 } // namespace

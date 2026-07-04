@@ -102,7 +102,7 @@ endif()
 set(VMC_CUDA_SOURCES
   src/jastrow_pade/jastrow_pade.cu
   src/wavefunction/wavefunction.cu
-  src/slater_plane_wave/slater_kernels.cu
+  src/slater_plane_wave/log_abs_det.cu
   src/slater_plane_wave/slater_plane_wave.cu
   src/simulation/simulation.cu
   src/energy_tracking/energy_tracking.cu

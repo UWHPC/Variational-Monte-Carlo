@@ -33,7 +33,7 @@ case "$(uname -s)" in
     exit 1
     ;;
   *)
-    cmake -S . -B build -DFP_64=$FP64_FLAG -DVMC_FAST_MATH=$FAST_MATH_FLAG -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release
+    cmake -S . -B build -DVMC_ENABLE_CUDA=OFF -DFP_64=$FP64_FLAG -DVMC_FAST_MATH=$FAST_MATH_FLAG -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release
     cmake --build build --target vmc
     ;;
 esac

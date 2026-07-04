@@ -39,7 +39,7 @@ case "$(uname -s)" in
     ;;
   *)
     cmake -S . -B build-tests -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
-          -DFP_64=$FP64_FLAG -DVMC_FAST_MATH=$FAST_MATH_FLAG -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DVMC_ENABLE_CUDA=OFF -DFP_64=$FP64_FLAG -DVMC_FAST_MATH=$FAST_MATH_FLAG -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
     cmake --build build-tests --target vmc_tests
     ctest --test-dir build-tests --output-on-failure
     ;;
