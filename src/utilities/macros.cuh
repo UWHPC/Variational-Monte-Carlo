@@ -32,6 +32,8 @@ using complex_t = std::complex<real_t>;
 #include <cstdio>
 #include <cstdlib>
 #include <cuda_runtime.h>
+#include <cusolverDn.h>
+
 #define CUDA_CHECK(call) \
   do { \
     cudaError_t cuda_check_result_{(call)}; \
@@ -42,6 +44,21 @@ using complex_t = std::complex<real_t>;
         __FILE__, \
         __LINE__, \
         cudaGetErrorString(cuda_check_result_) \
+      ); \
+      std::abort(); \
+    } \
+  } while (0)
+
+#define CUSOLVER_CHECK(call) \
+  do { \
+    cusolverStatus_t cusolver_check_result_{(call)}; \
+    if (cusolver_check_result_ != CUSOLVER_STATUS_SUCCESS) { \
+      std::fprintf( \
+        stderr, \
+        "cuSOLVER error at %s:%d: %d\n", \
+        __FILE__, \
+        __LINE__, \
+        static_cast<int>(cusolver_check_result_) \
       ); \
       std::abort(); \
     } \

@@ -54,7 +54,7 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, real_t box_lengthL)
   };
 
   // Increase vector size to be safe
-  const int N_MAX{static_cast<int>(std::ceil(std::cbrt(static_cast<real_t>(N)))) + 2};
+  const int N_MAX{static_cast<int>(vmc::ceil(vmc::cbrt(static_cast<real_t>(N)))) + 2};
   const std::size_t side{static_cast<std::size_t>((2 * N_MAX + 1))};
 
   // Vector for all possible n-vector candidates
@@ -189,7 +189,7 @@ void SlaterPlaneWave::update_trig_cache(std::size_t particle, const Particles& p
   }
 }
 
-real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
+real_t SlaterPlaneWave::cpu_log_abs_det(const Particles& particles) {
   const std::size_t N{num_orbitals()};
   const std::size_t S{matrix_row_stride()};
   const std::size_t padded_N{particles.p_stride()};
