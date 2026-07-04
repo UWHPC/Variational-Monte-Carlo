@@ -105,7 +105,15 @@ public:
   #if defined(__CUDACC__)
   real_t cudaLogAbsDet(const Particles& particles);
   #endif
-  real_t log_abs_det(const Particles& particles);
+  real_t cpu_log_abs_det(const Particles& particles);
+
+  real_t log_abs_det(const Particles& particles) {
+  #if defined(__CUDACC__)
+    return cudaLogAbsDet(particles);
+  #else
+    return cpu_log_abs_det(particles);
+  #endif
+  }
 
   real_t* build_row(std::size_t particle) noexcept;
 

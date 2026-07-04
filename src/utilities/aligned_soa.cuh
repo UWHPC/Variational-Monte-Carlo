@@ -8,11 +8,7 @@
 #include <memory>
 #include <new>
 
-#if defined(_WIN32)
-#include <malloc.h>
-#endif
-
-inline void* aligned_alloc_backend(std::size_t alignment, std::size_t size) {
+inline void* backend_alloc(std::size_t alignment, std::size_t size) {
 #if defined(__CUDACC__)
   static_cast<void>(alignment);
 
@@ -20,7 +16,7 @@ inline void* aligned_alloc_backend(std::size_t alignment, std::size_t size) {
   CUDA_CHECK(cudaMallocManaged(&ptr, size));
 
   return ptr;
-#elif defined(_WIN32)
+#elif defined(_MSC_VER)
   return _aligned_malloc(size, alignment);
 #elif defined(__APPLE__) || defined(__GNUC__) || defined(__clang__)
   void* ptr{};
@@ -34,62 +30,81 @@ inline void* aligned_alloc_backend(std::size_t alignment, std::size_t size) {
 #endif
 }
 
-inline void aligned_free_backend(void* ptr) {
+inline void backend_free(void* ptr) {
 #if defined(__CUDACC__)
   cudaFree(ptr);
-#elif defined(_WIN32)
+#elif defined(_MSC_VER)
   _aligned_free(ptr);
 #else
   std::free(ptr);
 #endif
 }
 
-struct AlignedDeleter {
+struct SoADeleter {
   template <typename T>
   void operator()(T* ptr) const {
-    aligned_free_backend(ptr);
+    backend_free(ptr);
   }
 };
 
-template <arithmetic T> class AlignedSoA {
+template <arithmetic T>
+class AlignedSoA {
 private:
   static constexpr std::size_t elements_per_align_{SIMD_BYTES / sizeof(T)};
-  std::size_t num_elements_{};
-  std::size_t stride_length_{};
-  std::unique_ptr<T[], AlignedDeleter> memory_block_;
+  std::size_t num_elements_;
+  std::size_t stride_length_;
+  std::unique_ptr<T[], SoADeleter> data_;
 
 public:
-  AlignedSoA() = default;
+  AlignedSoA() : num_elements_{}, stride_length_{}, data_{} {}
   AlignedSoA(AlignedSoA&&) noexcept = default;
   AlignedSoA& operator=(AlignedSoA&&) noexcept = default;
 
   AlignedSoA(std::size_t num_elements, std::size_t num_arrays)
   : num_elements_{num_elements}
-  , stride_length_{round_up(num_elements)}
-  {
+  , stride_length_{round_up(num_elements)} {
+    #if defined(__CUDACC__)
+      stride_length_ = num_elements;
+    #endif
     const std::size_t total_elements{num_arrays * stride_length_};
     const std::size_t total_bytes{total_elements * sizeof(T)};
 
-    T* ptr{static_cast<T*>(aligned_alloc_backend(SIMD_BYTES, total_bytes))};
-    if (!ptr) {
-      throw std::bad_alloc();
-    }
+    T* ptr{static_cast<T*>(backend_alloc(SIMD_BYTES, total_bytes))};
+    if (!ptr) { throw std::bad_alloc(); }
+
+    // For once cudaMalloc is used:
+    // #if defined(__CUDACC__)
+    //   CUDA_CHECK(cudaMemset(ptr, 0, total_bytes));
+    // #else
+    //   std::fill_n(ptr, total_elements, T{});
+    // #endif
 
     std::fill_n(ptr, total_elements, T{});
-    memory_block_.reset(ptr);
+    data_.reset(ptr);
   }
 
-  [[nodiscard]] std::size_t stride() const { return stride_length_; }
-  [[nodiscard]] std::size_t num_elements() const { return num_elements_; }
-
-  [[nodiscard]] T* operator[](std::size_t array_index) {
-    return memory_block_.get() + array_index * stride();
-  }
-  [[nodiscard]] const T* operator[](std::size_t array_index) const {
-    return memory_block_.get() + array_index * stride();
+  [[nodiscard]] std::size_t num_elements() const {
+    return num_elements_;
   }
 
-  [[nodiscard]] static constexpr std::size_t round_up(std::size_t unpadded) {
-    return (unpadded + elements_per_align_ - 1) & ~(elements_per_align_ - 1);
+  [[nodiscard]]
+  std::size_t stride() const {
+    return stride_length_;
+  }
+
+  [[nodiscard]]
+  T* operator[](std::size_t array_index) {
+    return data_.get() + array_index * stride();
+  }
+
+  [[nodiscard]]
+  const T* operator[](std::size_t array_index) const {
+    return data_.get() + array_index * stride();
+  }
+
+  [[nodiscard]]
+  static constexpr std::size_t round_up(std::size_t unpadded) {
+    return (unpadded + elements_per_align_ - 1) & 
+          ~(elements_per_align_ - 1);
   }
 };
