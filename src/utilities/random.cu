@@ -18,8 +18,8 @@ private:
 #else
   std::mt19937_64 rng_;
   std::uniform_real_distribution<real_t> uniform01_{0.0_r, 1.0_r};
-  std::unique_ptr<std::uniform_real_distribution<real_t>> proposal_;
-  std::unique_ptr<std::uniform_int_distribution<std::size_t>> pick_particle_;
+  std::uniform_real_distribution<real_t> proposal_;
+  std::uniform_int_distribution<std::size_t> pick_particle_;
 #endif
 
   std::size_t N_;
@@ -35,8 +35,8 @@ public:
     N_ = config.num_particles;
   #else 
     rng_.seed(config.master_seed + walker_id);
-    *proposal_ = std::uniform_real_distribution<real_t>(-config.step_size, config.step_size);
-    *pick_particle_ = std::uniform_int_distribution<std::size_t>(0, config.num_particles - 1);
+    proposal_ = std::uniform_real_distribution<real_t>(-config.step_size, config.step_size);
+    pick_particle_ = std::uniform_int_distribution<std::size_t>(0, config.num_particles - 1);
   #endif
   }
 
@@ -60,7 +60,7 @@ public:
       return (curand_uniform(&rng_) * 2.0_r - 1.0_r) * step_size_; 
     #endif
   #else    
-    return (*proposal_)(rng_); 
+    return proposal_(rng_); 
   #endif
   }
 
@@ -68,7 +68,7 @@ public:
   #if defined(__CUDACC__)
     return curand(&rng_) % N_;
   #else
-    return (*pick_particle_)(rng_); 
+    return pick_particle_(rng_); 
   #endif
   }
 
@@ -77,7 +77,7 @@ public:
   #if defined(__CUDACC__)
     return;
   #else
-    (*proposal_).param(std::uniform_real_distribution<real_t>::param_type(-step_size, step_size));
+    proposal_.param(std::uniform_real_distribution<real_t>::param_type(-step_size, step_size));
   #endif
   }
 };
