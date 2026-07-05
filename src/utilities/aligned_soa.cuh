@@ -63,9 +63,6 @@ public:
   AlignedSoA(std::size_t num_elements, std::size_t num_arrays)
   : num_elements_{num_elements}
   , stride_length_{round_up(num_elements)} {
-    #if defined(__CUDACC__)
-      stride_length_ = num_elements;
-    #endif
     const std::size_t total_elements{num_arrays * stride_length_};
     const std::size_t total_bytes{total_elements * sizeof(T)};
 
