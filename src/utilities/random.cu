@@ -12,6 +12,18 @@
 #include "../utilities/macros.cuh"
 
 class WalkerRNG {
+private:
+#if defined(__CUDAACC__)
+  curandStatePhilox4_32_10_t rng_;
+#else
+  std::mt19937_64 rng_;
+  std::uniform_real_distribution<real_t> uniform01_{0.0_r, 1.0_r};
+  std::unique_ptr<std::uniform_real_distribution<real_t>> proposal_;
+  std::unique_ptr<std::uniform_int_distribution<std::size_t>> pick_particle_;
+#endif
+
+  std::size_t N_;
+
 public:
   CUDA_CALLABLE WalkerRNG() {}
 
@@ -28,7 +40,11 @@ public:
 
   [[nodiscard]] CUDA_CALLABLE real_t rand_uniform() { 
   #if defined(__CUDAACC__)
-    return 1.0 - curand_uniform(&rng_);
+    #ifdef FP_64
+      return 1.0_r - curand_uniform_double(&rng_);
+    #else
+      return 1.0_r - curand_uniform(&rng_);
+    #endif
   #else
     return uniform01_(rng_); 
   #endif
@@ -36,7 +52,11 @@ public:
 
   [[nodiscard]] CUDA_CALLABLE real_t rand_proposal() { 
   #if defined(__CUDAACC__)
-    return (curand_unifrom(&rng_) * 2.0 - 1.0) * step_size; 
+    #ifdef FP_64
+      return (curand_unifrom_double(&rng_) * 2.0_r - 1.0_r) * step_size; 
+    #else
+      return (curand_unifrom(&rng_) * 2.0_r - 1.0_r) * step_size; 
+    #endif
   #else    
     return (*proposal_)(rng_); 
   #endif
@@ -50,16 +70,12 @@ public:
   #endif
   }
 
-private:
-#if defined(__CUDAACC__)
-  curandStatePhilox4_32_10_t rng_;
-#else
-  std::mt19937_64 rng_;
-  std::uniform_real_distribution<real_t> uniform01_{0.0_r, 1.0_r};
-  std::unique_ptr<std::uniform_real_distribution<real_t>> proposal_;
-  std::unique_ptr<std::uniform_int_distribution<std::size_t>> pick_particle_;
-#endif
-
-  std::size_t N_;
+  CUDA_CALLABLE void change_step_size(real_t step_size) {
+  #if defined(__CUDAACC__)
+    return;
+  #else
+    (*proposal_).param(std::uniform_real_distribution<real_t>::param_type(-step_size, step_size));
+  #endif
+  }
 };
 
