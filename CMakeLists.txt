@@ -107,7 +107,6 @@ set(VMC_CUDA_SOURCES
   src/simulation/simulation.cu
   src/energy_tracking/energy_tracking.cu
   src/optimizer/jastrow_optimizer.cu
-  # src/utilities/random.cu
 )
 
 set(VMC_CXX_SOURCES

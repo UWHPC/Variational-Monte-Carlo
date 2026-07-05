@@ -95,9 +95,11 @@ using complex_t = std::complex<real_t>;
   #define ASSUME_ALIGNED(ptr, align) (static_cast<void>(0))
 #endif
 
-[[nodiscard]] CUDA_CALLABLE constexpr real_t operator""_r(long double value) {
+[[nodiscard]] CUDA_CALLABLE 
+constexpr real_t operator""_r(long double value) {
   return static_cast<real_t>(value);
 }
-[[nodiscard]] CUDA_CALLABLE constexpr real_t operator""_r(unsigned long long value) {
+[[nodiscard]] CUDA_CALLABLE 
+constexpr real_t operator""_r(unsigned long long value) {
   return static_cast<real_t>(value);
 }

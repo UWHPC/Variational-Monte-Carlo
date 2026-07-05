@@ -26,9 +26,11 @@ private:
 
 public:
   #if defined(__CUDA_ARCH__)
-  __device__ WalkerRNG() = default;
+  __device__ 
+  WalkerRNG() = default;
 
-  __device__ void init(const Config& config, uint64_t walker_id, uint64_t offset = 0) {
+  __device__ 
+  void init(const Config& config, uint64_t walker_id, uint64_t offset = 0) {
     step_size_ = config.step_size;
     curand_init(config.master_seed, walker_id, offset, &rng_);
     N_ = config.num_particles;
@@ -46,7 +48,8 @@ public:
   #endif
 
   #if defined(__CUDA_ARCH__) 
-  [[nodiscard]] __device__ real_t rand_uniform() {
+  [[nodiscard]] __device__ 
+  real_t rand_uniform() {
     #ifdef FP_64
       return 1.0_r - curand_uniform_double(&rng_);
     #else
@@ -54,7 +57,8 @@ public:
     #endif
   }
 
-  [[nodiscard]] __device__ real_t rand_proposal() {
+  [[nodiscard]] __device__ 
+  real_t rand_proposal() {
     #ifdef FP_64
       return (curand_uniform_double(&rng_) * 2.0_r - 1.0_r) * step_size_;
     #else 
@@ -62,11 +66,13 @@ public:
     #endif
   }
 
-  [[nodiscard]] __device__ std::size_t rand_particle() {
+  [[nodiscard]] __device__ 
+  std::size_t rand_particle() {
     return curand(&rng_) % N_;
   }
 
-  __device__ void change_step_size(real_t step_size) {
+  __device__ 
+  void change_step_size(real_t step_size) {
     step_size_ = step_size;
   }
   #else
