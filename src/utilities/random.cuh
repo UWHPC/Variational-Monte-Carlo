@@ -26,7 +26,7 @@ private:
 
 public:
   #if defined(__CUDA_ARCH__)
-  __device__ WalkerRNG() {}
+  __device__ WalkerRNG() = default;
 
   __device__ void init(const Config& config, uint64_t walker_id, uint64_t offset = 0) {
     step_size_ = config.step_size;
