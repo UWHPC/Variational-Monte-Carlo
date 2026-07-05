@@ -3,25 +3,25 @@
 #if defined(__CUDACC__)
 #include <cstddef>
 namespace {
-    __global__ void cudaUpdateTrigRow(
-      std::size_t particle, std::size_t num_k, std::size_t row_stride,
-      const real_t* RESTRICT p_x, const real_t* RESTRICT p_y, const real_t* RESTRICT p_z,
-      const real_t* RESTRICT k_x, const real_t* RESTRICT k_y, const real_t* RESTRICT k_z,
-      real_t* RESTRICT s_cache, real_t* RESTRICT c_cache
-    ) {
-      const std::size_t k{blockIdx.x * blockDim.x + threadIdx.x};
-      if (k >= num_k) { return; }
+  __global__ void cudaUpdateTrigRow(
+    std::size_t particle, std::size_t num_k, std::size_t row_stride,
+    const real_t* RESTRICT p_x, const real_t* RESTRICT p_y, const real_t* RESTRICT p_z,
+    const real_t* RESTRICT k_x, const real_t* RESTRICT k_y, const real_t* RESTRICT k_z,
+    real_t* RESTRICT s_cache, real_t* RESTRICT c_cache
+  ) {
+    const std::size_t k{blockIdx.x * blockDim.x + threadIdx.x};
+    if (k >= num_k) { return; }
 
-      const std::size_t offset{particle * row_stride};
+    const std::size_t offset{particle * row_stride};
 
-      const real_t dot{
-        k_x[k] * p_x[particle] +
-        k_y[k] * p_y[particle] +
-        k_z[k] * p_z[particle]
-      };
+    const real_t dot{
+      k_x[k] * p_x[particle] +
+      k_y[k] * p_y[particle] +
+      k_z[k] * p_z[particle]
+    };
 
-      vmc::sincos(dot, &s_cache[offset + k], &c_cache[offset + k]);
-    }
+    vmc::sincos(dot, &s_cache[offset + k], &c_cache[offset + k]);
+  }
 }
 #else
 #include "particles/particles.cuh"
@@ -59,7 +59,7 @@ void SlaterPlaneWave::update_trig_cache(
   dim3 updateTrigRowBlocks(
     vmc::cudaNumBlocks(num_k, threads.x)
   );
-  cudaUpdateTrigRow<<<blocks, threads>>>(
+  cudaUpdateTrigRow<<<updateTrigRowBlocks, updateTrigRowThreads>>>(
     particle, num_k, ROW_STRIDE,
     particles.pos().x_, particles.pos().y_, particles.pos().z_,
     k_vector().x_, k_vector().y_, k_vector().z_,
