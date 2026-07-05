@@ -6,7 +6,7 @@
 #include "../output_writer/output_writer.hpp"
 #include "../particles/particles.cuh"
 #include "../wavefunction/wavefunction.cuh"
-#include "../utilities/random.cu"
+#include "../utilities/random.cuh"
 
 #include <memory>
 #include <optional>
