@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(__CUDAACC__)
+#if defined(__CUDACC__)
 #include <curand_kernel.h>
 #else
 #include <random>
@@ -13,7 +13,7 @@
 
 class WalkerRNG {
 private:
-#if defined(__CUDAACC__)
+#if defined(__CUDACC__)
   curandStatePhilox4_32_10_t rng_;
 #else
   std::mt19937_64 rng_;
@@ -23,13 +23,15 @@ private:
 #endif
 
   std::size_t N_;
+  real_t step_size_;
 
 public:
   CUDA_CALLABLE WalkerRNG() {}
 
   CUDA_CALLABLE void init(const Config& config, uint64_t walker_id, uint64_t offset = 0) {
-  #if defined(__CUDAACC__)
-    curand_init(master_seed, walked_id, offset, &rng_);
+    step_size_ = config.step_size;
+  #if defined(__CUDACC__)
+    curand_init(config.master_seed, walker_id, offset, &rng_);
     N_ = config.num_particles;
   #else 
     rng_.seed(config.master_seed + walker_id);
@@ -39,7 +41,7 @@ public:
   }
 
   [[nodiscard]] CUDA_CALLABLE real_t rand_uniform() { 
-  #if defined(__CUDAACC__)
+  #if defined(__CUDACC__)
     #ifdef FP_64
       return 1.0_r - curand_uniform_double(&rng_);
     #else
@@ -51,11 +53,11 @@ public:
   }
 
   [[nodiscard]] CUDA_CALLABLE real_t rand_proposal() { 
-  #if defined(__CUDAACC__)
+  #if defined(__CUDACC__)
     #ifdef FP_64
-      return (curand_unifrom_double(&rng_) * 2.0_r - 1.0_r) * step_size; 
+      return (curand_uniform_double(&rng_) * 2.0_r - 1.0_r) * step_size_; 
     #else
-      return (curand_unifrom(&rng_) * 2.0_r - 1.0_r) * step_size; 
+      return (curand_uniform(&rng_) * 2.0_r - 1.0_r) * step_size_; 
     #endif
   #else    
     return (*proposal_)(rng_); 
@@ -63,7 +65,7 @@ public:
   }
 
   [[nodiscard]] CUDA_CALLABLE std::size_t rand_particle() { 
-  #if defined(__CUDAACC__)
+  #if defined(__CUDACC__)
     return curand(&rng_) % N_;
   #else
     return (*pick_particle_)(rng_); 
@@ -71,7 +73,8 @@ public:
   }
 
   CUDA_CALLABLE void change_step_size(real_t step_size) {
-  #if defined(__CUDAACC__)
+    step_size_ = step_size;
+  #if defined(__CUDACC__)
     return;
   #else
     (*proposal_).param(std::uniform_real_distribution<real_t>::param_type(-step_size, step_size));
