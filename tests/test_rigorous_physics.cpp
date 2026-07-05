@@ -489,9 +489,6 @@ TEST_CASE("Repeated accepted Slater updates preserve predictive determinant rati
     probe_particles.pos().z_[probe] =
         wrap_coordinate(probe_particles.pos().z_[probe] + probe_dz, box_length);
 
-    maintained.save_trig_row(probe);
-    rebuilt.save_trig_row(probe);
-
     maintained.update_trig_cache(probe, probe_particles);
     rebuilt.update_trig_cache(probe, probe_particles);
 

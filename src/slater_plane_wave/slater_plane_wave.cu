@@ -146,50 +146,6 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, real_t box_lengthL)
   std::fill_n(cos_cache(), trig_size, 0.0_r);
 };
 
-void SlaterPlaneWave::save_trig_row(std::size_t particle) noexcept {
-  const std::size_t num_k{num_unique_k()};
-  const std::size_t ROW_STRIDE{trig_row_stride()};
-  const std::size_t offset{particle * ROW_STRIDE};
-
-  std::memcpy(trig_scratch_[SIN_SAVED], sin_cache() + offset, num_k * sizeof(real_t));
-  std::memcpy(trig_scratch_[COS_SAVED], cos_cache() + offset, num_k * sizeof(real_t));
-}
-
-void SlaterPlaneWave::restore_trig_row(std::size_t particle) noexcept {
-  const std::size_t num_k{num_unique_k()};
-  const std::size_t ROW_STRIDE{trig_row_stride()};
-  const std::size_t offset{particle * ROW_STRIDE};
-
-  std::memcpy(sin_cache() + offset, trig_scratch_[SIN_SAVED], num_k * sizeof(real_t));
-  std::memcpy(cos_cache() + offset, trig_scratch_[COS_SAVED], num_k * sizeof(real_t));
-}
-
-void SlaterPlaneWave::update_trig_cache(std::size_t particle, const Particles& particles) noexcept {
-  const std::size_t num_k{num_unique_k()};
-  const std::size_t ROW_STRIDE{trig_row_stride()};
-
-  const auto pos{particles.pos().align()};
-  const auto kv{k_vector().align()};
-
-  real_t* RESTRICT c_row{cos_cache() + particle * ROW_STRIDE};
-  real_t* RESTRICT s_row{sin_cache() + particle * ROW_STRIDE};
-
-  ASSUME_ALIGNED(c_row, SIMD_BYTES);
-  ASSUME_ALIGNED(s_row, SIMD_BYTES);
-
-  // Not vectorized: loop-carried data dependency
-  #pragma omp simd
-  for (std::size_t k = 0; k < num_k; ++k) {
-    const real_t dot{
-      kv.x_[k] * pos.x_[particle] +
-      kv.y_[k] * pos.y_[particle] +
-      kv.z_[k] * pos.z_[particle]
-    };
-
-    vmc::sincos(dot, &s_row[k], &c_row[k]);
-  }
-}
-
 real_t* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
   const std::size_t N{num_orbitals()};
   const std::size_t ROW_STRIDE{trig_row_stride()};
