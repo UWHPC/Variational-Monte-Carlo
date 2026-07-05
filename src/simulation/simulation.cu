@@ -89,7 +89,6 @@ Simulation::StepResult Simulation::metropolis_step() {
 
   auto& slater{wave_function_.slater_plane_wave()};
 
-  slater.save_trig_row(rand);
   slater.update_trig_cache(rand, particles_);
 
   const real_t* new_row{slater.build_row(rand)};

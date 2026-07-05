@@ -104,6 +104,7 @@ set(VMC_CUDA_SOURCES
   src/wavefunction/wavefunction.cu
   src/slater_plane_wave/log_abs_det.cu
   src/slater_plane_wave/slater_plane_wave.cu
+  src/slater_plane_wave/update_restore_trig.cu
   src/simulation/simulation.cu
   src/energy_tracking/energy_tracking.cu
   src/optimizer/jastrow_optimizer.cu

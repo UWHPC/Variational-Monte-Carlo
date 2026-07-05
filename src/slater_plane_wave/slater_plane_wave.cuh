@@ -97,9 +97,8 @@ public:
   [[nodiscard]] real_t*       cos_cache()       noexcept { return trig_cache_[COS_CACHE]; }
   [[nodiscard]] real_t const* cos_cache() const noexcept { return trig_cache_[COS_CACHE]; }
 
-  void save_trig_row(std::size_t particle) noexcept;
-  void restore_trig_row(std::size_t particle) noexcept;
-  void update_trig_cache(std::size_t particle, const Particles& particles) noexcept;
+  void restore_trig_row(std::size_t particle);
+  void update_trig_cache(std::size_t particle, const Particles& particles);
 
   real_t log_abs_det(const Particles& particles);
 
