@@ -41,7 +41,7 @@ struct DoneData {
   std::optional<real_t> final_standard_error;
 };
 
-enum class OutputFormat { JSON, CSV, BIN };
+enum class OutputFormat { CSV, BIN };
 
 class OutputWriter {
 public:
@@ -50,18 +50,6 @@ public:
   virtual void write_init(const InitData& data) = 0;
   virtual void write_frame(const FrameData& data) = 0;
   virtual void write_done(const DoneData& data) = 0;
-};
-
-class JsonOutputWriter final : public OutputWriter {
-public:
-  explicit JsonOutputWriter(std::ostream& out);
-
-  void write_init(const InitData& data) override;
-  void write_frame(const FrameData& data) override;
-  void write_done(const DoneData& data) override;
-
-private:
-  std::ostream& out_;
 };
 
 class CsvOutputWriter final : public OutputWriter {
