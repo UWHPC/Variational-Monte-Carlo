@@ -6,6 +6,7 @@
 #include "../output_writer/output_writer.hpp"
 #include "../particles/particles.cuh"
 #include "../wavefunction/wavefunction.cuh"
+#include "../utilities/random.cuh"
 
 #include <memory>
 #include <optional>
@@ -26,14 +27,11 @@ private:
   std::size_t accepted_;
   real_t log_psi_current_;
 
-  std::mt19937_64 rng_;
-  std::uniform_real_distribution<real_t> uniform01_{0.0_r, 1.0_r};
-  std::uniform_real_distribution<real_t> proposal_;
-  std::uniform_int_distribution<std::size_t> pick_particle_;
+  WalkerRNG walker_rng_;
 
-  [[nodiscard]] real_t rand_uniform() { return uniform01_(rng_); }
-  [[nodiscard]] real_t rand_proposal() { return proposal_(rng_); }
-  [[nodiscard]] std::size_t rand_particle() { return pick_particle_(rng_); }
+  [[nodiscard]] real_t rand_uniform() { return walker_rng_.rand_uniform(); }
+  [[nodiscard]] real_t rand_proposal() { return walker_rng_.rand_proposal(); }
+  [[nodiscard]] std::size_t rand_particle() { return walker_rng_.rand_particle(); }
 
   [[nodiscard]] real_t acceptance_rate() const {
     if (proposed_ == 0U) {

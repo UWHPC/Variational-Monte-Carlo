@@ -19,10 +19,8 @@ Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_write
 , proposed_{}
 , accepted_{}
 , log_psi_current_{}
-, rng_{config_.master_seed}
-, proposal_{-config_.step_size, config_.step_size}
-, pick_particle_{0, config_.num_particles - 1}
-{ }
+, walker_rng_{}
+{ walker_rng_.init(config_, 0); }
 
 std::vector<real_t> Simulation::positions_snapshot() const {
   const std::size_t N{particles_.size()};
@@ -159,7 +157,7 @@ void Simulation::warmup() {
         step_size = MAX_STEP;
       }
 
-      proposal_.param(std::uniform_real_distribution<real_t>::param_type(-step_size, step_size));
+      walker_rng_.change_step_size(step_size);
 
       window_accepted = 0;
       window_proposed = 0;
