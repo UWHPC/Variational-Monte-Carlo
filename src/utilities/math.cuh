@@ -10,7 +10,7 @@ namespace vmc {
 
 CUDA_CALLABLE
 inline void sincos(real_t theta, real_t* s, real_t* c) noexcept {
-#if defined(__CUDACC__) && defined(__CUDA_ARCH__)
+#if defined(VMC_CUDA_BACKEND) && defined(__CUDA_ARCH__)
   #ifdef FP_64
     ::sincos(theta, s, c);
   #elif defined(VMC_FAST_MATH)
@@ -38,7 +38,7 @@ inline void sincos(real_t theta, real_t* s, real_t* c) noexcept {
 
 CUDA_CALLABLE [[nodiscard]]
 inline real_t sqrt(real_t arg) noexcept {
-#if defined(__CUDACC__) && defined(__CUDA_ARCH__)
+#if defined(VMC_CUDA_BACKEND) && defined(__CUDA_ARCH__)
   #ifdef FP_64
     return ::sqrt(arg);
   #elif defined(VMC_FAST_MATH)
@@ -53,7 +53,7 @@ inline real_t sqrt(real_t arg) noexcept {
 
 CUDA_CALLABLE [[nodiscard]]
 inline real_t exp(real_t arg) noexcept {
-#if defined(__CUDACC__) && defined(__CUDA_ARCH__)
+#if defined(VMC_CUDA_BACKEND) && defined(__CUDA_ARCH__)
   #ifdef FP_64
     return ::exp(arg);
   #elif defined(VMC_FAST_MATH)
@@ -68,7 +68,7 @@ inline real_t exp(real_t arg) noexcept {
 
 CUDA_CALLABLE [[nodiscard]]
 inline real_t pow(real_t arg, real_t power) noexcept {
-#if defined(__CUDACC__) && defined(__CUDA_ARCH__)
+#if defined(VMC_CUDA_BACKEND) && defined(__CUDA_ARCH__)
   #ifdef FP_64
     return ::pow(arg, power);
   #elif defined(VMC_FAST_MATH)
@@ -83,7 +83,7 @@ inline real_t pow(real_t arg, real_t power) noexcept {
 
 CUDA_CALLABLE [[nodiscard]]
 inline real_t cbrt(real_t arg) noexcept {
-#if defined(__CUDACC__) && defined(__CUDA_ARCH__)
+#if defined(VMC_CUDA_BACKEND) && defined(__CUDA_ARCH__)
   #ifdef FP_64
     return ::cbrt(arg);
   #elif defined(VMC_FAST_MATH)
@@ -98,7 +98,7 @@ inline real_t cbrt(real_t arg) noexcept {
 
 CUDA_CALLABLE [[nodiscard]]
 inline real_t log(real_t arg) noexcept {
-#if defined(__CUDACC__) && defined(__CUDA_ARCH__)
+#if defined(VMC_CUDA_BACKEND) && defined(__CUDA_ARCH__)
   #ifdef FP_64
     return ::log(arg);
   #elif defined(VMC_FAST_MATH)
@@ -113,7 +113,7 @@ inline real_t log(real_t arg) noexcept {
 
 CUDA_CALLABLE [[nodiscard]]
 inline real_t abs(real_t arg) noexcept {
-#if defined(__CUDACC__) && defined(__CUDA_ARCH__)
+#if defined(VMC_CUDA_BACKEND) && defined(__CUDA_ARCH__)
   #ifdef FP_64
     return fabs(arg);
   #else
@@ -126,7 +126,7 @@ inline real_t abs(real_t arg) noexcept {
 
 CUDA_CALLABLE [[nodiscard]]
 inline real_t floor(real_t arg) noexcept {
-#if defined(__CUDACC__) && defined(__CUDA_ARCH__)
+#if defined(VMC_CUDA_BACKEND) && defined(__CUDA_ARCH__)
   #ifdef FP_64
     return ::floor(arg);
   #else
@@ -139,7 +139,7 @@ inline real_t floor(real_t arg) noexcept {
 
 CUDA_CALLABLE [[nodiscard]]
 inline real_t ceil(real_t arg) noexcept {
-#if defined(__CUDACC__) && defined(__CUDA_ARCH__)
+#if defined(VMC_CUDA_BACKEND) && defined(__CUDA_ARCH__)
   #ifdef FP_64
     return ::ceil(arg);
   #else
@@ -157,7 +157,7 @@ inline unsigned int cudaNumBlocks(std::size_t size, unsigned int threads) noexce
 
 CUDA_CALLABLE [[nodiscard]]
 inline real_t erfc(real_t arg) noexcept {
-#if defined(__CUDACC__) && defined(__CUDA_ARCH__)
+#if defined(VMC_CUDA_BACKEND) && defined(__CUDA_ARCH__)
   #ifdef FP_64
     return ::erfc(arg);
   #elif defined(VMC_FAST_MATH)

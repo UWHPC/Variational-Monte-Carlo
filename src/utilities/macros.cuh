@@ -21,7 +21,7 @@ using real_t = float;
 
 using complex_t = std::complex<real_t>;
 
-#if defined(__CUDACC__)
+#ifdef VMC_CUDA_BACKEND
 #include <cstdio>
 #include <cstdlib>
 #include <cuda_runtime.h>
@@ -59,7 +59,7 @@ using complex_t = std::complex<real_t>;
 #endif
 
 // Cuda Callable
-#if defined(__CUDACC__)
+#ifdef VMC_CUDA_BACKEND
   #define CUDA_CALLABLE __host__ __device__
 #else
   #define CUDA_CALLABLE
