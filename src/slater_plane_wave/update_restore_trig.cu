@@ -1,6 +1,6 @@
 #include "slater_plane_wave.cuh"
 
-#if defined(__CUDACC__)
+#ifdef VMC_CUDA_BACKEND
 #include <cstddef>
 namespace {
 
@@ -35,7 +35,7 @@ void SlaterPlaneWave::restore_trig_row(std::size_t particle) {
   const std::size_t ROW_STRIDE{this->trig_row_stride()};
   const std::size_t offset{particle * ROW_STRIDE};
 
-#if defined(__CUDACC__)
+#ifdef VMC_CUDA_BACKEND
   CUDA_CHECK(cudaMemcpy(this->sin_cache() + offset, trig_scratch_[SIN_SAVED], num_k * sizeof(real_t), cudaMemcpyDeviceToDevice));
   CUDA_CHECK(cudaMemcpy(this->cos_cache() + offset, trig_scratch_[COS_SAVED], num_k * sizeof(real_t), cudaMemcpyDeviceToDevice));
 #else
@@ -49,7 +49,7 @@ void SlaterPlaneWave::update_trig_cache(
   const std::size_t num_k{this->num_unique_k()};
   const std::size_t ROW_STRIDE{this->trig_row_stride()};
   const std::size_t offset{particle * ROW_STRIDE};
-#if defined(__CUDACC__)
+#ifdef VMC_CUDA_BACKEND
   // save
   CUDA_CHECK(cudaMemcpy(trig_scratch_[SIN_SAVED], this->sin_cache() + offset, num_k * sizeof(real_t), cudaMemcpyDeviceToDevice));
   CUDA_CHECK(cudaMemcpy(trig_scratch_[COS_SAVED], this->cos_cache() + offset, num_k * sizeof(real_t), cudaMemcpyDeviceToDevice));

@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(__CUDACC__)
+#ifdef VMC_CUDA_BACKEND
 #include <curand_kernel.h>
 #endif
 
@@ -25,10 +25,9 @@ private:
   real_t step_size_;
 
 public:
-  #if defined(__CUDA_ARCH__)
-  __device__ 
   WalkerRNG() = default;
 
+  #if defined(__CUDA_ARCH__)
   __device__ 
   void init(const Config& config, uint64_t walker_id, uint64_t offset = 0) {
     step_size_ = config.step_size;
@@ -37,9 +36,7 @@ public:
 
   }
   #else
-  WalkerRNG() = default;
-
-  void init(const Config& config, uint64_t walker_id, uint64_t offset = 0) {
+  void init(const Config& config, uint64_t walker_id, [[maybe_unused]] uint64_t offset = 0) {
     step_size_ = config.step_size;
     rng_.seed(config.master_seed + walker_id);
     proposal_ = std::uniform_real_distribution<real_t>(-config.step_size, config.step_size);

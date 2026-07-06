@@ -176,6 +176,8 @@ if(VMC_CUDA)
     CUDA_SEPARABLE_COMPILATION ON
   )
 
+  target_compile_definitions(vmc_lib PUBLIC VMC_CUDA_BACKEND)
+
   target_link_libraries(vmc_lib PUBLIC
     CUDA::cudart
     CUDA::cusolver
