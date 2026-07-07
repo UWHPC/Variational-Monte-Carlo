@@ -146,36 +146,6 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, real_t box_lengthL)
   std::fill_n(cos_cache(), trig_size, 0.0_r);
 };
 
-real_t* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
-  const std::size_t N{num_orbitals()};
-  const std::size_t ROW_STRIDE{trig_row_stride()};
-
-  const auto& k_index{orbital_k_index()};
-  const auto& orb_type{orbital_type()};
-
-  real_t* RESTRICT row{new_row()};
-  real_t* RESTRICT sin_cache{this->sin_cache()};
-  real_t* RESTRICT cos_cache{this->cos_cache()};
-
-  ASSUME_ALIGNED(row, SIMD_BYTES);
-  ASSUME_ALIGNED(sin_cache, SIMD_BYTES);
-  ASSUME_ALIGNED(cos_cache, SIMD_BYTES);
-
-  // Not vectorized: loop-carried data dependency
-  #pragma omp simd
-  for (std::size_t orbital = 0; orbital < N; ++orbital) {
-    const std::size_t k_idx{k_index[orbital]};
-
-    const real_t type{static_cast<real_t>(orb_type[orbital])};
-
-    const real_t cos_term{cos_cache[particle * ROW_STRIDE + k_idx]};
-    const real_t sin_term{sin_cache[particle * ROW_STRIDE + k_idx]};
-
-    row[orbital] = cos_term + type * (sin_term - cos_term);
-  }
-
-  return row;
-}
 
 real_t SlaterPlaneWave::determinant_ratio(
   std::size_t particle,
