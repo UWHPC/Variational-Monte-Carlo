@@ -42,7 +42,7 @@ __global__ void cudaDeterminantRatio(
 #include <cstring>
 #endif
 
-real_t* SlaterPlaneWave::build_row(std::size_t particle) {
+real_t* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
 #ifdef VMC_CUDA_BACKEND
   dim3 buildRowThreads(256);
   dim3 buildRowBlocks(
@@ -92,7 +92,7 @@ real_t* SlaterPlaneWave::build_row(std::size_t particle) {
 real_t SlaterPlaneWave::determinant_ratio(
   std::size_t particle,
   const real_t* new_row
-) const {
+) const noexcept {
 #ifdef VMC_CUDA_BACKEND
   dim3 determinantRatioThreads(256);
   dim3 determinantRatioBlocks(
