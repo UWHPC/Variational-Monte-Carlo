@@ -1,6 +1,6 @@
 #include "slater_plane_wave.cuh"
 
-#if defined(__CUDACC__)
+#ifdef VMC_CUDA_BACKEND
 #include <cublas_v2.h>
 #include <cmath>
 #include <cstddef>
@@ -179,7 +179,7 @@ void cudaBuildIdentity(
 
 
 real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
-#if defined(__CUDACC__)
+#ifdef VMC_CUDA_BACKEND
   AlignedSoA<real_t> log_abs_det{1, 1};
 
   const int N{static_cast<int>(particles.size())};

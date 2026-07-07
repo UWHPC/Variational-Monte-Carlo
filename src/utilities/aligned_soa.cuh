@@ -9,7 +9,7 @@
 #include <new>
 
 inline void* backend_alloc(std::size_t alignment, std::size_t size) {
-#if defined(__CUDACC__)
+#ifdef VMC_CUDA_BACKEND
   static_cast<void>(alignment);
 
   void* ptr{};
@@ -31,7 +31,7 @@ inline void* backend_alloc(std::size_t alignment, std::size_t size) {
 }
 
 inline void backend_free(void* ptr) {
-#if defined(__CUDACC__)
+#ifdef VMC_CUDA_BACKEND
   cudaFree(ptr);
 #elif defined(_MSC_VER)
   _aligned_free(ptr);
@@ -63,6 +63,10 @@ public:
   AlignedSoA(std::size_t num_elements, std::size_t num_arrays)
   : num_elements_{num_elements}
   , stride_length_{round_up(num_elements)} {
+    #ifdef VMC_CUDA_BACKEND
+    stride_length_ = num_elements;
+    #endif
+    
     const std::size_t total_elements{num_arrays * stride_length_};
     const std::size_t total_bytes{total_elements * sizeof(T)};
 
@@ -70,7 +74,7 @@ public:
     if (!ptr) { throw std::bad_alloc(); }
 
     // For once cudaMalloc is used:
-    // #if defined(__CUDACC__)
+    // #ifdef VMC_CUDA_BACKEND
     //   CUDA_CHECK(cudaMemset(ptr, 0, total_bytes));
     // #else
     //   std::fill_n(ptr, total_elements, T{});
