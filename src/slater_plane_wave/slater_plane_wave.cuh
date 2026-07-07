@@ -102,12 +102,12 @@ public:
 
   real_t log_abs_det(const Particles& particles);
 
-  real_t* build_row(std::size_t particle);
+  real_t* build_row(std::size_t particle) noexcept;
 
   [[nodiscard]] real_t determinant_ratio(
     std::size_t particle,
     const real_t* new_row
-  ) const;
+  ) const noexcept;
 
   void accept_move(std::size_t particle, const real_t* new_row, real_t ratio) noexcept;
 
