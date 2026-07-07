@@ -102,6 +102,7 @@ endif()
 set(VMC_CUDA_SOURCES
   src/jastrow_pade/jastrow_pade.cu
   src/wavefunction/wavefunction.cu
+  src/slater_plane_wave/build_row_determinant_ratio.cu
   src/slater_plane_wave/log_abs_det.cu
   src/slater_plane_wave/slater_plane_wave.cu
   src/slater_plane_wave/update_restore_trig.cu
