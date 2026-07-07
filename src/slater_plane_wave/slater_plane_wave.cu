@@ -146,25 +146,6 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, real_t box_lengthL)
   std::fill_n(cos_cache(), trig_size, 0.0_r);
 };
 
-
-real_t SlaterPlaneWave::determinant_ratio(
-  std::size_t particle,
-  const real_t* new_row
-) const noexcept {
-  const std::size_t N{num_orbitals()};
-  const std::size_t S{matrix_row_stride()};
-  const real_t* RESTRICT inv_det{inv_determinant()};
-  ASSUME_ALIGNED(inv_det, SIMD_BYTES);
-
-  real_t ratio{};
-  #pragma omp simd reduction(+ : ratio)
-  for (std::size_t j = 0; j < N; ++j) {
-    ratio += new_row[j] * inv_det[particle * S + j];
-  }
-
-  return ratio;
-}
-
 void SlaterPlaneWave::accept_move(
   std::size_t particle,
   const real_t* new_row,
