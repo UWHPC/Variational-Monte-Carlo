@@ -96,7 +96,7 @@ real_t SlaterPlaneWave::determinant_ratio(
 #ifdef VMC_CUDA_BACKEND
   dim3 determinantRatioThreads(256);
   dim3 determinantRatioBlocks(
-    vmc::cudaNumBlocks(N, determinantRatioThreads.x)
+    vmc::cudaNumBlocks(this->num_orbitals(), determinantRatioThreads.x)
   );
 
   AlignedSoA<real_t> ratio{1, 1};
