@@ -46,7 +46,7 @@ real_t* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
 #ifdef VMC_CUDA_BACKEND
   dim3 buildRowThreads(256);
   dim3 buildRowBlocks(
-    vmc::cudaNumBlocks(N, buildRowThreads.x)
+    vmc::cudaNumBlocks(this->num_orbitals(), buildRowThreads.x)
   );
   cudaBuildRow<<<buildRowBlocks, buildRowThreads>>>(
     this->num_orbitals(), this->trig_row_stride(), particle,
@@ -55,7 +55,7 @@ real_t* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
     this->new_row()
   );
   CUDA_CHECK(cudaGetLastError());
-
+  CUDA_CHECK(cudaDeviceSynchronize());
   return this->new_row();
 
 #else
