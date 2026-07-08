@@ -62,7 +62,7 @@ public:
 
 private:
   void initialize_positions();
-  StepResult metropolis_step();
+  CUDA_CALLABLE StepResult metropolis_step();
   void warmup();
   MeasurementSummary measure();
 };

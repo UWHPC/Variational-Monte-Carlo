@@ -151,6 +151,16 @@ inline real_t ceil(real_t arg) noexcept {
 }
 
 CUDA_CALLABLE [[nodiscard]]
+inline real_t max(real_t a, real_t b) noexcept {
+  return std::max(a, b);
+}
+
+CUDA_CALLABLE [[nodiscard]]
+inline real_t min(real_t a, real_t b) noexcept {
+  return std::min(a, b);
+}
+
+CUDA_CALLABLE [[nodiscard]]
 inline unsigned int cudaNumBlocks(std::size_t size, unsigned int threads) noexcept {
   return static_cast<unsigned int>((size + threads - 1)) / threads;
 }

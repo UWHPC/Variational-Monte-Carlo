@@ -65,6 +65,7 @@ void Simulation::initialize_positions() {
   energy_tracker_.initialize_real_energy(particles_);
 }
 
+CUDA_CALLABLE
 Simulation::StepResult Simulation::metropolis_step() {
   auto [p_x, p_y, p_z]{particles_.pos().align()};
 
@@ -100,9 +101,9 @@ Simulation::StepResult Simulation::metropolis_step() {
   };
   const real_t log_ratio_sq{2.0_r * vmc::log(vmc::abs(slater_ratio)) + 2.0_r * delta_jastrow};
 
-  const real_t u{std::max(rand_uniform(), std::numeric_limits<real_t>::min())};
+  const real_t u{vmc::max(rand_uniform(), std::numeric_limits<real_t>::min())};
   const real_t log_u{vmc::log(u)};
-  const real_t min_term{std::min(0.0_r, log_ratio_sq)};
+  const real_t min_term{vmc::min(0.0_r, log_ratio_sq)};
 
   const bool accepted{log_u < min_term};
 
