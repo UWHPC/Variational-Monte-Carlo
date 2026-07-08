@@ -172,73 +172,151 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
   }
 }
 
-void EnergyTracker::update_structure_factors(
-  real_t old_x,
-  real_t old_y,
-  real_t old_z,
-  real_t new_x,
-  real_t new_y,
-  real_t new_z
-) noexcept {
-  const real_t L{box_length_};
+namespace {
 
-  const std::size_t num_G{num_g_vectors_};
-  const real_t prefactor{1.0_r / (2.0_r * std::numbers::pi_v<real_t> * L * L * L)};
+__inline__ __device__ double warp_reduce_sum(double val) {
+    for (int offset = 16; offset > 0; offset /= 2) {
+        val += __shfl_down_sync(0xffffffff, val, offset);
+    }
+    return val;
+}
 
-  const real_t* RESTRICT g_weights{this->g_weights()};
-  const auto gv{g_vector().align()};
+__inline__ __device__ double block_reduce_sum(double val) {
+    __shared__ double shared[32];
 
-  real_t* RESTRICT sum_real{this->sum_real()};
-  real_t* RESTRICT sum_imag{this->sum_imag()};
-  real_t* RESTRICT d_imag_temp{this->d_imag_temp()};
-  real_t* RESTRICT d_real_temp{this->d_real_temp()};
+    int lane = threadIdx.x % 32;
+    int warp_id = threadIdx.x / 32;
 
-  ASSUME_ALIGNED(g_weights, SIMD_BYTES);
+    val = warp_reduce_sum(val);
 
-  ASSUME_ALIGNED(sum_real, SIMD_BYTES);
-  ASSUME_ALIGNED(sum_imag, SIMD_BYTES);
-  ASSUME_ALIGNED(d_imag_temp, SIMD_BYTES);
-  ASSUME_ALIGNED(d_real_temp, SIMD_BYTES);
+    if (lane == 0) {
+        shared[warp_id] = val;
+    }
+    __syncthreads();
 
-  real_t delta{};
+    int num_warps = (blockDim.x + 31) / 32;
+    val = (threadIdx.x < num_warps) ? shared[lane] : 0.0;
 
-  // Not vectorzied: loop contains a mathematical function
-  #pragma omp simd
-  for (std::size_t g = 0; g < num_G; ++g) {
-    const real_t old_dot{
-      gv.x_[g] * old_x +
-      gv.y_[g] * old_y +
-      gv.z_[g] * old_z
-    };
-    const real_t new_dot{
-      gv.x_[g] * new_x +
-      gv.y_[g] * new_y +
-      gv.z_[g] * new_z
-    };
+    if (warp_id == 0) {
+        val = warp_reduce_sum(val);
+    }
+    return val;
+}
 
-    real_t new_sin{}, new_cos{};
-    real_t old_sin{}, old_cos{};
+constexpr int kBlockSize{256};
 
-    vmc::sincos(new_dot, &new_sin, &new_cos);
-    vmc::sincos(old_dot, &old_sin, &old_cos);
+[[nodiscard]] int grid_size_for(std::size_t n, int block_size) {
+    return static_cast<int>((n + static_cast<std::size_t>(block_size) - 1) /
+                            static_cast<std::size_t>(block_size));
+}
+// Kernel: incremental reciprocal-space structure-factor + energy update.
+// Mirrors EnergyTracker::update_structure_factors on the CPU.
 
-    d_real_temp[g] = new_cos - old_cos;
-    d_imag_temp[g] = new_sin - old_sin;
-  }
+__global__ void update_structure_factors_kernel(
+    const double* g_x, const double* g_y, const double* g_z, const double* g_weights,
+    double* sum_real, double* sum_imag,
+    std::size_t num_g,
+    double old_x, double old_y, double old_z,
+    double new_x, double new_y, double new_z,
+    double prefactor,
+    double* d_v_recip)
+{
+    std::size_t g = blockIdx.x * blockDim.x + threadIdx.x;
 
-  // Accumulate delta and update sum_real / sum_imag
-  #pragma omp simd reduction(+ : delta)
-  for (std::size_t g = 0; g < num_G; ++g) {
-    const real_t dr{d_real_temp[g]};
-    const real_t di{d_imag_temp[g]};
+    double local_delta = 0.0;
 
-    delta += g_weights[g] * (2.0_r * (sum_real[g] * dr + sum_imag[g] * di) + dr * dr + di * di);
+    if (g < num_g) {
+        double old_dot = g_x[g] * old_x + g_y[g] * old_y + g_z[g] * old_z;
+        double new_dot = g_x[g] * new_x + g_y[g] * new_y + g_z[g] * new_z;
 
-    sum_real[g] += dr;
-    sum_imag[g] += di;
-  }
+        double old_sin, old_cos, new_sin, new_cos;
+        sincos(old_dot, &old_sin, &old_cos);
+        sincos(new_dot, &new_sin, &new_cos);
 
-  V_recip_ += prefactor * delta;
+        double dr = new_cos - old_cos;
+        double di = new_sin - old_sin;
+
+        double sr = sum_real[g];
+        double si = sum_imag[g];
+
+        local_delta = g_weights[g] * (2.0 * (sr * dr + si * di) + dr * dr + di * di);
+
+        sum_real[g] = sr + dr;
+        sum_imag[g] = si + di;
+    }
+
+    double block_sum = block_reduce_sum(local_delta);
+
+    if (threadIdx.x == 0) {
+        atomicAdd(d_v_recip, prefactor * block_sum);
+    }
+}
+
+} // namespace
+
+// Device memory lifecycle - called from the constructor / destructor
+
+void EnergyTracker::init_device_gpu() {
+    const std::size_t num_g{num_g_vectors_get()};
+    const std::size_t bytes{num_g * sizeof(double)};
+
+    cudaMalloc(&d_g_x_, bytes);
+    cudaMalloc(&d_g_y_, bytes);
+    cudaMalloc(&d_g_z_, bytes);
+    cudaMalloc(&d_g_weights_, bytes);
+    cudaMalloc(&d_sum_real_, bytes);
+    cudaMalloc(&d_sum_imag_, bytes);
+    cudaMalloc(&d_v_recip_, sizeof(double));
+
+    // G-vectors are static after construction - copy once.
+    cudaMemcpy(d_g_x_, G_vector_x_get(), bytes, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_g_y_, G_vector_y_get(), bytes, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_g_z_, G_vector_z_get(), bytes, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_g_weights_, G_vector_weights_get(), bytes, cudaMemcpyHostToDevice);
+
+    // sum_real/sum_imag start at zero, same as the host AlignedSoA does.
+    cudaMemset(d_sum_real_, 0, bytes);
+    cudaMemset(d_sum_imag_, 0, bytes);
+
+    const double zero{0.0};
+    cudaMemcpy(d_v_recip_, &zero, sizeof(double), cudaMemcpyHostToDevice);
+}
+
+void EnergyTracker::free_device_gpu() noexcept {
+    cudaFree(d_g_x_);
+    cudaFree(d_g_y_);
+    cudaFree(d_g_z_);
+    cudaFree(d_g_weights_);
+    cudaFree(d_sum_real_);
+    cudaFree(d_sum_imag_);
+    cudaFree(d_v_recip_);
+
+    d_g_x_ = nullptr;
+    d_g_y_ = nullptr;
+    d_g_z_ = nullptr;
+    d_g_weights_ = nullptr;
+    d_sum_real_ = nullptr;
+    d_sum_imag_ = nullptr;
+    d_v_recip_ = nullptr;
+}
+
+// Public GPU method - launches the kernel above
+void EnergyTracker::update_structure_factors_gpu(double old_x, double old_y, double old_z,
+                                                 double new_x, double new_y, double new_z,
+                                                 cudaStream_t stream) noexcept {
+    const std::size_t num_g{num_g_vectors_get()};
+    if (num_g == 0U) {
+        return;
+    }
+
+    const double L{box_length_get()};
+    const double prefactor{1.0 / (2.0 * std::numbers::pi * L * L * L)};
+
+    const int grid{grid_size_for(num_g, kBlockSize)};
+
+    update_structure_factors_kernel<<<grid, kBlockSize, 0, stream>>>(
+        d_g_x_, d_g_y_, d_g_z_, d_g_weights_, d_sum_real_, d_sum_imag_, num_g,
+        old_x, old_y, old_z, new_x, new_y, new_z, prefactor, d_v_recip_);
 }
 
 real_t EnergyTracker::kinetic_energy(const Particles& particles) const noexcept {
@@ -267,79 +345,80 @@ real_t EnergyTracker::kinetic_energy(const Particles& particles) const noexcept 
   return -0.5_r * T_sum;
 }
 
-void EnergyTracker::update_real_energy(
-  std::size_t moved_idx,
-  real_t old_x,
-  real_t old_y,
-  real_t old_z,
-  const Particles& particles
-) noexcept {
-  const std::size_t N{particles.size()};
-  const real_t L{box_length_};
-  const real_t neg_L{-1.0_r * L};
-  const real_t half_L{0.5_r * L};
-  const real_t neg_half_L{-1.0_r * half_L};
-  const real_t alpha{ewald_alpha_};
+__global__ void update_real_energy_kernel(
+    const double* p_x, const double* p_y, const double* p_z,
+    std::size_t N, std::size_t moved_idx,
+    double old_x, double old_y, double old_z,
+    double L, double alpha,
+    double* d_v_real)
+{
+    std::size_t j = blockIdx.x * blockDim.x + threadIdx.x;
 
-  const auto pos{particles.pos().align()};
+    const double neg_L{-L};
+    const double half_L{0.5 * L};
+    const double neg_half_L{-half_L};
 
-  const real_t new_x{pos.x_[moved_idx]};
-  const real_t new_y{pos.y_[moved_idx]};
-  const real_t new_z{pos.z_[moved_idx]};
+    // Must match the CPU constants exactly.
+    const double p{0.3275911};
+    const double a1{0.254829592};
+    const double a2{-0.284496736};
+    const double a3{1.421413741};
+    const double a4{-1.453152027};
+    const double a5{1.061405429};
 
-  real_t delta{};
+    double local_delta = 0.0;
 
-  // Not vectorzied: loop contains a mathematical function
-  #pragma omp simd reduction(+ : delta)
-  for (std::size_t j = 0; j < N; ++j) {
-    // Branchless mask to safely skip the moved particle
-    const real_t valid_mask{(j == moved_idx) ? 0.0_r : 1.0_r};
+    if (j < N) {
+        const double valid_mask{(j == moved_idx) ? 0.0 : 1.0};
 
-    // Old pair
-    real_t dx_old{old_x - pos.x_[j]};
-    real_t dy_old{old_y - pos.y_[j]};
-    real_t dz_old{old_z - pos.z_[j]};
+        // New position of the moved particle - read from the (already
+        // updated) position array, same convention as the CPU function.
+        const double new_x{p_x[moved_idx]};
+        const double new_y{p_y[moved_idx]};
+        const double new_z{p_z[moved_idx]};
 
-    dx_old += L * (dx_old <= neg_half_L) + neg_L * (dx_old > half_L);
-    dy_old += L * (dy_old <= neg_half_L) + neg_L * (dy_old > half_L);
-    dz_old += L * (dz_old <= neg_half_L) + neg_L * (dz_old > half_L);
+        // Old pair
+        double dx_old{old_x - p_x[j]};
+        double dy_old{old_y - p_y[j]};
+        double dz_old{old_z - p_z[j]};
 
-    const real_t r_old{
-      vmc::sqrt(
-        dx_old * dx_old +
-        dy_old * dy_old +
-        dz_old * dz_old
-      )
-    };
-    // Protect against 1.0 / 0.0 generating NaN
-    const real_t inv_r_old{(r_old < 1e-12_r) ? 1.0_r : 1.0_r / r_old};
-    const real_t erfc_old{vmc::erfc(alpha * r_old) * inv_r_old};
+        dx_old += L * (dx_old <= neg_half_L) + neg_L * (dx_old > half_L);
+        dy_old += L * (dy_old <= neg_half_L) + neg_L * (dy_old > half_L);
+        dz_old += L * (dz_old <= neg_half_L) + neg_L * (dz_old > half_L);
 
-    // New pair
-    real_t dx_new{new_x - pos.x_[j]};
-    real_t dy_new{new_y - pos.y_[j]};
-    real_t dz_new{new_z - pos.z_[j]};
+        const double r_old{sqrt(dx_old * dx_old + dy_old * dy_old + dz_old * dz_old)};
+        const double inv_r_old{(r_old < 1e-12) ? 1.0 : 1.0 / r_old};
 
-    dx_new += L * (dx_new <= neg_half_L) + neg_L * (dx_new > half_L);
-    dy_new += L * (dy_new <= neg_half_L) + neg_L * (dy_new > half_L);
-    dz_new += L * (dz_new <= neg_half_L) + neg_L * (dz_new > half_L);
+        const double erfc_arg_old{alpha * r_old};
+        const double t_old{1.0 / (1.0 + p * erfc_arg_old)};
+        const double tau_old{t_old * (a1 + t_old * (a2 + t_old * (a3 + t_old * (a4 + t_old * a5))))};
+        const double erfc_old{tau_old * exp(-erfc_arg_old * erfc_arg_old) * inv_r_old};
 
-    const real_t r_new{
-      vmc::sqrt(
-        dx_new * dx_new +
-        dy_new * dy_new +
-        dz_new * dz_new
-      )
-    };
+        // New pair
+        double dx_new{new_x - p_x[j]};
+        double dy_new{new_y - p_y[j]};
+        double dz_new{new_z - p_z[j]};
 
-    // Protect against 1.0 / 0.0 generating NaN
-    const real_t inv_r_new{(r_new < 1e-12_r) ? 1.0_r : 1.0_r / r_new};
-    const real_t erfc_new{vmc::erfc(alpha * r_new) * inv_r_new};
+        dx_new += L * (dx_new <= neg_half_L) + neg_L * (dx_new > half_L);
+        dy_new += L * (dy_new <= neg_half_L) + neg_L * (dy_new > half_L);
+        dz_new += L * (dz_new <= neg_half_L) + neg_L * (dz_new > half_L);
 
-    delta += valid_mask * (erfc_new - erfc_old);
-  }
+        const double r_new{sqrt(dx_new * dx_new + dy_new * dy_new + dz_new * dz_new)};
+        const double inv_r_new{(r_new < 1e-12) ? 1.0 : 1.0 / r_new};
 
-  V_real_ += delta;
+        const double erfc_arg_new{alpha * r_new};
+        const double t_new{1.0 / (1.0 + p * erfc_arg_new)};
+        const double tau_new{t_new * (a1 + t_new * (a2 + t_new * (a3 + t_new * (a4 + t_new * a5))))};
+        const double erfc_new{tau_new * exp(-erfc_arg_new * erfc_arg_new) * inv_r_new};
+
+        local_delta = valid_mask * (erfc_new - erfc_old);
+    }
+
+    double block_sum = block_reduce_sum(local_delta);
+
+    if (threadIdx.x == 0) {
+        atomicAdd(d_v_real, block_sum);
+    }
 }
 
 real_t EnergyTracker::potential_energy() const noexcept {
