@@ -77,13 +77,15 @@ void cudaAddDerivatives(
 
 } // namespace
 
+#endif
+
 void SlaterPlaneWave::add_derivatives(
   real_t* RESTRICT grad_x,
   real_t* RESTRICT grad_y,
   real_t* RESTRICT grad_z,
   real_t* RESTRICT laplacian
 ) const noexcept {
-  const auto kv{this->k_vector().align()};
+#ifdef VMC_CUDA_BACKEND
   AlignedSoA<real_t> grad_mag{this->num_orbitals(), 1};
 
   dim3 addDerivativesThreads(16, 16);
@@ -110,16 +112,7 @@ void SlaterPlaneWave::add_derivatives(
   );
 
   CUDA_CHECK(cudaDeviceSynchronize());
-}
-
 #else
-
-void SlaterPlaneWave::add_derivatives(
-  real_t* RESTRICT grad_x,
-  real_t* RESTRICT grad_y,
-  real_t* RESTRICT grad_z,
-  real_t* RESTRICT laplacian
-) const noexcept {
   const std::size_t N{this->num_orbitals()};
   const std::size_t S{this->matrix_row_stride()};
 
@@ -188,6 +181,5 @@ void SlaterPlaneWave::add_derivatives(
 
     laplacian[particle] += (laplace_det_term - grad_sq);
   }
-}
-
 #endif
+}
