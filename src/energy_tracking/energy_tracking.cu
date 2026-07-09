@@ -172,48 +172,28 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
   }
 }
 
-void EnergyTracker::update_structure_factors(
-  real_t old_x,
-  real_t old_y,
-  real_t old_z,
-  real_t new_x,
-  real_t new_y,
-  real_t new_z
-) noexcept {
-  const real_t L{box_length_};
 
-  const std::size_t num_G{num_g_vectors_};
-  const real_t prefactor{1.0_r / (2.0_r * std::numbers::pi_v<real_t> * L * L * L)};
+__global__ 
+void update_structure_factors_kernel(
+  const real_t* RESTRICT g_x, const real_t* RESTRICT g_y, const real_t* RESTRICT g_z, const real_t* RESTRICT g_weights,
+  real_t* RESTRICT sum_real, real_t* RESTRICT sum_imag,
+  real_t* RESTRICT d_real_temp, real_t* RESTRICT d_imag_temp,
+  const std::size_t num_G,
+  const real_t old_x, const real_t old_y, const real_t old_z,
+  const real_t new_x, const real_t new_y, const real_t new_z,
+) {
+  const std::size_t g{blockIdx.x * blockDim.x + threadIdx.x};
+  if (g >= num_G) return;
 
-  const real_t* RESTRICT g_weights{this->g_weights()};
-  const auto gv{g_vector().align()};
-
-  real_t* RESTRICT sum_real{this->sum_real()};
-  real_t* RESTRICT sum_imag{this->sum_imag()};
-  real_t* RESTRICT d_imag_temp{this->d_imag_temp()};
-  real_t* RESTRICT d_real_temp{this->d_real_temp()};
-
-  ASSUME_ALIGNED(g_weights, SIMD_BYTES);
-
-  ASSUME_ALIGNED(sum_real, SIMD_BYTES);
-  ASSUME_ALIGNED(sum_imag, SIMD_BYTES);
-  ASSUME_ALIGNED(d_imag_temp, SIMD_BYTES);
-  ASSUME_ALIGNED(d_real_temp, SIMD_BYTES);
-
-  real_t delta{};
-
-  // Not vectorzied: loop contains a mathematical function
-  #pragma omp simd
-  for (std::size_t g = 0; g < num_G; ++g) {
     const real_t old_dot{
-      gv.x_[g] * old_x +
-      gv.y_[g] * old_y +
-      gv.z_[g] * old_z
+      g_x[g] * old_x +
+      g_y[g] * old_y +
+      g_z[g] * old_z
     };
     const real_t new_dot{
-      gv.x_[g] * new_x +
-      gv.y_[g] * new_y +
-      gv.z_[g] * new_z
+      g_x[g] * new_x +
+      g_y[g] * new_y +
+      g_z[g] * new_z
     };
 
     real_t new_sin{}, new_cos{};
@@ -224,22 +204,9 @@ void EnergyTracker::update_structure_factors(
 
     d_real_temp[g] = new_cos - old_cos;
     d_imag_temp[g] = new_sin - old_sin;
-  }
-
-  // Accumulate delta and update sum_real / sum_imag
-  #pragma omp simd reduction(+ : delta)
-  for (std::size_t g = 0; g < num_G; ++g) {
-    const real_t dr{d_real_temp[g]};
-    const real_t di{d_imag_temp[g]};
-
-    delta += g_weights[g] * (2.0_r * (sum_real[g] * dr + sum_imag[g] * di) + dr * dr + di * di);
-
-    sum_real[g] += dr;
-    sum_imag[g] += di;
-  }
-
-  V_recip_ += prefactor * delta;
 }
+
+
 
 real_t EnergyTracker::kinetic_energy(const Particles& particles) const noexcept {
   const auto grad{particles.grad_log_psi().align()};
@@ -267,32 +234,24 @@ real_t EnergyTracker::kinetic_energy(const Particles& particles) const noexcept 
   return -0.5_r * T_sum;
 }
 
-void EnergyTracker::update_real_energy(
-  std::size_t moved_idx,
-  real_t old_x,
-  real_t old_y,
-  real_t old_z,
-  const Particles& particles
-) noexcept {
-  const std::size_t N{particles.size()};
-  const real_t L{box_length_};
-  const real_t neg_L{-1.0_r * L};
-  const real_t half_L{0.5_r * L};
-  const real_t neg_half_L{-1.0_r * half_L};
-  const real_t alpha{ewald_alpha_};
 
-  const auto pos{particles.pos().align()};
 
-  const real_t new_x{pos.x_[moved_idx]};
-  const real_t new_y{pos.y_[moved_idx]};
-  const real_t new_z{pos.z_[moved_idx]};
+__global__
+void update_real_energy_kernel(
+  const real_t* RESTRICT pos_x, const real_t* RESTRICT pos_y, const real_t* RESTRICT pos_z,
+  real_t* RESTRICT delta,
+  const std::size_t N,
+  const real_t L, const real_t neg_L, const real_t half_L, const real_t neg_half_L,
+  const real_t alpha,
+  const std::size_t moved_idx,
+  const real_t old_x, const real_t old_y, const real_t old_z,
+  const real_t new_x, const real_t new_y, const real_t new_z
+) {
+  __shared__ real_t shared_delta[256];
 
-  real_t delta{};
-
-  // Not vectorzied: loop contains a mathematical function
-  #pragma omp simd reduction(+ : delta)
-  for (std::size_t j = 0; j < N; ++j) {
-    // Branchless mask to safely skip the moved particle
+  const std::size_t j{blockIdx.x * blockDim.x + threadIdx.x};
+  if (j >= N) return;
+     // Branchless mask to safely skip the moved particle
     const real_t valid_mask{(j == moved_idx) ? 0.0_r : 1.0_r};
 
     // Old pair
@@ -315,7 +274,6 @@ void EnergyTracker::update_real_energy(
     const real_t inv_r_old{(r_old < 1e-12_r) ? 1.0_r : 1.0_r / r_old};
     const real_t erfc_old{vmc::erfc(alpha * r_old) * inv_r_old};
 
-    // New pair
     real_t dx_new{new_x - pos.x_[j]};
     real_t dy_new{new_y - pos.y_[j]};
     real_t dz_new{new_z - pos.z_[j]};
@@ -338,9 +296,6 @@ void EnergyTracker::update_real_energy(
 
     delta += valid_mask * (erfc_new - erfc_old);
   }
-
-  V_real_ += delta;
-}
 
 real_t EnergyTracker::potential_energy() const noexcept {
   // Ewald constants:
