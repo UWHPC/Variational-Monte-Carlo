@@ -220,15 +220,15 @@ void EnergyTracker::update_structure_factors(
   real_t new_z
 ) noexcept {
 #ifdef VMC_CUDA_BACKEND
-  const std::size_t num_G{num_g_vectors_};
-  const auto gv{g_vector()};
+  const std::size_t num_G{this->num_g_vectors_};
+  const auto gv{this->g_vector()};
 
   dim3 threads(256);
   dim3 blocks(vmc::cudaNumBlocks(num_G, threads.x));
 
   update_structure_factors_kernel<<<blocks, threads>>>(
     gv.x_, gv.y_, gv.z_,
-    sum_real(), sum_imag(),
+    this->sum_real(), this->sum_imag(),
     num_G,
     old_x, old_y, old_z,
     new_x, new_y, new_z
@@ -410,9 +410,7 @@ void EnergyTracker::update_real_energy(
 
   const auto pos{particles.pos()};
 
-  AlignedSoA<real_t> delta_storage{1, 1};
-  real_t* RESTRICT delta{delta_storage[0]};
-  *delta = 0.0_r;
+  AlignedSoA<real_t> delta{1, 1};
 
   const real_t new_x{pos.x_[moved_idx]};
   const real_t new_y{pos.y_[moved_idx]};
@@ -427,12 +425,12 @@ void EnergyTracker::update_real_energy(
     old_x, old_y, old_z,
     new_x, new_y, new_z,
     pos.x_, pos.y_, pos.z_,
-    delta
+    delta[0]
   );
   CUDA_CHECK(cudaGetLastError());
   CUDA_CHECK(cudaDeviceSynchronize());
 
-  V_real_ += *delta;
+  V_real_ += *delta[0];
 #else
   const std::size_t N{particles.size()};
   const real_t L{box_length_};
