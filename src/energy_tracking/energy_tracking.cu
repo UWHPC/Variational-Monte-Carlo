@@ -173,27 +173,85 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
 }
 
 
-__global__ 
+#ifdef VMC_CUDA_BACKEND
+namespace {
+
+__global__
 void update_structure_factors_kernel(
-  const real_t* RESTRICT g_x, const real_t* RESTRICT g_y, const real_t* RESTRICT g_z, const real_t* RESTRICT g_weights,
+  const real_t* RESTRICT g_x, const real_t* RESTRICT g_y, const real_t* RESTRICT g_z,
   real_t* RESTRICT sum_real, real_t* RESTRICT sum_imag,
-  real_t* RESTRICT d_real_temp, real_t* RESTRICT d_imag_temp,
   const std::size_t num_G,
   const real_t old_x, const real_t old_y, const real_t old_z,
-  const real_t new_x, const real_t new_y, const real_t new_z,
+  const real_t new_x, const real_t new_y, const real_t new_z
 ) {
   const std::size_t g{blockIdx.x * blockDim.x + threadIdx.x};
   if (g >= num_G) return;
 
+  const real_t old_dot{
+    g_x[g] * old_x +
+    g_y[g] * old_y +
+    g_z[g] * old_z
+  };
+  const real_t new_dot{
+    g_x[g] * new_x +
+    g_y[g] * new_y +
+    g_z[g] * new_z
+  };
+
+  real_t new_sin{}, new_cos{};
+  real_t old_sin{}, old_cos{};
+
+  vmc::sincos(new_dot, &new_sin, &new_cos);
+  vmc::sincos(old_dot, &old_sin, &old_cos);
+
+  sum_real[g] += new_cos - old_cos;
+  sum_imag[g] += new_sin - old_sin;
+}
+
+}
+#endif
+
+void EnergyTracker::update_structure_factors(
+  real_t old_x, real_t old_y, real_t old_z,
+  real_t new_x, real_t new_y, real_t new_z
+) noexcept {
+  const std::size_t num_G{num_g_vectors_};
+
+#ifdef VMC_CUDA_BACKEND
+  const auto gv{g_vector()};
+
+  dim3 threads(256);
+  dim3 blocks(vmc::cudaNumBlocks(num_G, threads.x));
+
+  update_structure_factors_kernel<<<blocks, threads>>>(
+    gv.x_, gv.y_, gv.z_,
+    sum_real(), sum_imag(),
+    num_G,
+    old_x, old_y, old_z,
+    new_x, new_y, new_z
+  );
+  CUDA_CHECK(cudaGetLastError());
+  CUDA_CHECK(cudaDeviceSynchronize());
+#else
+  const auto gv{g_vector().align()};
+
+  real_t* RESTRICT sum_real{this->sum_real()};
+  real_t* RESTRICT sum_imag{this->sum_imag()};
+
+  ASSUME_ALIGNED(sum_real, SIMD_BYTES);
+  ASSUME_ALIGNED(sum_imag, SIMD_BYTES);
+
+  #pragma omp simd
+  for (std::size_t g = 0; g < num_G; ++g) {
     const real_t old_dot{
-      g_x[g] * old_x +
-      g_y[g] * old_y +
-      g_z[g] * old_z
+      gv.x_[g] * old_x +
+      gv.y_[g] * old_y +
+      gv.z_[g] * old_z
     };
     const real_t new_dot{
-      g_x[g] * new_x +
-      g_y[g] * new_y +
-      g_z[g] * new_z
+      gv.x_[g] * new_x +
+      gv.y_[g] * new_y +
+      gv.z_[g] * new_z
     };
 
     real_t new_sin{}, new_cos{};
@@ -202,11 +260,13 @@ void update_structure_factors_kernel(
     vmc::sincos(new_dot, &new_sin, &new_cos);
     vmc::sincos(old_dot, &old_sin, &old_cos);
 
-    d_real_temp[g] = new_cos - old_cos;
-    d_imag_temp[g] = new_sin - old_sin;
+    sum_real[g] += new_cos - old_cos;
+    sum_imag[g] += new_sin - old_sin;
+  }
+#endif
+
+  initialize_reciprocal_energy();
 }
-
-
 
 real_t EnergyTracker::kinetic_energy(const Particles& particles) const noexcept {
   const auto grad{particles.grad_log_psi().align()};
@@ -236,22 +296,126 @@ real_t EnergyTracker::kinetic_energy(const Particles& particles) const noexcept 
 
 
 
+#ifdef VMC_CUDA_BACKEND
+namespace {
+
 __global__
 void update_real_energy_kernel(
-  const real_t* RESTRICT pos_x, const real_t* RESTRICT pos_y, const real_t* RESTRICT pos_z,
-  real_t* RESTRICT delta,
-  const std::size_t N,
-  const real_t L, const real_t neg_L, const real_t half_L, const real_t neg_half_L,
-  const real_t alpha,
-  const std::size_t moved_idx,
+  const std::size_t N, const std::size_t moved_idx,
+  const real_t L, const real_t alpha,
   const real_t old_x, const real_t old_y, const real_t old_z,
-  const real_t new_x, const real_t new_y, const real_t new_z
+  const real_t new_x, const real_t new_y, const real_t new_z,
+  const real_t* RESTRICT pos_x, const real_t* RESTRICT pos_y, const real_t* RESTRICT pos_z,
+  real_t* RESTRICT delta
 ) {
-  __shared__ real_t shared_delta[256];
+  const real_t neg_L{-1.0_r * L};
+  const real_t half_L{0.5_r * L};
+  const real_t neg_half_L{-1.0_r * half_L};
 
   const std::size_t j{blockIdx.x * blockDim.x + threadIdx.x};
   if (j >= N) return;
-     // Branchless mask to safely skip the moved particle
+
+  // Branchless mask to safely skip the moved particle
+  const real_t valid_mask{(j == moved_idx) ? 0.0_r : 1.0_r};
+
+  // Old pair
+  real_t dx_old{old_x - pos_x[j]};
+  real_t dy_old{old_y - pos_y[j]};
+  real_t dz_old{old_z - pos_z[j]};
+
+  dx_old += L * (dx_old <= neg_half_L) + neg_L * (dx_old > half_L);
+  dy_old += L * (dy_old <= neg_half_L) + neg_L * (dy_old > half_L);
+  dz_old += L * (dz_old <= neg_half_L) + neg_L * (dz_old > half_L);
+
+  const real_t r_old{
+    vmc::sqrt(
+      dx_old * dx_old +
+      dy_old * dy_old +
+      dz_old * dz_old
+    )
+  };
+  // Protect against 1.0 / 0.0 generating NaN
+  const real_t inv_r_old{(r_old < 1e-12_r) ? 1.0_r : 1.0_r / r_old};
+  const real_t erfc_old{vmc::erfc(alpha * r_old) * inv_r_old};
+
+  real_t dx_new{new_x - pos_x[j]};
+  real_t dy_new{new_y - pos_y[j]};
+  real_t dz_new{new_z - pos_z[j]};
+
+  dx_new += L * (dx_new <= neg_half_L) + neg_L * (dx_new > half_L);
+  dy_new += L * (dy_new <= neg_half_L) + neg_L * (dy_new > half_L);
+  dz_new += L * (dz_new <= neg_half_L) + neg_L * (dz_new > half_L);
+
+  const real_t r_new{
+    vmc::sqrt(
+      dx_new * dx_new +
+      dy_new * dy_new +
+      dz_new * dz_new
+    )
+  };
+
+  // Protect against 1.0 / 0.0 generating NaN
+  const real_t inv_r_new{(r_new < 1e-12_r) ? 1.0_r : 1.0_r / r_new};
+  const real_t erfc_new{vmc::erfc(alpha * r_new) * inv_r_new};
+
+  atomicAdd(delta, valid_mask * (erfc_new - erfc_old));
+}
+
+}
+#endif
+
+void EnergyTracker::update_real_energy(
+  std::size_t moved_idx,
+  real_t old_x,
+  real_t old_y,
+  real_t old_z,
+  const Particles& particles
+) noexcept {
+  const std::size_t N{particles.size()};
+  const real_t L{box_length_};
+  const real_t alpha{ewald_alpha_};
+
+#ifdef VMC_CUDA_BACKEND
+  const auto pos{particles.pos()};
+
+  AlignedSoA<real_t> delta_storage{1, 1};
+  real_t* RESTRICT delta{delta_storage[0]};
+  *delta = 0.0_r;
+
+  const real_t new_x{pos.x_[moved_idx]};
+  const real_t new_y{pos.y_[moved_idx]};
+  const real_t new_z{pos.z_[moved_idx]};
+
+  dim3 threads(256);
+  dim3 blocks(vmc::cudaNumBlocks(N, threads.x));
+
+  update_real_energy_kernel<<<blocks, threads>>>(
+    N, moved_idx,
+    L, alpha,
+    old_x, old_y, old_z,
+    new_x, new_y, new_z,
+    pos.x_, pos.y_, pos.z_,
+    delta
+  );
+  CUDA_CHECK(cudaGetLastError());
+  CUDA_CHECK(cudaDeviceSynchronize());
+
+  V_real_ += *delta;
+#else
+  const real_t neg_L{-1.0_r * L};
+  const real_t half_L{0.5_r * L};
+  const real_t neg_half_L{-1.0_r * half_L};
+
+  const auto pos{particles.pos().align()};
+
+  const real_t new_x{pos.x_[moved_idx]};
+  const real_t new_y{pos.y_[moved_idx]};
+  const real_t new_z{pos.z_[moved_idx]};
+
+  real_t delta{};
+  #pragma omp simd reduction(+ : delta)
+  for (std::size_t j = 0; j < N; ++j) {
+    // Branchless mask to safely skip the moved particle
     const real_t valid_mask{(j == moved_idx) ? 0.0_r : 1.0_r};
 
     // Old pair
@@ -296,6 +460,10 @@ void update_real_energy_kernel(
 
     delta += valid_mask * (erfc_new - erfc_old);
   }
+
+  V_real_ += delta;
+#endif
+}
 
 real_t EnergyTracker::potential_energy() const noexcept {
   // Ewald constants:
