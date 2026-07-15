@@ -177,7 +177,7 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
 namespace {
 
 __global__
-void update_structure_factors_kernel(
+void cudaUpdateStructureFactors(
   const real_t* RESTRICT g_x, const real_t* RESTRICT g_y, const real_t* RESTRICT g_z,
   real_t* RESTRICT sum_real, real_t* RESTRICT sum_imag,
   const std::size_t num_G,
