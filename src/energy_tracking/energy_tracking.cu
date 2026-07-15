@@ -330,6 +330,7 @@ real_t EnergyTracker::kinetic_energy(const Particles& particles) const noexcept 
 
 
 #ifdef VMC_CUDA_BACKEND
+
 namespace {
 
 __global__
