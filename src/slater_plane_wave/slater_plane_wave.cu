@@ -149,7 +149,7 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, real_t box_lengthL)
 #ifdef VMC_CUDA_BACKEND
 
 namespace {
-  
+
 __global__ 
 void cudaAcceptMove(
   std::size_t N,
@@ -163,7 +163,7 @@ void cudaAcceptMove(
   const std::size_t k = blockIdx.x * blockDim.x + threadIdx.x;
   if (k >= N) return;
 
-  const std::size_t p_offset = particle * S;
+  const std::size_t p_offset{particle * S};
 
   if (k == particle) {
     for (std::size_t j = 0; j < N; ++j) {
