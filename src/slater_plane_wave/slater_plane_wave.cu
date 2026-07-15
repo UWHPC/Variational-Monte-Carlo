@@ -160,7 +160,7 @@ void cudaAcceptMove(
   const real_t* RESTRICT inv_d_col,
   real_t inv_ratio
 ) {
-  const std::size_t k = blockIdx.x * blockDim.x + threadIdx.x;
+  const std::size_t k{blockIdx.x * blockDim.x + threadIdx.x};
   if (k >= N) return;
 
   const std::size_t p_offset{particle * S};
