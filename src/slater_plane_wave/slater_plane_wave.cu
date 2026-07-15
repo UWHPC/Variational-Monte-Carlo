@@ -147,7 +147,9 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, real_t box_lengthL)
 };
 
 #ifdef VMC_CUDA_BACKEND
+
 namespace {
+  
 __global__ 
 void cudaAcceptMove(
   std::size_t N,
@@ -179,7 +181,9 @@ void cudaAcceptMove(
     }
   }
 }
+
 }
+
 #endif
 
 void SlaterPlaneWave::accept_move(
@@ -187,6 +191,7 @@ void SlaterPlaneWave::accept_move(
   const real_t* new_row,
   real_t ratio
 ) noexcept {
+  #ifdef VMC_CUDA_BACKEND
   const std::size_t N{num_orbitals()};
   const std::size_t S{matrix_row_stride()};
   const real_t inv_ratio{1.0_r / ratio};
@@ -198,9 +203,8 @@ void SlaterPlaneWave::accept_move(
   real_t* RESTRICT inv_det{inv_determinant()};
   real_t* RESTRICT det_matrix{determinant()};
   real_t* RESTRICT inv_d_col{this->inv_d_col()};
-  const std::size_t p_offset{particle * S}; // Pre-calculate particle row offset
+  const std::size_t p_offset{particle * S}; 
 
-  #ifdef VMC_CUDA_BACKEND
   CUDA_CHECK(cudaMemcpyAsync(inv_d_col, &inv_det[p_offset], N * sizeof(real_t), cudaMemcpyDeviceToDevice));
 
   dim3 acceptMoveThreads(256);
@@ -216,8 +220,19 @@ void SlaterPlaneWave::accept_move(
   CUDA_CHECK(cudaDeviceSynchronize());
 
   return;
-  #endif
+  #else
+  const std::size_t N{num_orbitals()};
+  const std::size_t S{matrix_row_stride()};
+  const real_t inv_ratio{1.0_r / ratio};
 
+  if (!std::isfinite(inv_ratio)) {
+    return;
+  }
+
+  real_t* RESTRICT inv_det{inv_determinant()};
+  real_t* RESTRICT det_matrix{determinant()};
+  real_t* RESTRICT inv_d_col{this->inv_d_col()};
+  const std::size_t p_offset{particle * S}; 
   ASSUME_ALIGNED(inv_det, SIMD_BYTES);
   ASSUME_ALIGNED(det_matrix, SIMD_BYTES);
   ASSUME_ALIGNED(inv_d_col, SIMD_BYTES);
@@ -257,4 +272,5 @@ void SlaterPlaneWave::accept_move(
 
   // Patch row `particle` of D to match the new positions:
   std::memcpy(&det_matrix[p_offset], new_row, N * sizeof(real_t));
+  #endif 
 }
