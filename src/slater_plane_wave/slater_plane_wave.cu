@@ -170,12 +170,12 @@ void cudaAcceptMove(
       inv_det[p_offset + j] = inv_d_col[j] * inv_ratio;
     }
   } else {
-    const std::size_t k_offset = k * S;
-    real_t s_k = 0.0_r;
+    const std::size_t k_offset{k * S};
+    real_t s_k{0.0_r};
     for (std::size_t m = 0; m < N; ++m) {
       s_k += new_row[m] * inv_det[k_offset + m]; 
     }
-    const real_t factor = s_k * inv_ratio;
+    const real_t factor{s_k * inv_ratio};
     for (std::size_t j = 0; j < N; ++j) {
       inv_det[k_offset + j] -= inv_d_col[j] * factor;
     }
