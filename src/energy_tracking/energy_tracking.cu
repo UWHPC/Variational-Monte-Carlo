@@ -208,7 +208,8 @@ void cudaUpdateStructureFactors(
   sum_imag[g] += new_sin - old_sin;
 }
 
-}
+} // namespace
+
 #endif
 
 void EnergyTracker::update_structure_factors(
