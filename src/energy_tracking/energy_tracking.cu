@@ -212,12 +212,15 @@ void update_structure_factors_kernel(
 #endif
 
 void EnergyTracker::update_structure_factors(
-  real_t old_x, real_t old_y, real_t old_z,
-  real_t new_x, real_t new_y, real_t new_z
+  real_t old_x,
+  real_t old_y,
+  real_t old_z,
+  real_t new_x,
+  real_t new_y,
+  real_t new_z
 ) noexcept {
-  const std::size_t num_G{num_g_vectors_};
-
 #ifdef VMC_CUDA_BACKEND
+  const std::size_t num_G{num_g_vectors_};
   const auto gv{g_vector()};
 
   dim3 threads(256);
@@ -232,15 +235,32 @@ void EnergyTracker::update_structure_factors(
   );
   CUDA_CHECK(cudaGetLastError());
   CUDA_CHECK(cudaDeviceSynchronize());
+
+  initialize_reciprocal_energy();
 #else
+  const real_t L{box_length_};
+
+  const std::size_t num_G{num_g_vectors_};
+  const real_t prefactor{1.0_r / (2.0_r * std::numbers::pi_v<real_t> * L * L * L)};
+
+  const real_t* RESTRICT g_weights{this->g_weights()};
   const auto gv{g_vector().align()};
 
   real_t* RESTRICT sum_real{this->sum_real()};
   real_t* RESTRICT sum_imag{this->sum_imag()};
+  real_t* RESTRICT d_imag_temp{this->d_imag_temp()};
+  real_t* RESTRICT d_real_temp{this->d_real_temp()};
+
+  ASSUME_ALIGNED(g_weights, SIMD_BYTES);
 
   ASSUME_ALIGNED(sum_real, SIMD_BYTES);
   ASSUME_ALIGNED(sum_imag, SIMD_BYTES);
+  ASSUME_ALIGNED(d_imag_temp, SIMD_BYTES);
+  ASSUME_ALIGNED(d_real_temp, SIMD_BYTES);
 
+  real_t delta{};
+
+  // Not vectorzied: loop contains a mathematical function
   #pragma omp simd
   for (std::size_t g = 0; g < num_G; ++g) {
     const real_t old_dot{
@@ -260,12 +280,24 @@ void EnergyTracker::update_structure_factors(
     vmc::sincos(new_dot, &new_sin, &new_cos);
     vmc::sincos(old_dot, &old_sin, &old_cos);
 
-    sum_real[g] += new_cos - old_cos;
-    sum_imag[g] += new_sin - old_sin;
+    d_real_temp[g] = new_cos - old_cos;
+    d_imag_temp[g] = new_sin - old_sin;
   }
-#endif
 
-  initialize_reciprocal_energy();
+  // Accumulate delta and update sum_real / sum_imag
+  #pragma omp simd reduction(+ : delta)
+  for (std::size_t g = 0; g < num_G; ++g) {
+    const real_t dr{d_real_temp[g]};
+    const real_t di{d_imag_temp[g]};
+
+    delta += g_weights[g] * (2.0_r * (sum_real[g] * dr + sum_imag[g] * di) + dr * dr + di * di);
+
+    sum_real[g] += dr;
+    sum_imag[g] += di;
+  }
+
+  V_recip_ += prefactor * delta;
+#endif
 }
 
 real_t EnergyTracker::kinetic_energy(const Particles& particles) const noexcept {
@@ -371,11 +403,11 @@ void EnergyTracker::update_real_energy(
   real_t old_z,
   const Particles& particles
 ) noexcept {
+#ifdef VMC_CUDA_BACKEND
   const std::size_t N{particles.size()};
   const real_t L{box_length_};
   const real_t alpha{ewald_alpha_};
 
-#ifdef VMC_CUDA_BACKEND
   const auto pos{particles.pos()};
 
   AlignedSoA<real_t> delta_storage{1, 1};
@@ -402,9 +434,12 @@ void EnergyTracker::update_real_energy(
 
   V_real_ += *delta;
 #else
+  const std::size_t N{particles.size()};
+  const real_t L{box_length_};
   const real_t neg_L{-1.0_r * L};
   const real_t half_L{0.5_r * L};
   const real_t neg_half_L{-1.0_r * half_L};
+  const real_t alpha{ewald_alpha_};
 
   const auto pos{particles.pos().align()};
 
@@ -413,6 +448,8 @@ void EnergyTracker::update_real_energy(
   const real_t new_z{pos.z_[moved_idx]};
 
   real_t delta{};
+
+  // Not vectorzied: loop contains a mathematical function
   #pragma omp simd reduction(+ : delta)
   for (std::size_t j = 0; j < N; ++j) {
     // Branchless mask to safely skip the moved particle
@@ -438,6 +475,7 @@ void EnergyTracker::update_real_energy(
     const real_t inv_r_old{(r_old < 1e-12_r) ? 1.0_r : 1.0_r / r_old};
     const real_t erfc_old{vmc::erfc(alpha * r_old) * inv_r_old};
 
+    // New pair
     real_t dx_new{new_x - pos.x_[j]};
     real_t dy_new{new_y - pos.y_[j]};
     real_t dz_new{new_z - pos.z_[j]};
