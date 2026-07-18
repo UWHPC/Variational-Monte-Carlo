@@ -13,36 +13,34 @@ __global__ void cudaValue(
   const std::size_t i{blockIdx.x * blockDim.x + threadIdx.x};
   if (i >= num_particles) { return; }
 
+  const std::size_t j{blockIdx.y * blockDim.y + threadIdx.y};
+  if (j >= num_particles) { return; }
+
+  const real_t mask{i == j ? 0.0_r : 1.0_r};
+
   const real_t neg_L{-1.0_r * L};
   const real_t half_L{0.5_r * L};
   const real_t neg_half_L{-1.0_r * half_L};
 
-  real_t local_jastrow{};
-  for (std::size_t j = 0; j < num_particles; ++j) {
-    const real_t mask{i == j ? 0.0_r : 1.0_r};
+  real_t displ_x{p_x[i] - p_x[j]};
+  real_t displ_y{p_y[i] - p_y[j]};
+  real_t displ_z{p_z[i] - p_z[j]};
 
-    real_t displ_x{p_x[i] - p_x[j]};
-    real_t displ_y{p_y[i] - p_y[j]};
-    real_t displ_z{p_z[i] - p_z[j]};
+  displ_x += L * (displ_x <= neg_half_L) + neg_L * (displ_x > half_L);
+  displ_y += L * (displ_y <= neg_half_L) + neg_L * (displ_y > half_L);
+  displ_z += L * (displ_z <= neg_half_L) + neg_L * (displ_z > half_L);
 
-    displ_x += L * (displ_x <= neg_half_L) + neg_L * (displ_x > half_L);
-    displ_y += L * (displ_y <= neg_half_L) + neg_L * (displ_y > half_L);
-    displ_z += L * (displ_z <= neg_half_L) + neg_L * (displ_z > half_L);
+  const real_t dist_sq{
+    displ_x * displ_x +
+    displ_y * displ_y +
+    displ_z * displ_z
+  };
+  const real_t dist{vmc::sqrt(dist_sq)};
 
-    const real_t dist_sq{
-      displ_x * displ_x +
-      displ_y * displ_y +
-      displ_z * displ_z
-    };
-    const real_t dist{vmc::sqrt(dist_sq)};
+  const real_t denom{1.0_r + b * dist};
+  const real_t inv_denom{1.0_r / denom};
 
-    const real_t denom{1.0_r + b * dist};
-    const real_t inv_denom{1.0_r / denom};
-
-    local_jastrow += mask * a * dist * inv_denom;
-  }
-
-  atomicAdd(jastrow_pade, local_jastrow);
+  atomicAdd(jastrow_pade, mask * a * dist * inv_denom);
 }
 
 __global__ void cudaDeltaValue(
@@ -114,9 +112,10 @@ real_t JastrowPade::value(const Particles& particles) const noexcept {
 
   AlignedSoA<real_t> jastrow_pade{1, 1};
 
-  dim3 valueThreads(256);
+  dim3 valueThreads(16, 16);
   dim3 valueBlocks(
-    vmc::cudaNumBlocks(num_particles, valueThreads.x)
+    vmc::cudaNumBlocks(num_particles, valueThreads.x),
+    vmc::cudaNumBlocks(num_particles, valueThreads.y)
   );
 
   cudaValue<<<valueBlocks, valueThreads>>>(
