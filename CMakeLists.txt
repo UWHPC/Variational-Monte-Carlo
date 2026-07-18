@@ -101,6 +101,7 @@ endif()
 # --- Source lists ---
 set(VMC_CUDA_SOURCES
   src/jastrow_pade/jastrow_pade.cu
+  src/jastrow_pade/value_delta_value.cu
   src/wavefunction/wavefunction.cu
   src/slater_plane_wave/build_row_determinant_ratio.cu
   src/slater_plane_wave/log_abs_det.cu
