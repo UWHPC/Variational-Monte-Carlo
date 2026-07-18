@@ -4,7 +4,8 @@
 #include <cstddef>
 namespace {
 
-__global__ void cudaValue(
+__global__
+void cudaValue(
   std::size_t num_particles,
   real_t L, real_t a, real_t b,
   const real_t* RESTRICT p_x, const real_t* RESTRICT p_y, const real_t* RESTRICT p_z,
@@ -43,7 +44,8 @@ __global__ void cudaValue(
   atomicAdd(jastrow_pade, mask * a * dist * inv_denom);
 }
 
-__global__ void cudaDeltaValue(
+__global__
+void cudaDeltaValue(
   std::size_t num_particles, std::size_t moved,
   real_t old_x, real_t old_y, real_t old_z,
   real_t new_x, real_t new_y, real_t new_z,
@@ -120,7 +122,7 @@ real_t JastrowPade::value(const Particles& particles) const noexcept {
 
   cudaValue<<<valueBlocks, valueThreads>>>(
     num_particles,
-    box_length_, a(), b(),
+    box_length_, this->a(), this->b(),
     particles.pos().x_, particles.pos().y_, particles.pos().z_,
     jastrow_pade[0]
   );
