@@ -225,9 +225,9 @@ void EnergyTracker::update_structure_factors(
   const auto gv{this->g_vector()};
 
   dim3 updateStructureFactorsThreads(256);
-  dim3 blocks(vmc::cudaNumBlocks(num_G, updateStructureFactorsThreads.x));
+  dim3 updateStructureFactorsBlocks(vmc::cudaNumBlocks(num_G, updateStructureFactorsThreads.x));
 
-  cudaUpdateStructureFactors<<<blocks, updateStructureFactorsThreads>>>(
+  cudaUpdateStructureFactors<<<updateStructureFactorsBlocks, updateStructureFactorsThreads>>>(
     gv.x_, gv.y_, gv.z_,
     this->sum_real(), this->sum_imag(),
     num_G,
@@ -419,9 +419,9 @@ void EnergyTracker::update_real_energy(
   const real_t new_z{pos.z_[moved_idx]};
 
   dim3 updateRealEnergyThreads(256);
-  dim3 blocks(vmc::cudaNumBlocks(N, updateRealEnergyThreads.x));
+  dim3 updateRealEnergyBlocks(vmc::cudaNumBlocks(N, updateRealEnergyThreads.x));
 
- cudaUpdateRealEnergy<<<blocks, updateRealEnergyThreads>>>(
+ cudaUpdateRealEnergy<<<updateRealEnergyBlocks, updateRealEnergyThreads>>>(
     N, moved_idx,
     L, alpha,
     old_x, old_y, old_z,
