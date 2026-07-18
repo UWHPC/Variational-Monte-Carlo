@@ -334,7 +334,7 @@ real_t EnergyTracker::kinetic_energy(const Particles& particles) const noexcept 
 namespace {
 
 __global__
-void update_real_energy_kernel(
+void cudaUpdateRealEnergy(
   const std::size_t N, const std::size_t moved_idx,
   const real_t L, const real_t alpha,
   const real_t old_x, const real_t old_y, const real_t old_z,
