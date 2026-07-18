@@ -172,6 +172,46 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
   }
 }
 
+
+#ifdef VMC_CUDA_BACKEND
+namespace {
+
+__global__
+void cudaUpdateStructureFactors(
+  const real_t* RESTRICT g_x, const real_t* RESTRICT g_y, const real_t* RESTRICT g_z,
+  real_t* RESTRICT sum_real, real_t* RESTRICT sum_imag,
+  const std::size_t num_G,
+  const real_t old_x, const real_t old_y, const real_t old_z,
+  const real_t new_x, const real_t new_y, const real_t new_z
+) {
+  const std::size_t g{blockIdx.x * blockDim.x + threadIdx.x};
+  if (g >= num_G) return;
+
+  const real_t old_dot{
+    g_x[g] * old_x +
+    g_y[g] * old_y +
+    g_z[g] * old_z
+  };
+  const real_t new_dot{
+    g_x[g] * new_x +
+    g_y[g] * new_y +
+    g_z[g] * new_z
+  };
+
+  real_t new_sin{}, new_cos{};
+  real_t old_sin{}, old_cos{};
+
+  vmc::sincos(new_dot, &new_sin, &new_cos);
+  vmc::sincos(old_dot, &old_sin, &old_cos);
+
+  sum_real[g] += new_cos - old_cos;
+  sum_imag[g] += new_sin - old_sin;
+}
+
+} // namespace
+
+#endif
+
 void EnergyTracker::update_structure_factors(
   real_t old_x,
   real_t old_y,
@@ -180,6 +220,25 @@ void EnergyTracker::update_structure_factors(
   real_t new_y,
   real_t new_z
 ) noexcept {
+#ifdef VMC_CUDA_BACKEND
+  const std::size_t num_G{this->num_g_vectors_};
+  const auto gv{this->g_vector()};
+
+  dim3 updateStructureFactorsThreads(256);
+  dim3 updateStructureFactorsBlocks(vmc::cudaNumBlocks(num_G, updateStructureFactorsThreads.x));
+
+  cudaUpdateStructureFactors<<<updateStructureFactorsBlocks, updateStructureFactorsThreads>>>(
+    gv.x_, gv.y_, gv.z_,
+    this->sum_real(), this->sum_imag(),
+    num_G,
+    old_x, old_y, old_z,
+    new_x, new_y, new_z
+  );
+  CUDA_CHECK(cudaGetLastError());
+  CUDA_CHECK(cudaDeviceSynchronize());
+
+  initialize_reciprocal_energy();
+#else
   const real_t L{box_length_};
 
   const std::size_t num_G{num_g_vectors_};
@@ -239,6 +298,7 @@ void EnergyTracker::update_structure_factors(
   }
 
   V_recip_ += prefactor * delta;
+#endif
 }
 
 real_t EnergyTracker::kinetic_energy(const Particles& particles) const noexcept {
@@ -267,6 +327,77 @@ real_t EnergyTracker::kinetic_energy(const Particles& particles) const noexcept 
   return -0.5_r * T_sum;
 }
 
+
+
+#ifdef VMC_CUDA_BACKEND
+
+namespace {
+
+__global__
+void cudaUpdateRealEnergy(
+  const std::size_t N, const std::size_t moved_idx,
+  const real_t L, const real_t alpha,
+  const real_t old_x, const real_t old_y, const real_t old_z,
+  const real_t new_x, const real_t new_y, const real_t new_z,
+  const real_t* RESTRICT pos_x, const real_t* RESTRICT pos_y, const real_t* RESTRICT pos_z,
+  real_t* RESTRICT delta
+) {
+  const real_t neg_L{-1.0_r * L};
+  const real_t half_L{0.5_r * L};
+  const real_t neg_half_L{-1.0_r * half_L};
+
+  const std::size_t j{blockIdx.x * blockDim.x + threadIdx.x};
+  if (j >= N) return;
+
+  // Branchless mask to safely skip the moved particle
+  const real_t valid_mask{(j == moved_idx) ? 0.0_r : 1.0_r};
+
+  // Old pair
+  real_t dx_old{old_x - pos_x[j]};
+  real_t dy_old{old_y - pos_y[j]};
+  real_t dz_old{old_z - pos_z[j]};
+
+  dx_old += L * (dx_old <= neg_half_L) + neg_L * (dx_old > half_L);
+  dy_old += L * (dy_old <= neg_half_L) + neg_L * (dy_old > half_L);
+  dz_old += L * (dz_old <= neg_half_L) + neg_L * (dz_old > half_L);
+
+  const real_t r_old{
+    vmc::sqrt(
+      dx_old * dx_old +
+      dy_old * dy_old +
+      dz_old * dz_old
+    )
+  };
+  // Protect against 1.0 / 0.0 generating NaN
+  const real_t inv_r_old{(r_old < 1e-12_r) ? 1.0_r : 1.0_r / r_old};
+  const real_t erfc_old{vmc::erfc(alpha * r_old) * inv_r_old};
+
+  real_t dx_new{new_x - pos_x[j]};
+  real_t dy_new{new_y - pos_y[j]};
+  real_t dz_new{new_z - pos_z[j]};
+
+  dx_new += L * (dx_new <= neg_half_L) + neg_L * (dx_new > half_L);
+  dy_new += L * (dy_new <= neg_half_L) + neg_L * (dy_new > half_L);
+  dz_new += L * (dz_new <= neg_half_L) + neg_L * (dz_new > half_L);
+
+  const real_t r_new{
+    vmc::sqrt(
+      dx_new * dx_new +
+      dy_new * dy_new +
+      dz_new * dz_new
+    )
+  };
+
+  // Protect against 1.0 / 0.0 generating NaN
+  const real_t inv_r_new{(r_new < 1e-12_r) ? 1.0_r : 1.0_r / r_new};
+  const real_t erfc_new{vmc::erfc(alpha * r_new) * inv_r_new};
+
+  atomicAdd(delta, valid_mask * (erfc_new - erfc_old));
+}
+
+}
+#endif
+
 void EnergyTracker::update_real_energy(
   std::size_t moved_idx,
   real_t old_x,
@@ -274,6 +405,35 @@ void EnergyTracker::update_real_energy(
   real_t old_z,
   const Particles& particles
 ) noexcept {
+#ifdef VMC_CUDA_BACKEND
+  const std::size_t N{particles.size()};
+  const real_t L{box_length_};
+  const real_t alpha{ewald_alpha_};
+
+  const auto pos{particles.pos()};
+
+  AlignedSoA<real_t> delta{1, 1};
+
+  const real_t new_x{pos.x_[moved_idx]};
+  const real_t new_y{pos.y_[moved_idx]};
+  const real_t new_z{pos.z_[moved_idx]};
+
+  dim3 updateRealEnergyThreads(256);
+  dim3 updateRealEnergyBlocks(vmc::cudaNumBlocks(N, updateRealEnergyThreads.x));
+
+ cudaUpdateRealEnergy<<<updateRealEnergyBlocks, updateRealEnergyThreads>>>(
+    N, moved_idx,
+    L, alpha,
+    old_x, old_y, old_z,
+    new_x, new_y, new_z,
+    pos.x_, pos.y_, pos.z_,
+    delta[0]
+  );
+  CUDA_CHECK(cudaGetLastError());
+  CUDA_CHECK(cudaDeviceSynchronize());
+
+  V_real_ += *delta[0];
+#else
   const std::size_t N{particles.size()};
   const real_t L{box_length_};
   const real_t neg_L{-1.0_r * L};
@@ -340,6 +500,7 @@ void EnergyTracker::update_real_energy(
   }
 
   V_real_ += delta;
+#endif
 }
 
 real_t EnergyTracker::potential_energy() const noexcept {
