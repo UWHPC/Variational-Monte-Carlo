@@ -314,7 +314,7 @@ void cudaKineticEnergy(
   const real_t* RESTRICT lap,
   real_t* RESTRICT T_sum
 ) {
-  const auto [i]{vmc::cudaThreadIdx<1>()};;
+  const auto [i]{vmc::cudaThreadIdx<1>()};
   if (i >= N) return;
 
   // ||Grad(logPsi)||^2 for particle i
@@ -396,7 +396,7 @@ void cudaUpdateRealEnergy(
   const real_t half_L{0.5_r * L};
   const real_t neg_half_L{-1.0_r * half_L};
 
-  const auto [j]{vmc::cudaThreadIdx<1>()};;
+  const auto [j]{vmc::cudaThreadIdx<1>()};
   if (j >= N) return;
 
   // Branchless mask to safely skip the moved particle
