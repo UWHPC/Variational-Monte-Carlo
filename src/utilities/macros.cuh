@@ -103,13 +103,3 @@ constexpr real_t operator""_r(long double value) {
 constexpr real_t operator""_r(unsigned long long value) {
   return static_cast<real_t>(value);
 }
-
-// CUDA_CALLABLE [[nodiscard]]
-// inline real_t max(real_t a, real_t b) noexcept {
-//   return std::max(a, b);
-// }
-
-// CUDA_CALLABLE [[nodiscard]]
-// inline real_t min(real_t a, real_t b) noexcept {
-//   return std::min(a, b);
-// }
