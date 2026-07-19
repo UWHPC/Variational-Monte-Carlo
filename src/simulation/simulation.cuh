@@ -29,9 +29,9 @@ private:
 
   WalkerRNG walker_rng_;
 
-  [[nodiscard]] real_t rand_uniform() { return walker_rng_.rand_uniform(); }
-  [[nodiscard]] real_t rand_proposal() { return walker_rng_.rand_proposal(); }
-  [[nodiscard]] std::size_t rand_particle() { return walker_rng_.rand_particle(); }
+  CUDA_CALLABLE [[nodiscard]] real_t rand_uniform() { return walker_rng_.rand_uniform(); }
+  CUDA_CALLABLE [[nodiscard]] real_t rand_proposal() { return walker_rng_.rand_proposal(); }
+  CUDA_CALLABLE [[nodiscard]] std::size_t rand_particle() { return walker_rng_.rand_particle(); }
 
   [[nodiscard]] real_t acceptance_rate() const {
     if (proposed_ == 0U) {
@@ -62,7 +62,7 @@ public:
 
 private:
   void initialize_positions();
-  StepResult metropolis_step();
+  CUDA_CALLABLE StepResult metropolis_step();
   void warmup();
   MeasurementSummary measure();
 };
