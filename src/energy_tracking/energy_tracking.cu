@@ -77,15 +77,15 @@ namespace {
 
 __global__
 void cudaInitializeReciprocalEnergy(
-    const std::size_t num_G,
-    const real_t* RESTRICT g_weights,
-    const real_t* RESTRICT sum_real,
-    const real_t* RESTRICT sum_imag,
-    real_t* RESTRICT G_sum
+  const std::size_t num_G,
+  const real_t* RESTRICT g_weights,
+  const real_t* RESTRICT sum_real,
+  const real_t* RESTRICT sum_imag,
+  real_t* RESTRICT G_sum
 ) {
   const auto [g]{vmc::cudaThreadIdx<1>()};
-  if (g >= num_G) return;
-  atomicAdd(G_sum, g_weights[g] * (sum_real[g]*sum_real[g] + sum_imag[g]*sum_imag[g]));
+  if (g >= num_G) { return; }
+  atomicAdd(G_sum, g_weights[g] * (sum_real[g] * sum_real[g] + sum_imag[g] * sum_imag[g]));
 }
 
 } // namespace
@@ -93,7 +93,7 @@ void cudaInitializeReciprocalEnergy(
 
 
 void EnergyTracker::initialize_reciprocal_energy() noexcept {
-  #ifdef VMC_CUDA_BACKEND
+#ifdef VMC_CUDA_BACKEND
 
   const real_t prefactor{1.0_r / (2.0_r * std::numbers::pi_v<real_t> * box_length_ * box_length_ * box_length_)};
   AlignedSoA<real_t> G_sum{1, 1};
@@ -113,7 +113,6 @@ void EnergyTracker::initialize_reciprocal_energy() noexcept {
  CUDA_CHECK(cudaDeviceSynchronize());
  V_recip_ = prefactor * *G_sum[0];
  return;
-
 
   #else
   const real_t L{box_length_};
@@ -136,12 +135,6 @@ void EnergyTracker::initialize_reciprocal_energy() noexcept {
   V_recip_ = prefactor * sum;
   #endif
 }
-
-
-
-
-
-
 
 void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept {
   const std::size_t N{particles.size()};
