@@ -10,7 +10,7 @@ __global__ void cudaBuildRow(
   const std::size_t* RESTRICT k_idx, const std::uint8_t* RESTRICT orb_t,
   real_t* RESTRICT row
 ) {
-  const std::size_t i{blockIdx.x * blockDim.x + threadIdx.x};
+  const auto [i]{vmc::cudaThreadIdx<1>()};
   if (i >= N) { return; }
 
   const real_t type{static_cast<real_t>(orb_t[i])};
@@ -26,7 +26,7 @@ __global__ void cudaDeterminantRatio(
   const real_t* RESTRICT new_row, const real_t* RESTRICT inv_det,
   real_t* RESTRICT ratio
 ) {
-  const std::size_t i{blockIdx.x * blockDim.x + threadIdx.x};
+  const auto [i]{vmc::cudaThreadIdx<1>()};
   if (i >= N) { return; }
 
   real_t product{new_row[i] * inv_det[particle * S + i]};
