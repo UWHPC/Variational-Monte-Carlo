@@ -147,62 +147,49 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, real_t box_lengthL)
 };
 
 #ifdef VMC_CUDA_BACKEND
-
 namespace {
 
-__global__ 
-void cudaAcceptMove(
+__global__
+void kComputeSK(
   std::size_t N,
   std::size_t S,
   std::size_t particle,
   const real_t* RESTRICT new_row,
-  real_t* RESTRICT inv_det,
-  const real_t* RESTRICT inv_d_col,
-  real_t inv_ratio
+  const real_t* RESTRICT inv_det,
+  real_t* RESTRICT s_k_array
 ) {
-  const std::size_t k{blockIdx.x * blockDim.x + threadIdx.x};
-  if (k >= N) return;
+  const std::size_t m{blockIdx.x * blockDim.x + threadIdx.x};
+  const std::size_t k{blockIdx.y * blockDim.y + threadIdx.y};
 
-  const std::size_t p_offset{particle * S};
+  if (m >= N || k >= N) return;
+  if (k == particle) return;
 
-  if (k == particle) {
-    kEqualsParticles(N, inv_det, inv_d_col, inv_ratio, p_offset);
-  } else {
-    kDoesNotEqualParticles(N, S, new_row, inv_det, inv_d_col, inv_ratio, k);
-  }
+  const real_t product{new_row[m] * inv_det[k * S + m]};
+  atomicAdd(&s_k_array[k], product);
 }
 
 __global__
-void kEqualsParticles(
-  std::size_t N,
-  real_t* RESTRICT inv_det,
-  const real_t* RESTRICT inv_d_col,
-  real_t inv_ratio,
-  const std::size_t p_offset
-) {
-  for (std::size_t j = 0; j < N; ++j) {
-      inv_det[p_offset + j] = inv_d_col[j] * inv_ratio;
-    }
-}
-
-__global__
-void kDoesNotEqualParticles(
+void kUpdateInverse(
   std::size_t N,
   std::size_t S,
-  const real_t* RESTRICT new_row,
-  real_t* RESTRICT inv_det,
+  std::size_t particle,
   const real_t* RESTRICT inv_d_col,
+  const real_t* RESTRICT s_k_array,
   real_t inv_ratio,
-  const std::size_t k
+  real_t* RESTRICT inv_det
 ) {
-  const std::size_t k_offset{k * S};
-  real_t s_k{0.0_r};
-  for (std::size_t m = 0; m < N; ++m) {
-    s_k += new_row[m] * inv_det[k_offset + m]; 
-  }
-  const real_t factor{s_k * inv_ratio};
-  for (std::size_t j = 0; j < N; ++j) {
-    inv_det[k_offset + j] -= inv_d_col[j] * factor;
+  const std::size_t j{blockIdx.x * blockDim.x + threadIdx.x};
+  const std::size_t k{blockIdx.y * blockDim.y + threadIdx.y};
+
+  if (j >= N || k >= N) return;
+
+  const std::size_t idx{k * S + j};
+
+  if (k == particle) {
+    inv_det[idx] = inv_d_col[j] * inv_ratio;
+  } else {
+    const real_t factor{s_k_array[k] * inv_ratio};
+    inv_det[idx] -= inv_d_col[j] * factor;
   }
 }
 
@@ -220,22 +207,29 @@ void SlaterPlaneWave::accept_move(
   const std::size_t S{matrix_row_stride()};
   const real_t inv_ratio{1.0_r / ratio};
 
-  if (!std::isfinite(inv_ratio)) {
-    return;
-  }
+  if (!std::isfinite(inv_ratio)) return;
 
   real_t* RESTRICT inv_det{inv_determinant()};
   real_t* RESTRICT det_matrix{determinant()};
   real_t* RESTRICT inv_d_col{this->inv_d_col()};
-  const std::size_t p_offset{particle * S}; 
+  real_t* RESTRICT s_k_array{this->solution()};
+
+  const std::size_t p_offset{particle * S};
 
   CUDA_CHECK(cudaMemcpyAsync(inv_d_col, &inv_det[p_offset], N * sizeof(real_t), cudaMemcpyDeviceToDevice));
 
-  dim3 acceptMoveThreads(256);
-  dim3 acceptMoveBlocks(vmc::cudaNumBlocks(N, acceptMoveThreads.x));
+  CUDA_CHECK(cudaMemsetAsync(s_k_array, 0, N * sizeof(real_t)));
 
-  cudaAcceptMove<<<acceptMoveBlocks, acceptMoveThreads>>>(
-    N, S, particle, new_row, inv_det, inv_d_col, inv_ratio
+  dim3 threads(16, 16);
+  dim3 blocks(vmc::cudaNumBlocks(N, threads.x), vmc::cudaNumBlocks(N, threads.y));
+
+  kComputeSK<<<blocks, threads>>>(
+    N, S, particle, new_row, inv_det, s_k_array
+  );
+  CUDA_CHECK(cudaGetLastError());
+
+  kUpdateInverse<<<blocks, threads>>>(
+    N, S, particle, inv_d_col, s_k_array, inv_ratio, inv_det
   );
   CUDA_CHECK(cudaGetLastError());
 
@@ -266,14 +260,12 @@ void SlaterPlaneWave::accept_move(
 
   // Follows Sherman-Morrison update (branchless)
   for (std::size_t k = 0; k < N; ++k) {
-    // Skip the special row for now
     if (k == particle)
       continue;
 
-    const std::size_t k_offset{k * S}; // Pre-calculate row offset
+    const std::size_t k_offset{k * S};
     real_t s_k{};
 
-    // Compiler can now easily auto-vectorize this
     #pragma omp simd reduction(+ : s_k)
     for (std::size_t m = 0; m < N; ++m) {
       s_k += new_row[m] * inv_det[k_offset + m];
@@ -281,20 +273,17 @@ void SlaterPlaneWave::accept_move(
 
     const real_t factor{s_k * inv_ratio};
 
-    // Not vectorized: loop-carried data dependency
     #pragma omp simd
     for (std::size_t j = 0; j < N; ++j) {
       inv_det[k_offset + j] -= inv_d_col[j] * factor;
     }
   }
 
-  // Special case: handle the particle row outside the loop
   #pragma omp simd
   for (std::size_t j = 0; j < N; ++j) {
     inv_det[p_offset + j] = inv_d_col[j] * inv_ratio;
   }
 
-  // Patch row `particle` of D to match the new positions:
   std::memcpy(&det_matrix[p_offset], new_row, N * sizeof(real_t));
-  #endif 
+  #endif
 }

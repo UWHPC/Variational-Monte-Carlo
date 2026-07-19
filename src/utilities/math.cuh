@@ -152,12 +152,20 @@ inline real_t ceil(real_t arg) noexcept {
 
 CUDA_CALLABLE [[nodiscard]]
 inline real_t max(real_t a, real_t b) noexcept {
+#ifdef __CUDA_ARCH__
+  return a > b ? a : b;
+#else
   return std::max(a, b);
+#endif
 }
 
 CUDA_CALLABLE [[nodiscard]]
 inline real_t min(real_t a, real_t b) noexcept {
+#ifdef __CUDA_ARCH__
+  return a < b ? a : b;
+#else
   return std::min(a, b);
+#endif
 }
 
 CUDA_CALLABLE [[nodiscard]]
