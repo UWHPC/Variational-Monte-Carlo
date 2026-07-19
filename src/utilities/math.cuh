@@ -72,7 +72,7 @@ inline real_t pow(real_t arg, real_t power) noexcept {
   #ifdef FP_64
     return ::pow(arg, power);
   #elif defined(VMC_FAST_MATH)
-    return __powf(arg, power);;
+    return __powf(arg, power);
   #else
     return powf(arg, power);
   #endif
@@ -152,8 +152,35 @@ inline real_t ceil(real_t arg) noexcept {
 
 CUDA_CALLABLE [[nodiscard]]
 inline unsigned int cudaNumBlocks(std::size_t size, unsigned int threads) noexcept {
-  return static_cast<unsigned int>((size + threads - 1)) / threads;
+  return static_cast<unsigned int>((size + threads - 1) / threads);
 }
+
+#if defined(__CUDACC__)
+
+template <int Dims> struct GlobalId;
+template <> struct GlobalId<1> { std::size_t x{}; };
+template <> struct GlobalId<2> { std::size_t x{}, y{}; };
+template <> struct GlobalId<3> { std::size_t x{}, y{}, z{}; };
+
+template <int Dims>
+__device__ [[nodiscard]]
+inline GlobalId<Dims> cudaThreadIdx() noexcept {
+  GlobalId<Dims> id{};
+  
+  if constexpr (Dims >= 1) {
+    id.x = static_cast<std::size_t>(blockDim.x) * blockIdx.x + threadIdx.x;
+  }
+  if constexpr (Dims >= 2) {
+    id.y = static_cast<std::size_t>(blockDim.y) * blockIdx.y + threadIdx.y;
+  }
+  if constexpr (Dims >= 3) {
+    id.z = static_cast<std::size_t>(blockDim.z) * blockIdx.z + threadIdx.z;
+  }
+
+  return id;
+}
+
+#endif
 
 CUDA_CALLABLE [[nodiscard]]
 inline real_t erfc(real_t arg) noexcept {
@@ -162,7 +189,6 @@ inline real_t erfc(real_t arg) noexcept {
     return ::erfc(arg);
   #elif defined(VMC_FAST_MATH)
     const real_t t{1.0_r / (1.0_r + 0.3275911_r * arg)};
-    constexpr real_t p{0.3275911_r};
     constexpr real_t a1{0.254829592_r};
     constexpr real_t a2{-0.284496736_r};
     constexpr real_t a3{1.421413741_r};

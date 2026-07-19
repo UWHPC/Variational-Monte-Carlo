@@ -90,20 +90,17 @@ void cudaBuildTrigCache(
   const real_t* RESTRICT k_x, const real_t* RESTRICT k_y, const real_t* RESTRICT k_z,
   real_t* RESTRICT s_cache, real_t* RESTRICT c_cache
 ) {
-  const std::size_t j{blockIdx.x * blockDim.x + threadIdx.x};
-  if (j >= num_unique_k) { return; }
-
-  const std::size_t i{blockIdx.y * blockDim.y + threadIdx.y};
-  if (i >= N) { return; }
+  const auto [i, j]{vmc::cudaThreadIdx<2>()};
+  if (i >= num_unique_k || j >= N) {return; }
 
   const real_t dot{
-    k_x[j] * p_x[i] +
-    k_y[j] * p_y[i] +
-    k_z[j] * p_z[i]
+    k_x[i] * p_x[j] +
+    k_y[i] * p_y[j] +
+    k_z[i] * p_z[j]
   };
 
-  const std::size_t offset{i * trig_S};
-  const std::size_t sc_idx{offset + j};
+  const std::size_t offset{j * trig_S};
+  const std::size_t sc_idx{offset + i};
 
   vmc::sincos(dot, &s_cache[sc_idx], &c_cache[sc_idx]);
 }
@@ -115,17 +112,14 @@ void cudaBuildDetFromCache(
   const std::size_t* RESTRICT k_idx, const std::uint8_t* RESTRICT orb_t,
   real_t* RESTRICT det_mat
 ) {
-  const std::size_t j{blockIdx.x * blockDim.x + threadIdx.x};
-  if (j >= N) { return; }
+  const auto [i, j]{vmc::cudaThreadIdx<2>()};
+  if (i >= N || j >= N) { return; }
 
-  const std::size_t i{blockIdx.y * blockDim.y + threadIdx.y};
-  if (i >= N) { return; }
+  const std::size_t offset{j * trig_S};
+  const std::size_t trig_idx{offset + k_idx[i]};
+  const std::size_t mat_idx{j * mat_S + i};
 
-  const std::size_t offset{i * trig_S};
-  const std::size_t trig_idx{offset + k_idx[j]};
-  const std::size_t mat_idx{i * mat_S + j};
-
-  const real_t type{static_cast<real_t>(orb_t[j])};
+  const real_t type{static_cast<real_t>(orb_t[i])};
   const real_t cos_term{c_cache[trig_idx]};
   const real_t sin_term{s_cache[trig_idx]};
 
@@ -138,7 +132,7 @@ void cudaComputeLogAbsDet(
   const real_t* lower_upper,
   real_t* log_abs_det
 ) {
-  const std::size_t i{blockIdx.x * blockDim.x + threadIdx.x};
+  const auto [i]{vmc::cudaThreadIdx<1>()};
   if (i >= N) { return; }
 
   const real_t U_diag{lower_upper[i * mat_S + i]};
@@ -152,9 +146,8 @@ void cudaBuildIdentity(
   std::size_t mat_S,
   real_t* matrix
 ) {
-  const std::size_t i{blockIdx.x * blockDim.x + threadIdx.x};
-  const std::size_t size{N * mat_S};
-  if (i >= size) { return; }
+  const auto [i]{vmc::cudaThreadIdx<1>()};
+  if (i >= N * mat_S) { return; }
 
   const std::size_t row{i / mat_S};
   const std::size_t col{i - row * mat_S};

@@ -13,7 +13,7 @@ void cudaAccumulateDerivatives(
   real_t* RESTRICT g_mag,
   real_t* RESTRICT lap
 ) {
-  const std::size_t i{blockIdx.x * blockDim.x + threadIdx.x};
+  const auto [i]{vmc::cudaThreadIdx<1>()};
   if (i >= size_orb) { return; }
 
   g_mag[i] = (
@@ -33,11 +33,8 @@ void cudaAddDerivatives(
   const real_t* RESTRICT inv_det, const real_t* RESTRICT s_cache, const real_t* RESTRICT c_cache,
   real_t* RESTRICT grad_x, real_t* RESTRICT grad_y, real_t* RESTRICT grad_z, real_t* RESTRICT lap
 ) {
-  const std::size_t i{blockIdx.x * blockDim.x + threadIdx.x};
-  if (i >= size_orb) { return; }
-
-  const std::size_t j{blockIdx.y * blockDim.y + threadIdx.y};
-  if (j >= size_orb) { return; }
+  const auto [i, j]{vmc::cudaThreadIdx<2>()};
+  if (i >= size_orb || j >= size_orb) { return; }
 
   const std::size_t trig_offset{i * trig_S};
   const std::size_t mat_offset{i * mat_S};
