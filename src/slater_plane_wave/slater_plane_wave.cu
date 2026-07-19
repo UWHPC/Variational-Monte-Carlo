@@ -166,19 +166,43 @@ void cudaAcceptMove(
   const std::size_t p_offset{particle * S};
 
   if (k == particle) {
-    for (std::size_t j = 0; j < N; ++j) {
+    kEqualsParticles(N, inv_det, inv_d_col, inv_ratio, p_offset);
+  } else {
+    kDoesNotEqualParticles(N, S, new_row, inv_det, inv_d_col, inv_ratio, k);
+  }
+}
+
+__global__
+void kEqualsParticles(
+  std::size_t N,
+  real_t* RESTRICT inv_det,
+  const real_t* RESTRICT inv_d_col,
+  real_t inv_ratio,
+  const std::size_t p_offset
+) {
+  for (std::size_t j = 0; j < N; ++j) {
       inv_det[p_offset + j] = inv_d_col[j] * inv_ratio;
     }
-  } else {
-    const std::size_t k_offset{k * S};
-    real_t s_k{0.0_r};
-    for (std::size_t m = 0; m < N; ++m) {
-      s_k += new_row[m] * inv_det[k_offset + m]; 
-    }
-    const real_t factor{s_k * inv_ratio};
-    for (std::size_t j = 0; j < N; ++j) {
-      inv_det[k_offset + j] -= inv_d_col[j] * factor;
-    }
+}
+
+__global__
+void kDoesNotEqualParticles(
+  std::size_t N,
+  std::size_t S,
+  const real_t* RESTRICT new_row,
+  real_t* RESTRICT inv_det,
+  const real_t* RESTRICT inv_d_col,
+  real_t inv_ratio,
+  const std::size_t k
+) {
+  const std::size_t k_offset{k * S};
+  real_t s_k{0.0_r};
+  for (std::size_t m = 0; m < N; ++m) {
+    s_k += new_row[m] * inv_det[k_offset + m]; 
+  }
+  const real_t factor{s_k * inv_ratio};
+  for (std::size_t j = 0; j < N; ++j) {
+    inv_det[k_offset + j] -= inv_d_col[j] * factor;
   }
 }
 
