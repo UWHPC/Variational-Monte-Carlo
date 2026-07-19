@@ -72,7 +72,49 @@ EnergyTracker::EnergyTracker(real_t box_length, real_t num_particles)
   std::copy_n(tmp_w.data(), num_g_vectors_, g_weights());
 }
 
+#ifdef VMC_CUDA_BACKEND
+namespace {
+
+__global__
+void cudaInitializeReciprocalEnergy(
+  const std::size_t num_G,
+  const real_t* RESTRICT g_weights,
+  const real_t* RESTRICT sum_real,
+  const real_t* RESTRICT sum_imag,
+  real_t* RESTRICT G_sum
+) {
+  const auto [g]{vmc::cudaThreadIdx<1>()};
+  if (g >= num_G) { return; }
+  atomicAdd(G_sum, g_weights[g] * (sum_real[g] * sum_real[g] + sum_imag[g] * sum_imag[g]));
+}
+
+} // namespace
+#endif
+
+
 void EnergyTracker::initialize_reciprocal_energy() noexcept {
+#ifdef VMC_CUDA_BACKEND
+
+  const real_t prefactor{1.0_r / (2.0_r * std::numbers::pi_v<real_t> * box_length_ * box_length_ * box_length_)};
+  AlignedSoA<real_t> G_sum{1, 1};
+  const auto num_G{num_g_vectors_};
+
+  dim3 initalizeReciprocalEnergyThreads(256);
+  dim3 initalizeReciprocalEnergyBlocks(vmc::cudaNumBlocks(num_G, initalizeReciprocalEnergyThreads.x));
+
+ cudaInitializeReciprocalEnergy<<<initalizeReciprocalEnergyBlocks, initalizeReciprocalEnergyThreads>>>(
+   num_G,
+    this->g_weights(),
+    this->sum_real(),
+    this->sum_imag(),
+    G_sum[0]
+ );
+ CUDA_CHECK(cudaGetLastError());
+ CUDA_CHECK(cudaDeviceSynchronize());
+ V_recip_ = prefactor * *G_sum[0];
+ return;
+
+  #else
   const real_t L{box_length_};
   const real_t prefactor{1.0_r / (2.0_r * std::numbers::pi_v<real_t> * L * L * L)};
 
@@ -91,6 +133,7 @@ void EnergyTracker::initialize_reciprocal_energy() noexcept {
     sum += g_weights[g] * (sum_real[g] * sum_real[g] + sum_imag[g] * sum_imag[g]);
   }
   V_recip_ = prefactor * sum;
+  #endif
 }
 
 void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept {
