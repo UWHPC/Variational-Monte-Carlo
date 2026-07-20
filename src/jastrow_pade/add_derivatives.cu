@@ -14,49 +14,48 @@ void cudaAddDerivatives(
 ) {
   const auto [i, j]{vmc::cudaThreadIdx<2>()};
   if (i >= num_particles || j >= num_particles) { return; }
+  if (i == j) { return; }
 
-  const real_t valid_idx{i == j ? 0.0_r : 1.0_r};
+  auto displ_x{p_x[i] - p_x[j]};
+  auto displ_y{p_y[i] - p_y[j]};
+  auto displ_z{p_z[i] - p_z[j]};
 
-  real_t displ_x{p_x[i] - p_x[j]};
-  real_t displ_y{p_y[i] - p_y[j]};
-  real_t displ_z{p_z[i] - p_z[j]};
-
-  const real_t neg_L{-1.0_r * L};
-  const real_t half_L{0.5_r * L};
-  const real_t neg_half_L{-1.0_r * half_L};
+  const auto neg_L{-1.0_r * L};
+  const auto half_L{0.5_r * L};
+  const auto neg_half_L{-1.0_r * half_L};
 
 
   displ_x += L * (displ_x <= neg_half_L) + neg_L * (displ_x > half_L);
   displ_y += L * (displ_y <= neg_half_L) + neg_L * (displ_y > half_L);
   displ_z += L * (displ_z <= neg_half_L) + neg_L * (displ_z > half_L);
 
-  const real_t dist_sq{
+  const auto dist_sq{
     displ_x * displ_x +
     displ_y * displ_y +
     displ_z * displ_z
   };
 
-  const real_t dist{vmc::sqrt(dist_sq)};
+  const auto dist{vmc::sqrt(dist_sq)};
 
-  const bool degenerate{dist < 1e-12_r};
-  const real_t inv_dist{degenerate ? 1.0_r : 1.0_r / dist};
-  const real_t mask{degenerate ? 0.0_r : valid_idx};
+  if (dist < 1e-12_r) { return; }
+  const real_t inv_dist{1.0_r / dist};
 
-  const real_t denom{1.0_r / (1.0_r + b * dist)};
-  const real_t denom_sq{denom * denom};
-  const real_t denom_cb{denom_sq * denom};
+  const auto denom{1.0_r / (1.0_r + b * dist)};
+  const auto denom_sq{denom * denom};
+  const auto denom_cb{denom_sq * denom};
 
-  const real_t first_deriv{a * denom_sq};
-  const real_t second_deriv{(-2.0_r * a * b) * denom_cb};
+  const auto first_deriv{a * denom_sq};
+  const auto second_deriv{(-2.0_r * a * b) * denom_cb};
 
-  const real_t grad_factor{mask * first_deriv * inv_dist};
-  const real_t laplacian_pair{mask * (second_deriv + 2.0_r * first_deriv * inv_dist)};
+  const auto grad_factor{first_deriv * inv_dist};
+  const auto laplacian_pair{second_deriv + 2.0_r * first_deriv * inv_dist};
 
   atomicAdd(&grad_x[i], grad_factor * displ_x);
   atomicAdd(&grad_y[i], grad_factor * displ_y);
   atomicAdd(&grad_z[i], grad_factor * displ_z);
   atomicAdd(&laplacian[i], laplacian_pair);
 }
+
 }
 #endif
 
