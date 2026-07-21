@@ -1,5 +1,7 @@
 #include "slater_plane_wave.cuh"
 
+#include <utility>
+
 #ifdef VMC_CUDA_BACKEND
 #include <cublas_v2.h>
 #include <cmath>
@@ -8,7 +10,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
-#include <utility>
 
 #ifdef __CUDACC__
 
@@ -23,25 +24,25 @@ struct CudaScratch {
 };
 
 void destroyCudaScratch(void* ptr) noexcept {
-    if (ptr == nullptr) {
-      return;
-    }
+  if (ptr == nullptr) {
+    return;
+  }
 
-    auto* scratch = static_cast<CudaScratch*>(ptr);
-        if (scratch->handle) {
-      cusolverDnDestroy(scratch->handle);
-    }
-    if (scratch->work) {
-      cudaFree(scratch->work);
-    }
-    if (scratch->info) {
-      cudaFree(scratch->info);
-    }
-    if (scratch->log_abs_det) {
-      cudaFree(scratch->log_abs_det);
-    }
+  auto* scratch = static_cast<CudaScratch*>(ptr);
+  if (scratch->handle) {
+    cusolverDnDestroy(scratch->handle);
+  }
+  if (scratch->work) {
+    cudaFree(scratch->work);
+  }
+  if (scratch->info) {
+    cudaFree(scratch->info);
+  }
+  if (scratch->log_abs_det) {
+    cudaFree(scratch->log_abs_det);
+  }
 
-    delete scratch;
+  delete scratch;
 }
 
 inline void cuSolverGetrfBufferSize(
@@ -66,35 +67,34 @@ inline void cuSolverGetrfBufferSize(
 CudaScratch* createCudaScratch(int N, int leading_dim, real_t* lower_upper) {
   auto* scratch = new CudaScratch{};
 
-    CUSOLVER_CHECK(cusolverDnCreate(&scratch->handle));
+  CUSOLVER_CHECK(cusolverDnCreate(&scratch->handle));
 
-    cuSolverGetrfBufferSize(
-      scratch->handle,
-      N,
-      N,
-      lower_upper,
-      leading_dim,
-      &scratch->work_size
-    );
+  cuSolverGetrfBufferSize(
+    scratch->handle,
+    N,
+    N,
+    lower_upper,
+    leading_dim,
+    &scratch->work_size
+  );
 
-    CUDA_CHECK(cudaMallocManaged(
-      reinterpret_cast<void**>(&scratch->work),
-      static_cast<std::size_t>(scratch->work_size) * sizeof(real_t)
-    ));
+  CUDA_CHECK(cudaMallocManaged(
+    reinterpret_cast<void**>(&scratch->work),
+    static_cast<std::size_t>(scratch->work_size) * sizeof(real_t)
+  ));
 
-    CUDA_CHECK(cudaMallocManaged(
-      reinterpret_cast<void**>(&scratch->info),
-      sizeof(int)
-    ));
+  CUDA_CHECK(cudaMallocManaged(
+    reinterpret_cast<void**>(&scratch->info),
+    sizeof(int)
+  ));
 
-    CUDA_CHECK(cudaMallocManaged(
-      reinterpret_cast<void**>(&scratch->log_abs_det),
-      sizeof(real_t)
-    ));
+  CUDA_CHECK(cudaMallocManaged(
+    reinterpret_cast<void**>(&scratch->log_abs_det),
+    sizeof(real_t)
+  ));
 
-    return scratch;
+  return scratch;
 }
-
 
 inline void cusolverGetrf(
   cusolverDnHandle_t handle,

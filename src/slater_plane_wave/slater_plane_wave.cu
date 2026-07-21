@@ -37,7 +37,7 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, real_t box_lengthL)
 , fp_vec_{particles.size(), NUM_DOUBLE_VECTORS}
 , trig_cache_{}
 , matrices_{matrix_row_stride_ * particles.size(), NUM_MATRIX}
-, cuda_scratch_{NULL} {
+, cuda_scratch_{nullptr} {
 
   const std::size_t N{num_orbitals()};
   const std::size_t num_particles{particles.size()};
