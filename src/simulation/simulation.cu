@@ -19,22 +19,23 @@ Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_write
 , proposed_{}
 , accepted_{}
 , log_psi_current_{}
+, positions_{}
 , walker_rng_{}
-{ walker_rng_.init(config_, 0); }
+{
+  walker_rng_.init(config_, 0);
+  positions_.resize(particles_.size() * 3U);
+}
 
-std::vector<real_t> Simulation::positions_snapshot() const {
+std::vector<real_t> Simulation::positions_snapshot() {
   const std::size_t N{particles_.size()};
   auto [p_x, p_y, p_z]{particles_.pos().align()};
 
-  std::vector<real_t> positions{};
-  positions.reserve(N * 3U);
-
   for (std::size_t i{}; i < N; ++i) {
-    positions.push_back(p_x[i]);
-    positions.push_back(p_y[i]);
-    positions.push_back(p_z[i]);
+    positions_[i * 3U] = p_x[i];
+    positions_[i * 3U + 1U] = p_y[i];
+    positions_[i * 3U + 2U] = p_z[i];
   }
-  return positions;
+  return positions_;
 }
 
 void Simulation::initialize_positions() {

@@ -1,3 +1,5 @@
+test_config_tmp.cfg
+
 docs/*
 !docs/paper.tex
 !docs/paper.pdf

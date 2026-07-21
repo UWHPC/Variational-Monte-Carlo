@@ -27,6 +27,8 @@ private:
   std::size_t accepted_;
   real_t log_psi_current_;
 
+  std::vector<real_t> positions_;
+
   WalkerRNG walker_rng_;
 
   CUDA_CALLABLE [[nodiscard]] real_t rand_uniform() { return walker_rng_.rand_uniform(); }
@@ -48,7 +50,7 @@ private:
     real_t old_z;
   };
 
-  [[nodiscard]] std::vector<real_t> positions_snapshot() const;
+  [[nodiscard]] std::vector<real_t> positions_snapshot();
 
 public:
   struct MeasurementSummary {
