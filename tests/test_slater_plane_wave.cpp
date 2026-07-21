@@ -6,6 +6,7 @@
 
 #include <cmath>
 #include <numbers>
+#include <random>
 #include <tuple>
 #include <vector>
 
@@ -80,32 +81,33 @@ TEST_CASE("log_abs_det computes an inverse satisfying D*invD = I", "[slater]") {
 }
 
 #ifdef VMC_CUDA_BACKEND
-TEST_CASE("log_abs_det reuses CUDA scratch across repeated calls", "[cuda-scratch]") {
-  constexpr std::size_t N{3U};
+TEST_CASE("log_abs_det reuses CUDA scratch across repeated N=512 calls", "[cuda-scratch]") {
+  constexpr std::size_t N{512U};
+  constexpr real_t L{20.0_r};
   Particles particles{N};
-  SlaterPlaneWave slater{particles, 11.0_r};
+  SlaterPlaneWave slater{particles, L};
 
-  particles.pos().x_[0] = 0.3_r;
-  particles.pos().y_[0] = 0.4_r;
-  particles.pos().z_[0] = 0.5_r;
-
-  particles.pos().x_[1] = 1.7_r;
-  particles.pos().y_[1] = 0.2_r;
-  particles.pos().z_[1] = 2.1_r;
-
-  particles.pos().x_[2] = 2.2_r;
-  particles.pos().y_[2] = 1.8_r;
-  particles.pos().z_[2] = 0.9_r;
+  std::mt19937_64 rng{0x66CADAULL};
+  std::uniform_real_distribution<real_t> coordinate{0.0_r, L};
+  for (std::size_t particle = 0; particle < N; ++particle) {
+    particles.pos().x_[particle] = coordinate(rng);
+    particles.pos().y_[particle] = coordinate(rng);
+    particles.pos().z_[particle] = coordinate(rng);
+  }
 
   const real_t first{slater.log_abs_det(particles)};
   REQUIRE(std::isfinite(first));
   REQUIRE(std::abs(first) > 1e-3_r);
 
+  const real_t tolerance{
+    10.0_r * DEFAULT_TOLERANCE * std::max(1.0_r, std::abs(first))
+  };
+
   for (std::size_t call = 0; call < 4U; ++call) {
-    CAPTURE(call);
+    CAPTURE(call, tolerance);
     const real_t repeated{slater.log_abs_det(particles)};
     REQUIRE(std::isfinite(repeated));
-    require_near(repeated, first, 10.0_r * DEFAULT_TOLERANCE);
+    require_near(repeated, first, tolerance);
   }
 }
 #endif
