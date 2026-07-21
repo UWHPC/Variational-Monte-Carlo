@@ -79,6 +79,37 @@ TEST_CASE("log_abs_det computes an inverse satisfying D*invD = I", "[slater]") {
   }
 }
 
+#ifdef VMC_CUDA_BACKEND
+TEST_CASE("log_abs_det reuses CUDA scratch across repeated calls", "[cuda-scratch]") {
+  constexpr std::size_t N{3U};
+  Particles particles{N};
+  SlaterPlaneWave slater{particles, 11.0_r};
+
+  particles.pos().x_[0] = 0.3_r;
+  particles.pos().y_[0] = 0.4_r;
+  particles.pos().z_[0] = 0.5_r;
+
+  particles.pos().x_[1] = 1.7_r;
+  particles.pos().y_[1] = 0.2_r;
+  particles.pos().z_[1] = 2.1_r;
+
+  particles.pos().x_[2] = 2.2_r;
+  particles.pos().y_[2] = 1.8_r;
+  particles.pos().z_[2] = 0.9_r;
+
+  const real_t first{slater.log_abs_det(particles)};
+  REQUIRE(std::isfinite(first));
+  REQUIRE(std::abs(first) > 1e-3_r);
+
+  for (std::size_t call = 0; call < 4U; ++call) {
+    CAPTURE(call);
+    const real_t repeated{slater.log_abs_det(particles)};
+    REQUIRE(std::isfinite(repeated));
+    require_near(repeated, first, 10.0_r * DEFAULT_TOLERANCE);
+  }
+}
+#endif
+
 TEST_CASE("SlaterPlaneWave zero-initializes the full trig cache span", "[slater]") {
   constexpr std::size_t N{7U};
   Particles particles{N};
