@@ -8,8 +8,41 @@
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
+#include <utility>
+
+#ifdef __CUDACC__
 
 namespace {
+
+struct CudaScratch {
+  cusolverDnHandle_t handle{};
+  real_t* work{};
+  int* info{};
+  real_t* log_abs_det{};
+  int work_size{};
+};
+
+void destroyCudaScratch(void* ptr) noexcept {
+    if (ptr == nullptr) {
+      return;
+    }
+
+    auto* scratch = static_cast<CudaScratch*>(ptr);
+        if (scratch->handle) {
+      cusolverDnDestroy(scratch->handle);
+    }
+    if (scratch->work) {
+      cudaFree(scratch->work);
+    }
+    if (scratch->info) {
+      cudaFree(scratch->info);
+    }
+    if (scratch->log_abs_det) {
+      cudaFree(scratch->log_abs_det);
+    }
+
+    delete scratch;
+}
 
 inline void cuSolverGetrfBufferSize(
   cusolverDnHandle_t handle,
@@ -29,6 +62,39 @@ inline void cuSolverGetrfBufferSize(
   ));
 #endif
 }
+
+CudaScratch* createCudaScratch(int N, int leading_dim, real_t* lower_upper) {
+  auto* scratch = new CudaScratch{};
+
+    CUSOLVER_CHECK(cusolverDnCreate(&scratch->handle));
+
+    cuSolverGetrfBufferSize(
+      scratch->handle,
+      N,
+      N,
+      lower_upper,
+      leading_dim,
+      &scratch->work_size
+    );
+
+    CUDA_CHECK(cudaMallocManaged(
+      reinterpret_cast<void**>(&scratch->work),
+      static_cast<std::size_t>(scratch->work_size) * sizeof(real_t)
+    ));
+
+    CUDA_CHECK(cudaMallocManaged(
+      reinterpret_cast<void**>(&scratch->info),
+      sizeof(int)
+    ));
+
+    CUDA_CHECK(cudaMallocManaged(
+      reinterpret_cast<void**>(&scratch->log_abs_det),
+      sizeof(real_t)
+    ));
+
+    return scratch;
+}
+
 
 inline void cusolverGetrf(
   cusolverDnHandle_t handle,
@@ -156,6 +222,8 @@ void cudaBuildIdentity(
 }
 
 } // namespace
+
+#endif
 #else
 #include "slater_plane_wave.cuh"
 #include "../utilities/matrix.hpp"
@@ -170,27 +238,71 @@ void cudaBuildIdentity(
 #include <vector>
 #endif
 
+SlaterPlaneWave::~SlaterPlaneWave() {
+#ifdef __CUDACC__
+  destroyCudaScratch(cuda_scratch_);
+#endif
+  cuda_scratch_ = nullptr;
+}
+
+SlaterPlaneWave::SlaterPlaneWave(SlaterPlaneWave&& other) noexcept
+  : num_orbitals_{other.num_orbitals_}
+  , num_unique_k_{other.num_unique_k_}
+  , trig_row_stride_{other.trig_row_stride_}
+  , matrix_row_stride_{other.matrix_row_stride_}
+  , matrix_size_{other.matrix_size_}
+  , box_length_{other.box_length_}
+  , orbital_k_index_{std::move(other.orbital_k_index_)}
+  , orbital_type_{std::move(other.orbital_type_)}
+  , int_vec_{std::move(other.int_vec_)}
+  , fp_vec_{std::move(other.fp_vec_)}
+  , trig_cache_{std::move(other.trig_cache_)}
+  , trig_scratch_{std::move(other.trig_scratch_)}
+  , matrices_{std::move(other.matrices_)}
+  , cuda_scratch_{other.cuda_scratch_} {
+    other.cuda_scratch_ = nullptr;
+  }
+
+SlaterPlaneWave& SlaterPlaneWave::operator=(SlaterPlaneWave&& other) noexcept {
+  if (this == &other) {
+    return *this;
+  }
+#ifdef __CUDACC__
+  destroyCudaScratch(cuda_scratch_);
+#endif
+
+  num_orbitals_ = other.num_orbitals_;
+  num_unique_k_ = other.num_unique_k_;
+  trig_row_stride_ = other.trig_row_stride_;
+  matrix_row_stride_ = other.matrix_row_stride_;
+  matrix_size_ = other.matrix_size_;
+  box_length_ = other.box_length_;
+
+  orbital_k_index_ = std::move(other.orbital_k_index_);
+  orbital_type_ = std::move(other.orbital_type_);
+  int_vec_ = std::move(other.int_vec_);
+  fp_vec_ = std::move(other.fp_vec_);
+  trig_cache_ = std::move(other.trig_cache_);
+  trig_scratch_ = std::move(other.trig_scratch_);
+  matrices_ = std::move(other.matrices_);
+  cuda_scratch_ = other.cuda_scratch_;
+  other.cuda_scratch_ = nullptr;
+
+  return *this;
+}
 
 real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
 #ifdef VMC_CUDA_BACKEND
-  AlignedSoA<real_t> log_abs_det{1, 1};
-
   const int N{static_cast<int>(particles.size())};
   const int mat_S{static_cast<int>(this->matrix_row_stride())};
 
-  cusolverDnHandle_t cusolver_handle{};
-  CUSOLVER_CHECK(cusolverDnCreate(&cusolver_handle));
+  if (cuda_scratch_ == nullptr) {
+    cuda_scratch_ = createCudaScratch(N, mat_S, this->lower_upper());
+  }
 
-  int work_size{};
-  cuSolverGetrfBufferSize(
-    cusolver_handle,
-    N, N,
-    this->lower_upper(), mat_S,
-    &work_size
-  );
+  auto* scratch = static_cast<CudaScratch*>(cuda_scratch_);
 
-  AlignedSoA<real_t> work{static_cast<std::size_t>(work_size), 1};
-  AlignedSoA<int> info{1, 1};
+  *scratch->log_abs_det = real_t{};
 
   dim3 buildTrigCacheThreads(16, 16);
   dim3 buildTrigCacheBlocks(
@@ -229,16 +341,17 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
   ));
 
   cusolverGetrf(
-    cusolver_handle,
+    scratch->handle,
     N, N,
     this->lower_upper(), mat_S,
-    work[0], this->pivot(), info[0]
+    scratch->work,
+    this->pivot(),
+    scratch->info
   );
 
   CUDA_CHECK(cudaDeviceSynchronize());
-  checkCusolverInfo(*info[0], "getrf");
-  if (*info[0] > 0) {
-    CUSOLVER_CHECK(cusolverDnDestroy(cusolver_handle));
+  checkCusolverInfo(*scratch->info, "getrf");
+  if (*scratch->info > 0) {
     return -std::numeric_limits<real_t>::infinity();
   }
 
@@ -249,7 +362,7 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
   cudaComputeLogAbsDet<<<computeLogAbsDetBlocks, computeLogAbsDetThreads>>>(
     particles.size(), this->matrix_row_stride(),
     this->lower_upper(),
-    log_abs_det[0]
+    scratch->log_abs_det
   );
   CUDA_CHECK(cudaGetLastError());
 
@@ -268,24 +381,23 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
   CUDA_CHECK(cudaGetLastError());
 
   cusolverGetrs(
-    cusolver_handle,
+    scratch->handle,
     CUBLAS_OP_T,
     N, N,
     this->lower_upper(), mat_S,
     this->pivot(),
     this->inv_determinant(), mat_S,
-    info[0]
+    scratch->info
   );
 
   CUDA_CHECK(cudaDeviceSynchronize());
-  checkCusolverInfo(*info[0], "getrs");
-  CUSOLVER_CHECK(cusolverDnDestroy(cusolver_handle));
+  checkCusolverInfo(*scratch->info, "getrs");
 
-  if (!std::isfinite(*log_abs_det[0])) {
+  if (!std::isfinite(*scratch->log_abs_det)) {
     return -std::numeric_limits<real_t>::infinity();
   }
 
-  return *log_abs_det[0];
+  return *scratch->log_abs_det;
 #else
   const std::size_t N{this->num_orbitals()};
   const std::size_t S{this->matrix_row_stride()};
