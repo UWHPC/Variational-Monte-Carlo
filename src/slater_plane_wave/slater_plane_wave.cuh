@@ -12,6 +12,16 @@
 #include <numbers>
 #include <vector>
 
+#ifdef VMC_CUDA_BACKEND
+struct CudaScratch {
+  cusolverDnHandle_t handle{};
+  int work_size{};
+  AlignedSoA<real_t> work{};
+  AlignedSoA<int> info{};
+  AlignedSoA<real_t> log_abs_det{};
+};
+#endif
+
 class SlaterPlaneWave {
 private:
   std::size_t num_orbitals_;
@@ -51,7 +61,10 @@ private:
   enum MatrixIndex : std::size_t { D, INV_D, LU, NUM_MATRIX };
   AlignedSoA<real_t> matrices_;
 
-  void* cuda_scratch_;
+#ifdef VMC_CUDA_BACKEND
+  CudaScratch cuda_scratch_{};
+#endif
+
 public:
   explicit SlaterPlaneWave(const Particles& particles, real_t box_length);
 
@@ -60,8 +73,8 @@ public:
   SlaterPlaneWave(const SlaterPlaneWave&) = delete;
   SlaterPlaneWave& operator=(const SlaterPlaneWave&) = delete;
 
-  SlaterPlaneWave(SlaterPlaneWave&& other) noexcept;
-  SlaterPlaneWave& operator=(SlaterPlaneWave&& other) noexcept;
+  SlaterPlaneWave(SlaterPlaneWave&&) = delete;
+  SlaterPlaneWave& operator=(SlaterPlaneWave&&) = delete;
 
   [[nodiscard]] std::size_t num_orbitals() const noexcept { return num_orbitals_; }
   [[nodiscard]] std::size_t num_unique_k() const noexcept { return num_unique_k_; }
