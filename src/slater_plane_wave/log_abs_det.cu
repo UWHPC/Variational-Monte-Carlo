@@ -9,7 +9,7 @@
 #include <cstdlib>
 #include <limits>
 
-#ifdef __CUDACC__
+#ifdef VMC_CUDA_BACKEND
 
 namespace {
 
