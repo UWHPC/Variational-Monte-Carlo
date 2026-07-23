@@ -72,7 +72,49 @@ EnergyTracker::EnergyTracker(real_t box_length, real_t num_particles)
   std::copy_n(tmp_w.data(), num_g_vectors_, g_weights());
 }
 
+#ifdef VMC_CUDA_BACKEND
+namespace {
+
+__global__
+void cudaInitializeReciprocalEnergy(
+  const std::size_t num_G,
+  const real_t* RESTRICT g_weights,
+  const real_t* RESTRICT sum_real,
+  const real_t* RESTRICT sum_imag,
+  real_t* RESTRICT G_sum
+) {
+  const auto [g]{vmc::cudaThreadIdx<1>()};
+  if (g >= num_G) { return; }
+  atomicAdd(G_sum, g_weights[g] * (sum_real[g] * sum_real[g] + sum_imag[g] * sum_imag[g]));
+}
+
+} // namespace
+#endif
+
+
 void EnergyTracker::initialize_reciprocal_energy() noexcept {
+#ifdef VMC_CUDA_BACKEND
+
+  const real_t prefactor{1.0_r / (2.0_r * std::numbers::pi_v<real_t> * box_length_ * box_length_ * box_length_)};
+  AlignedSoA<real_t> G_sum{1, 1};
+  const auto num_G{num_g_vectors_};
+
+  dim3 initalizeReciprocalEnergyThreads(256);
+  dim3 initalizeReciprocalEnergyBlocks(vmc::cudaNumBlocks(num_G, initalizeReciprocalEnergyThreads.x));
+
+ cudaInitializeReciprocalEnergy<<<initalizeReciprocalEnergyBlocks, initalizeReciprocalEnergyThreads>>>(
+   num_G,
+    this->g_weights(),
+    this->sum_real(),
+    this->sum_imag(),
+    G_sum[0]
+ );
+ CUDA_CHECK(cudaGetLastError());
+ CUDA_CHECK(cudaDeviceSynchronize());
+ V_recip_ = prefactor * *G_sum[0];
+ return;
+
+  #else
   const real_t L{box_length_};
   const real_t prefactor{1.0_r / (2.0_r * std::numbers::pi_v<real_t> * L * L * L)};
 
@@ -91,6 +133,7 @@ void EnergyTracker::initialize_reciprocal_energy() noexcept {
     sum += g_weights[g] * (sum_real[g] * sum_real[g] + sum_imag[g] * sum_imag[g]);
   }
   V_recip_ = prefactor * sum;
+  #endif
 }
 
 void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept {
@@ -184,7 +227,7 @@ void cudaUpdateStructureFactors(
   const real_t old_x, const real_t old_y, const real_t old_z,
   const real_t new_x, const real_t new_y, const real_t new_z
 ) {
-  const std::size_t g{blockIdx.x * blockDim.x + threadIdx.x};
+  const auto [g]{vmc::cudaThreadIdx<1>()};
   if (g >= num_G) return;
 
   const real_t old_dot{
@@ -301,8 +344,58 @@ void EnergyTracker::update_structure_factors(
 #endif
 }
 
+
+#ifdef VMC_CUDA_BACKEND
+namespace {
+
+__global__
+void cudaKineticEnergy(
+  const std::size_t N,
+  const real_t* RESTRICT grad_x,
+  const real_t* RESTRICT grad_y,
+  const real_t* RESTRICT grad_z,
+  const real_t* RESTRICT lap,
+  real_t* RESTRICT T_sum
+) {
+  const auto [i]{vmc::cudaThreadIdx<1>()};
+  if (i >= N) return;
+
+  // ||Grad(logPsi)||^2 for particle i
+  const real_t grad_sq{
+    grad_x[i] * grad_x[i] +
+    grad_y[i] * grad_y[i] +
+    grad_z[i] * grad_z[i]
+  };
+
+  // Accumulate Lapl(logPsi) + ||Grad(logPsi)||^2
+  atomicAdd(T_sum, lap[i] + grad_sq);
+}
+
+} // namespace
+#endif
+
+
 real_t EnergyTracker::kinetic_energy(const Particles& particles) const noexcept {
-  const auto grad{particles.grad_log_psi().align()};
+ #ifdef VMC_CUDA_BACKEND
+
+  const std::size_t N{particles.size()};
+  const auto grad{particles.grad_log_psi()};   
+  const real_t* lap{particles.lap_log_psi()};
+
+  AlignedSoA<real_t> T_sum{1, 1};           
+
+  dim3 kineticEnergyThreads(256);
+  dim3 kineticEnergyBlocks(vmc::cudaNumBlocks(N, kineticEnergyThreads.x));
+
+  cudaKineticEnergy<<<kineticEnergyBlocks, kineticEnergyThreads>>>(
+    N, grad.x_, grad.y_, grad.z_, lap, T_sum[0]
+  );
+  CUDA_CHECK(cudaGetLastError());
+  CUDA_CHECK(cudaDeviceSynchronize());
+
+  return *T_sum[0]*-0.5_r ;
+#else
+ const auto grad{particles.grad_log_psi().align()};
   const real_t* RESTRICT lap{particles.lap_log_psi()};
 
   ASSUME_ALIGNED(lap, SIMD_BYTES);
@@ -325,8 +418,8 @@ real_t EnergyTracker::kinetic_energy(const Particles& particles) const noexcept 
   }
 
   return -0.5_r * T_sum;
+#endif
 }
-
 
 
 #ifdef VMC_CUDA_BACKEND
@@ -346,7 +439,7 @@ void cudaUpdateRealEnergy(
   const real_t half_L{0.5_r * L};
   const real_t neg_half_L{-1.0_r * half_L};
 
-  const std::size_t j{blockIdx.x * blockDim.x + threadIdx.x};
+  const auto [j]{vmc::cudaThreadIdx<1>()};
   if (j >= N) return;
 
   // Branchless mask to safely skip the moved particle
@@ -503,17 +596,8 @@ void EnergyTracker::update_real_energy(
 #endif
 }
 
-real_t EnergyTracker::potential_energy() const noexcept {
-  // Ewald constants:
-  const real_t ewald_self_correction_term{ewald_correction_};
-  const real_t ewald_background{ewald_background_};
-
-  // Potentials calcualted in cache:
-  const real_t V_recip{V_recip_};
-  const real_t V_real{V_real_};
-
-  // Self + background:
-  return V_real + V_recip + ewald_self_correction_term + ewald_background;
+inline real_t EnergyTracker::potential_energy() const noexcept {
+  return V_real_ + V_recip_ + ewald_correction_ + ewald_background_;
 }
 
 real_t EnergyTracker::eval_total_energy(const Particles& particles) const noexcept {
