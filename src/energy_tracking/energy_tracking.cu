@@ -136,7 +136,77 @@ void EnergyTracker::initialize_reciprocal_energy() noexcept {
   #endif
 }
 
+#ifdef VMC_CUDA_BACKEND
+namespace {
+
+__global__
+void cudaInitializeRealEnergy(
+  const std::size_t N,
+  const real_t L,
+  const real_t neg_L,
+  const real_t half_L,
+  const real_t neg_half_L,
+  const real_t alpha,
+  const real_t* RESTRICT pos_x,
+  const real_t* RESTRICT pos_y,
+  const real_t* RESTRICT pos_z,
+  real_t* RESTRICT sum
+) {
+  const auto [i, j]{vmc::cudaThreadIdx<2>()};
+
+  if (i >= N || j >= N) return;
+  if (j <= i) return;
+
+  real_t dx{pos_x[i] - pos_x[j]};
+  real_t dy{pos_y[i] - pos_y[j]};
+  real_t dz{pos_z[i] - pos_z[j]};
+
+  dx += L * (dx <= neg_half_L) + neg_L * (dx > half_L);
+  dy += L * (dy <= neg_half_L) + neg_L * (dy > half_L);
+  dz += L * (dz <= neg_half_L) + neg_L * (dz > half_L);
+
+  const real_t r{vmc::sqrt(dx * dx + dy * dy + dz * dz)};
+  const real_t inv_r{(r < 1e-12_r) ? 1.0_r : 1.0_r / r};
+
+  atomicAdd(sum, vmc::erfc(alpha * r) * inv_r);
+}
+
+} // namespace
+#endif
+
 void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept {
+#ifdef VMC_CUDA_BACKEND
+
+  const std::size_t N{particles.size()};
+  const real_t L{box_length_};
+  const real_t neg_L{-1.0_r * L};
+  const real_t half_L{0.5_r * L};
+  const real_t neg_half_L{-1.0_r * half_L};
+  const real_t alpha{ewald_alpha_};
+
+  const auto pos{particles.pos()};
+  AlignedSoA<real_t> Sum{1, 1};
+
+  dim3 initializeRealEnergyThreads(16, 16);
+  dim3 initializeRealEnergyBlocks(
+    vmc::cudaNumBlocks(N, initializeRealEnergyThreads.x),
+    vmc::cudaNumBlocks(N, initializeRealEnergyThreads.y)
+  );
+
+  cudaInitializeRealEnergy<<<initializeRealEnergyBlocks, initializeRealEnergyThreads>>>(
+    N, L, neg_L, half_L, neg_half_L, alpha,
+    pos.x_, pos.y_, pos.z_,
+    Sum[0]
+  );
+  CUDA_CHECK(cudaGetLastError());
+  CUDA_CHECK(cudaDeviceSynchronize());
+
+  V_real_ = *Sum[0];
+  return;
+
+
+
+  #else
   const std::size_t N{particles.size()};
   const real_t L{box_length_};
   const real_t neg_L{-1.0_r * L};
@@ -174,9 +244,69 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
     sum += local_sum;
   }
   V_real_ = sum;
+  #endif
 }
 
+#ifdef VMC_CUDA_BACKEND
+namespace {
+
+__global__
+void cudaInitializeStructureFactors(
+  const real_t* RESTRICT g_x, const real_t* RESTRICT g_y, const real_t* RESTRICT g_z,
+  const real_t* RESTRICT pos_x, const real_t* RESTRICT pos_y, const real_t* RESTRICT pos_z,
+  real_t* RESTRICT sum_real, real_t* RESTRICT sum_imag,
+  const std::size_t num_G, const std::size_t N
+) {
+  const auto [g, j]{vmc::cudaThreadIdx<2>()};
+  if (g >= num_G || j >= N) return;
+  const real_t G_dot_r{
+    g_x[g] * pos_x[j] +
+    g_y[g] * pos_y[j] +
+    g_z[g] * pos_z[j]
+  };
+  real_t cos_temp{};
+  real_t sin_temp{};
+  vmc::sincos(G_dot_r, &sin_temp, &cos_temp);
+
+  atomicAdd(&sum_real[g], cos_temp);
+  atomicAdd(&sum_imag[g], sin_temp);
+
+
+ }
+} // namespace
+#endif
+
 void EnergyTracker::initialize_structure_factors(const Particles& particles) noexcept {
+  #ifdef VMC_CUDA_BACKEND
+  const std::size_t N{particles.size()};
+  const std::size_t num_G{num_g_vectors_};
+
+  const auto pos{particles.pos()};
+  const auto gv{g_vector()};
+
+  real_t* RESTRICT sr{sum_real()};
+  real_t* RESTRICT si{sum_imag()};
+
+  CUDA_CHECK(cudaMemset(sr, 0, num_G * sizeof(real_t)));
+  CUDA_CHECK(cudaMemset(si, 0, num_G * sizeof(real_t)));
+
+  dim3 initializeStructureFactorsThreads(16, 16);
+  dim3 initializeStructureFactorsBlocks(
+    vmc::cudaNumBlocks(num_G, initializeStructureFactorsThreads.x),
+    vmc::cudaNumBlocks(N,     initializeStructureFactorsThreads.y)
+  );
+
+  cudaInitializeStructureFactors<<<initializeStructureFactorsBlocks, initializeStructureFactorsThreads>>>(
+    gv.x_, gv.y_, gv.z_,
+    pos.x_, pos.y_, pos.z_,
+    sr, si,
+    num_G, N
+  );
+  CUDA_CHECK(cudaGetLastError());
+  CUDA_CHECK(cudaDeviceSynchronize());
+  return;
+
+  #else
   const std::size_t N{particles.size()};
   const std::size_t num_G{num_g_vectors_};
 
@@ -213,6 +343,7 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
     sum_real[g] = cos_sum;
     sum_imag[g] = sin_sum;
   }
+  #endif
 }
 
 
