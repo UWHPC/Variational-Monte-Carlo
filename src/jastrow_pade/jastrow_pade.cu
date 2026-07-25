@@ -17,7 +17,7 @@ void cudaComputeDerivatives(
   real_t* RESTRICT grad_x, real_t* RESTRICT grad_y, real_t* RESTRICT grad_z,
   real_t* RESTRICT laplacian
 ) {
-  const auto i{vmc::cudaThreadIdx<1>().x};
+  const auto [i]{vmc::cudaThreadIdx<1>()};
 
   if (i >= N || i == moved) return; 
 
