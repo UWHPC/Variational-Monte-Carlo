@@ -53,6 +53,7 @@ private:
 
 public:
   explicit SlaterPlaneWave(const Particles& particles, real_t box_length);
+  void initialize(const Particles& particles);
 
   [[nodiscard]] std::size_t num_orbitals() const noexcept { return num_orbitals_; }
   [[nodiscard]] std::size_t num_unique_k() const noexcept { return num_unique_k_; }
