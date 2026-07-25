@@ -7,24 +7,23 @@
 namespace {
 
 __global__
-void kernel(
-  std::size_t moved,
+void cudaComputeDerivatives(
+  std::size_t moved, const std::size_t N,
   real_t old_x, real_t old_y, real_t old_z,
   real_t new_x, real_t new_y, real_t new_z,
   const real_t L, const real_t half_L,
-  const real_t a_local, const real_t b_local,
-  const auto p,
+  const real_t a_local, const real_t b_local, const real_t neg2ab,
+  const real_t* RESTRICT p_x, const real_t* RESTRICT p_y, const real_t* RESTRICT p_z,
   real_t* RESTRICT grad_x, real_t* RESTRICT grad_y, real_t* RESTRICT grad_z,
   real_t* RESTRICT laplacian
 ) {
-  const auto j{blockIdx.x * blockDim.x + threadIdx.x};
-  const auto neg2ab{-2.0_r * a_local * b_local};
+  const auto i{vmc::cudaThreadIdx<1>().x};
 
-  const bool is_moved{j == moved};
+  if (i >= N || i == moved) return; 
 
-  real_t displ_old_x{old_x - p.x_[j]};
-  real_t displ_old_y{old_y - p.y_[j]};
-  real_t displ_old_z{old_z - p.z_[j]};
+  real_t displ_old_x{old_x - p_x[i]};
+  real_t displ_old_y{old_y - p_y[i]};
+  real_t displ_old_z{old_z - p_z[i]};
 
   displ_old_x += L * (displ_old_x <= -half_L) + -L * (displ_old_x > half_L);
   displ_old_y += L * (displ_old_y <= -half_L) + -L * (displ_old_y > half_L);
@@ -38,21 +37,24 @@ void kernel(
     )
   };
 
-  const real_t inv_dist_old{(dist_old < 1e-12_r) ? 1.0_r : 1.0_r / dist_old};
-  const real_t mask_old{(is_moved || dist_old < 1e-12_r) ? 0.0_r : 1.0_r};
+  real_t grad_factor_old{0.0_r};
+  real_t lap_pair_old{0.0_r};
 
-  const real_t inv_denom_old{1.0_r / (1.0_r + b_local * dist_old)};
-  const real_t inv_denom_sq_old{inv_denom_old * inv_denom_old};
+  if (dist_old >= 1e-12_r) {
+    const real_t inv_dist_old{1.0_r / dist_old};
+    const real_t inv_denom_old{1.0_r / (1.0_r + b_local * dist_old)};
+    const real_t inv_denom_sq_old{inv_denom_old * inv_denom_old};
 
-  const real_t first_deriv_old{a_local * inv_denom_sq_old};
-  const real_t second_deriv_old{neg2ab * inv_denom_sq_old * inv_denom_old};
+    const real_t first_deriv_old{a_local * inv_denom_sq_old};
+    const real_t second_deriv_old{neg2ab * inv_denom_sq_old * inv_denom_old};
 
-  const real_t grad_factor_old{mask_old * first_deriv_old * inv_dist_old};
-  const real_t lap_pair_old{mask_old * (second_deriv_old + 2.0_r * first_deriv_old * inv_dist_old)};
+    grad_factor_old = a_local * first_deriv_old * inv_dist_old;
+    lap_pair_old = second_deriv_old + 2.0_r * first_deriv_old * inv_dist_old;
+  }
 
-  real_t displ_new_x{new_x - p.x_[j]};
-  real_t displ_new_y{new_y - p.y_[j]};
-  real_t displ_new_z{new_z - p.z_[j]};
+  real_t displ_new_x{new_x - p_x[i]};
+  real_t displ_new_y{new_y - p_y[i]};
+  real_t displ_new_z{new_z - p_z[i]};
 
   displ_new_x += L * (displ_new_x <= -half_L) + -L * (displ_new_x > half_L);
   displ_new_y += L * (displ_new_y <= -half_L) + -L * (displ_new_y > half_L);
@@ -67,7 +69,7 @@ void kernel(
   };
 
   const real_t inv_dist_new{(dist_new < 1e-12_r) ? 1.0_r : 1.0_r / dist_new};
-  const real_t mask_new{(is_moved || dist_new < 1e-12_r) ? 0.0_r : 1.0_r};
+  const real_t mask_new{(dist_new < 1e-12_r) ? 0.0_r : 1.0_r};
 
   const real_t inv_denom_new{1.0_r / (1.0_r + b_local * dist_new)};
   const real_t inv_denom_sq_new{inv_denom_new * inv_denom_new};
@@ -83,11 +85,11 @@ void kernel(
   atomicAdd(&grad_z[moved], grad_factor_new * displ_new_z);
   atomicAdd(&laplacian[moved], lap_pair_new);
 
-  grad_x[j] += grad_factor_old * displ_old_x - grad_factor_new * displ_new_x;
-  grad_y[j] += grad_factor_old * displ_old_y - grad_factor_new * displ_new_y;
-  grad_z[j] += grad_factor_old * displ_old_z - grad_factor_new * displ_new_z;
+  grad_x[i] += grad_factor_old * displ_old_x - grad_factor_new * displ_new_x;
+  grad_y[i] += grad_factor_old * displ_old_y - grad_factor_new * displ_new_y;
+  grad_z[i] += grad_factor_old * displ_old_z - grad_factor_new * displ_new_z;
 
-  laplacian[j] += lap_pair_new - lap_pair_old;
+  laplacian[i] += lap_pair_new - lap_pair_old;
 }
 
 }
@@ -118,6 +120,7 @@ void JastrowPade::update_derivatives_for_move(
 
   const real_t a_local{a()};
   const real_t b_local{b()};
+  const real_t neg2ab{-2.0_r * a_local * b_local};
 
   const real_t new_x{p.x_[moved]};
   const real_t new_y{p.y_[moved]};
@@ -126,13 +129,13 @@ void JastrowPade::update_derivatives_for_move(
   dim3 threads(256);
   dim3 blocks(vmc::cudaNumBlocks(num_particles, threads.x));
 
-  kernel<<<blocks, threads>>>(
-    moved, 
+  cudaComputeDerivatives<<<blocks, threads>>>(
+    moved, num_particles,
     old_x, old_y, old_z, 
     new_x, new_y, new_z, 
     L, half_L, 
-    a_local, b_local, 
-    p, 
+    a_local, b_local, neg2ab,
+    p.x_, p.y_, p.z_, 
     grad_x, grad_y, grad_z, 
     laplacian
   );
