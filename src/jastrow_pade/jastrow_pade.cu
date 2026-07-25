@@ -68,17 +68,21 @@ void cudaComputeDerivatives(
     )
   };
 
-  const real_t inv_dist_new{(dist_new < 1e-12_r) ? 1.0_r : 1.0_r / dist_new};
-  const real_t mask_new{(dist_new < 1e-12_r) ? 0.0_r : 1.0_r};
+  
+  real_t grad_factor_new{0.0_r};
+  real_t lap_pair_new{0.0_r};
 
-  const real_t inv_denom_new{1.0_r / (1.0_r + b_local * dist_new)};
-  const real_t inv_denom_sq_new{inv_denom_new * inv_denom_new};
+  if (dist_old >= 1e-12_r) {
+    const real_t inv_dist_new{1.0_r / dist_new};
+    const real_t inv_denom_new{1.0_r / (1.0_r + b_local * dist_new)};
+    const real_t inv_denom_sq_new{inv_denom_new * inv_denom_new};
 
-  const real_t first_deriv_new{a_local * inv_denom_sq_new};
-  const real_t second_deriv_new{neg2ab * inv_denom_sq_new * inv_denom_new};
+    const real_t first_deriv_new{a_local * inv_denom_sq_new};
+    const real_t second_deriv_new{neg2ab * inv_denom_sq_new * inv_denom_new};
 
-  const real_t grad_factor_new{mask_new * first_deriv_new * inv_dist_new};
-  const real_t lap_pair_new{mask_new * (second_deriv_new + 2.0_r * first_deriv_new * inv_dist_new)};
+    grad_factor_new = a_local * first_deriv_new * inv_dist_new;
+    lap_pair_new = second_deriv_new + 2.0_r * first_deriv_new * inv_dist_new;
+  }
 
   atomicAdd(&grad_x[moved], grad_factor_new * displ_new_x);
   atomicAdd(&grad_y[moved], grad_factor_new * displ_new_y);
