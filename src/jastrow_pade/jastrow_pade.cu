@@ -128,10 +128,10 @@ void JastrowPade::update_derivatives_for_move(
   const real_t new_y{p.y_[moved]};
   const real_t new_z{p.z_[moved]};
 
-  dim3 threads(256);
-  dim3 blocks(vmc::cudaNumBlocks(num_particles, threads.x));
+  dim3 computeDerivativesThreads(256);
+  dim3 computeDerivativesBlocks(vmc::cudaNumBlocks(num_particles, computeDerivativesThreads.x));
 
-  cudaComputeDerivatives<<<blocks, threads>>>(
+  cudaComputeDerivatives<<<computeDerivativesBlocks, computeDerivativesThreads>>>(
     moved, num_particles,
     old_x, old_y, old_z, 
     new_x, new_y, new_z, 
