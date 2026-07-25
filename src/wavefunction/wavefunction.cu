@@ -3,13 +3,103 @@
 #include <algorithm>
 
 real_t WaveFunction::evaluate_log_psi(const Particles& particles) {
-  const real_t log_det{slater_plane_wave().log_abs_det(particles)};
-  const real_t jastrow{jastrow_pade().value(particles)};
-
-  return log_det + jastrow;
+  return this->slater_plane_wave().log_abs_det(particles) + this->jastrow_pade().value(particles);
 }
 
+#if defined(VMC_CUDA_BACKEND)
+
+namespace {
+
+__global__
+void cudaDerivativeSums(
+  std::size_t p_N,
+  real_t* log_gx, real_t* log_gy, real_t* log_gz, real_t* log_lap,
+  real_t* jp_gx, real_t* jp_gy, real_t* jp_gz, real_t* jp_lap
+) {
+  const auto [i]{vmc::cudaThreadIdx<1>()};
+  if (i >= p_N) { return; }
+
+  log_gx[i] += jp_gx[i];
+  log_gy[i] += jp_gy[i];
+  log_gz[i] += jp_gz[i];
+  log_lap[i] += jp_lap[i];
+}
+
+void cudaFillDerivatives(
+  std::size_t total_bytes,
+  real_t* gx, real_t* gy, real_t* gz,
+  real_t* lap
+) {
+  CUDA_CHECK(cudaMemset(gx, 0, total_bytes));
+  CUDA_CHECK(cudaMemset(gy, 0, total_bytes));
+  CUDA_CHECK(cudaMemset(gz, 0, total_bytes));
+  CUDA_CHECK(cudaMemset(lap, 0, total_bytes));
+}
+
+}
+
+#endif
+
 void WaveFunction::evaluate_derivatives(Particles& particles) noexcept {
+#if defined(VMC_CUDA_BACKEND)
+  const auto total_bytes{
+    static_cast<std::size_t>(particles.p_stride() * sizeof(real_t))
+  };
+
+  cudaFillDerivatives(
+    total_bytes,
+    particles.grad_log_psi().x_,
+    particles.grad_log_psi().y_,
+    particles.grad_log_psi().z_,
+    particles.lap_log_psi()
+  );
+
+  cudaFillDerivatives(
+    total_bytes,
+    this->j_grad().x_,
+    this->j_grad().y_,
+    this->j_grad().z_,
+    this->j_lap()
+  );
+
+  slater_plane_wave_.add_derivatives(
+    particles.grad_log_psi().x_,
+    particles.grad_log_psi().y_,
+    particles.grad_log_psi().z_,
+    particles.lap_log_psi()
+  );
+
+  jastrow_pade_.add_derivatives(
+    particles,
+    this->j_grad().x_,
+    this->j_grad().y_,
+    this->j_grad().z_,
+    this->j_lap()
+  );
+
+  dim3 derivativeSumsThreads(256);
+  dim3 derivativeSumsBlocks(
+    vmc::cudaNumBlocks(particles.p_stride(), derivativeSumsThreads.x)
+  );
+  
+  cudaDerivativeSums<<<derivativeSumsBlocks, derivativeSumsThreads>>>(
+    particles.p_stride(),
+    particles.grad_log_psi().x_,
+    particles.grad_log_psi().y_,
+    particles.grad_log_psi().z_,
+    particles.lap_log_psi(),
+    this->j_grad().x_,
+    this->j_grad().y_,
+    this->j_grad().z_,
+    this->j_lap()
+  );
+
+  CUDA_CHECK(cudaGetLastError());
+  CUDA_CHECK(cudaDeviceSynchronize());
+
+  set_jastrow_cache_valid(true);
+  set_steps_since_refresh(0);
+#else
   const std::size_t padded_stride{particles.p_stride()};
 
   const auto log_grad{particles.grad_log_psi().align()};
@@ -43,6 +133,7 @@ void WaveFunction::evaluate_derivatives(Particles& particles) noexcept {
   }
   set_jastrow_cache_valid(true);
   set_steps_since_refresh(0);
+#endif
 }
 
 void WaveFunction::evaluate_derivatives(
@@ -55,15 +146,65 @@ void WaveFunction::evaluate_derivatives(
     evaluate_derivatives(particles);
     return;
   }
-  std::size_t steps{steps_since_refresh()};
-  if (steps >= 500) {
+  if (steps_since_refresh() >= 500) {
     evaluate_derivatives(particles);
     return;
   }
-  set_steps_since_refresh(steps + 1);
+  set_steps_since_refresh(steps_since_refresh() + 1);
   if (!move_accepted) {
     return;
   }
+
+#if defined(VMC_CUDA_BACKEND)
+  const auto total_bytes{
+    static_cast<std::size_t>(particles.p_stride() * sizeof(real_t))
+  };
+
+  jastrow_pade_.update_derivatives_for_move(
+    particles,
+    moved,
+    old_x, old_y, old_z,
+    this->j_grad().x_,
+    this->j_grad().y_,
+    this->j_grad().z_,
+    this->j_lap()
+  );
+
+  cudaFillDerivatives(
+    total_bytes,
+    particles.grad_log_psi().x_,
+    particles.grad_log_psi().y_,
+    particles.grad_log_psi().z_,
+    particles.lap_log_psi()
+  );
+
+  slater_plane_wave_.add_derivatives(
+    particles.grad_log_psi().x_,
+    particles.grad_log_psi().y_,
+    particles.grad_log_psi().z_,
+    particles.lap_log_psi()
+  );
+
+  dim3 derivativeSumsThreads(256);
+  dim3 derivativeSumsBlocks(
+    vmc::cudaNumBlocks(particles.p_stride(), derivativeSumsThreads.x)
+  );
+  
+  cudaDerivativeSums<<<derivativeSumsBlocks, derivativeSumsThreads>>>(
+    particles.p_stride(),
+    particles.grad_log_psi().x_,
+    particles.grad_log_psi().y_,
+    particles.grad_log_psi().z_,
+    particles.lap_log_psi(),
+    this->j_grad().x_,
+    this->j_grad().y_,
+    this->j_grad().z_,
+    this->j_lap()
+  );
+
+  CUDA_CHECK(cudaGetLastError());
+  CUDA_CHECK(cudaDeviceSynchronize());
+#else
   const std::size_t padded_stride{particles.p_stride()};
 
   const auto log_grad{particles.grad_log_psi().align()};
@@ -100,4 +241,5 @@ void WaveFunction::evaluate_derivatives(
     log_grad.z_[i] += jg.z_[i];
     log_lap[i] += jastrow_lap[i];
   }
+#endif
 }
