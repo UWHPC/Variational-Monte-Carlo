@@ -180,16 +180,16 @@ void JastrowPade::update_derivatives_for_move(
   real_t* RESTRICT laplacian
 ) const noexcept {
 #ifdef VMC_CUDA_BACKEND
-  grad_x    [moved] = 0.0_r;
-  grad_y    [moved] = 0.0_r;
-  grad_z    [moved] = 0.0_r;
-  laplacian [moved] = 0.0_r;
+  grad_x[moved] = 0.0_r;
+  grad_y[moved] = 0.0_r;
+  grad_z[moved] = 0.0_r;
+  laplacian[moved] = 0.0_r;
 
   const std::size_t num_particles{particles.size()};
   const real_t L{box_length_};
   const real_t half_L{0.5_r * L};
 
-  const auto p{particles.pos().align()};
+  const auto p{particles.pos()};
 
   const real_t a_local{a()};
   const real_t b_local{b()};
@@ -200,7 +200,6 @@ void JastrowPade::update_derivatives_for_move(
 
   dim3 threads(256);
   dim3 blocks(vmc::cudaNumBlocks(num_particles, threads.x));
-
 
   kernel<<<blocks, threads>>>(
     moved, 
