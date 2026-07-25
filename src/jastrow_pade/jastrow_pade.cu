@@ -18,7 +18,6 @@ void cudaComputeDerivatives(
   real_t* RESTRICT laplacian
 ) {
   const auto [i]{vmc::cudaThreadIdx<1>()};
-
   if (i >= N || i == moved) return; 
 
   real_t displ_old_x{old_x - p_x[i]};
@@ -68,7 +67,6 @@ void cudaComputeDerivatives(
     )
   };
 
-  
   real_t grad_factor_new{0.0_r};
   real_t lap_pair_new{0.0_r};
 
