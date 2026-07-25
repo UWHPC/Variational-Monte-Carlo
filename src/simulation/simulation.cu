@@ -19,21 +19,20 @@ Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_write
 , proposed_{}
 , accepted_{}
 , log_psi_current_{}
-, positions_{}
+, positions_{particles_.size(), 3}
 , walker_rng_{}
 {
   walker_rng_.init(config_, 0);
-  positions_.resize(particles_.size() * 3U);
 }
 
-std::vector<real_t> Simulation::positions_snapshot() {
+const AlignedSoA<real_t>& Simulation::positions_snapshot() {
   const std::size_t N{particles_.size()};
   auto [p_x, p_y, p_z]{particles_.pos().align()};
 
   for (std::size_t i{}; i < N; ++i) {
-    positions_[i * 3U] = p_x[i];
-    positions_[i * 3U + 1U] = p_y[i];
-    positions_[i * 3U + 2U] = p_z[i];
+    positions_[0][i] = p_x[i];
+    positions_[1][i] = p_y[i];
+    positions_[2][i] = p_z[i];
   }
   return positions_;
 }
@@ -208,6 +207,16 @@ Simulation::MeasurementSummary Simulation::measure() {
     }
 
     if (output_writer_) {
+      const auto& snapshot{positions_snapshot()};
+      const std::size_t N{particles_.size()};
+
+      std::vector<real_t> flat_positions(N * 3U);
+      for (std::size_t p{}; p < N; ++p) {
+        flat_positions[p * 3U] = snapshot[0][p];
+        flat_positions[p * 3U + 1U] = snapshot[1][p];
+        flat_positions[p * 3U + 2U] = snapshot[2][p];
+      }
+
       output_writer_->write_frame(FrameData{
         .step = i + 1U,
         .accepted = accepted_,
@@ -216,7 +225,7 @@ Simulation::MeasurementSummary Simulation::measure() {
         .local_energy = E_local,
         .mean_energy = running_mean,
         .standard_error = frame_standard_error,
-        .positions = positions_snapshot()
+        .positions = std::move(flat_positions)
       });
     }
 

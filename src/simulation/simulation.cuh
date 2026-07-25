@@ -7,6 +7,7 @@
 #include "../particles/particles.cuh"
 #include "../wavefunction/wavefunction.cuh"
 #include "../utilities/random.cuh"
+#include "../utilities/aligned_soa.cuh"
 
 #include <memory>
 #include <optional>
@@ -27,7 +28,8 @@ private:
   std::size_t accepted_;
   real_t log_psi_current_;
 
-  std::vector<real_t> positions_;
+  AlignedSoA<real_t> positions_;
+
 
   WalkerRNG walker_rng_;
 
@@ -50,7 +52,7 @@ private:
     real_t old_z;
   };
 
-  [[nodiscard]] std::vector<real_t> positions_snapshot();
+  [[nodiscard]] const AlignedSoA<real_t>& positions_snapshot();
 
 public:
   struct MeasurementSummary {
