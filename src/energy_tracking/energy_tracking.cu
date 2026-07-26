@@ -203,9 +203,6 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
 
   V_real_ = *Sum[0];
   return;
-
-
-
   #else
   const std::size_t N{particles.size()};
   const real_t L{box_length_};
@@ -257,19 +254,19 @@ void cudaInitializeStructureFactors(
   real_t* RESTRICT sum_real, real_t* RESTRICT sum_imag,
   const std::size_t num_G, const std::size_t N
 ) {
-  const auto [g, j]{vmc::cudaThreadIdx<2>()};
-  if (g >= num_G || j >= N) return;
+  const auto [i, j]{vmc::cudaThreadIdx<2>()};
+  if (i >= num_G || j >= N) return;
   const real_t G_dot_r{
-    g_x[g] * pos_x[j] +
-    g_y[g] * pos_y[j] +
-    g_z[g] * pos_z[j]
+    g_x[i] * pos_x[j] +
+    g_y[i] * pos_y[j] +
+    g_z[i] * pos_z[j]
   };
   real_t cos_temp{};
   real_t sin_temp{};
   vmc::sincos(G_dot_r, &sin_temp, &cos_temp);
 
-  atomicAdd(&sum_real[g], cos_temp);
-  atomicAdd(&sum_imag[g], sin_temp);
+  atomicAdd(&sum_real[i], cos_temp);
+  atomicAdd(&sum_imag[i], sin_temp);
 
 
  }
@@ -284,11 +281,10 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
   const auto pos{particles.pos()};
   const auto gv{g_vector()};
 
-  real_t* RESTRICT sr{sum_real()};
-  real_t* RESTRICT si{sum_imag()};
-
-  CUDA_CHECK(cudaMemset(sr, 0, num_G * sizeof(real_t)));
-  CUDA_CHECK(cudaMemset(si, 0, num_G * sizeof(real_t)));
+ 
+  auto const total_bytes{num_G * sizeof(real_t)};
+  CUDA_CHECK(cudaMemset(this->sum_real(), 0, total_bytes));
+  CUDA_CHECK(cudaMemset(this->sum_imagl(), 0, total_bytes));
 
   dim3 initializeStructureFactorsThreads(16, 16);
   dim3 initializeStructureFactorsBlocks(
@@ -304,7 +300,6 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
   );
   CUDA_CHECK(cudaGetLastError());
   CUDA_CHECK(cudaDeviceSynchronize());
-  return;
 
   #else
   const std::size_t N{particles.size()};
