@@ -205,7 +205,7 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
     scratch.log_abs_det = AlignedSoA<real_t>(1, 1);
   }
 
-  *scratch.log_abs_det[0] = real_t{};
+  *scratch.log_abs_det[0] = 0.0_r;
 
   dim3 buildTrigCacheThreads(16, 16);
   dim3 buildTrigCacheBlocks(

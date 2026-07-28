@@ -14,11 +14,11 @@
 
 #ifdef VMC_CUDA_BACKEND
 struct CudaScratch {
-  cusolverDnHandle_t handle{};
-  int work_size{};
-  AlignedSoA<real_t> work{};
-  AlignedSoA<int> info{};
-  AlignedSoA<real_t> log_abs_det{};
+  cusolverDnHandle_t handle;
+  int work_size;
+  AlignedSoA<real_t> work;
+  AlignedSoA<int> info;
+  AlignedSoA<real_t> log_abs_det;
 };
 #endif
 
@@ -62,7 +62,7 @@ private:
   AlignedSoA<real_t> matrices_;
 
 #ifdef VMC_CUDA_BACKEND
-  CudaScratch cuda_scratch_{};
+  CudaScratch cuda_scratch_;
 #endif
 
 public:
