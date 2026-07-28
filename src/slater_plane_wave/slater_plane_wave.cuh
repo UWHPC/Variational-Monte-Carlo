@@ -67,6 +67,7 @@ private:
 
 public:
   explicit SlaterPlaneWave(const Particles& particles, real_t box_length);
+  void initialize(const Particles& particles);
 
   ~SlaterPlaneWave();
 
