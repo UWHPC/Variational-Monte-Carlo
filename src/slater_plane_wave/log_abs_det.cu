@@ -1,4 +1,5 @@
 #include "slater_plane_wave.cuh"
+#include "slater_kernels.cuh"
 
 #ifdef VMC_CUDA_BACKEND
 #include <cublas_v2.h>
@@ -103,6 +104,9 @@ void cudaBuildTrigCache(
   const std::size_t sc_idx{offset + i};
 
   vmc::sincos(dot, &s_cache[sc_idx], &c_cache[sc_idx]);
+  // trig_cell(i, offset, p_x[j], p_y[j], p_z[j], kv.x_, kv.y_, kv.z_, sin_cache, cos_cache);
+  // TODO:
+
 }
 
 __global__
@@ -328,6 +332,8 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
       const std::size_t i{offset + k};
 
       vmc::sincos(dot, &sin_cache[i], &cos_cache[i]);
+      // TODO: reomove above
+      trig_cell(k, offset, px, py, pz, kv.x_, kv.y_, kv.z_, sin_cache, cos_cache);
     }
 
     // Not vectorized: non-contiguous memory accesses
