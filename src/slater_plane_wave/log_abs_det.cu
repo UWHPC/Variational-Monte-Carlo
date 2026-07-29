@@ -174,6 +174,26 @@ void cudaBuildIdentity(
 #include <vector>
 #endif
 
+#ifdef VMC_CUDA_BACKEND
+void SlaterPlaneWave::init_cuda_scratch() {
+  const int N{static_cast<int>(this->num_orbitals())};
+  const int mat_S{static_cast<int>(this->matrix_row_stride())};
+
+  CUSOLVER_CHECK(cusolverDnCreate(&cuda_scratch_.handle));
+
+  int work_size{};
+  cuSolverGetrfBufferSize(
+    cuda_scratch_.handle, N, N, this->lower_upper(), mat_S, &work_size
+  );
+
+  cuda_scratch_.work = AlignedSoA<real_t>(
+    static_cast<std::size_t>(work_size), 1
+  );
+  cuda_scratch_.info = AlignedSoA<int>(1, 1);
+  cuda_scratch_.log_abs_det = AlignedSoA<real_t>(1, 1);
+}
+#endif
+
 SlaterPlaneWave::~SlaterPlaneWave() {
 #ifdef VMC_CUDA_BACKEND
   if (cuda_scratch_.handle) {
@@ -187,23 +207,6 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
   const int N{static_cast<int>(particles.size())};
   const int mat_S{static_cast<int>(this->matrix_row_stride())};
   auto& scratch{cuda_scratch_};
-
-  if (!scratch.handle) {
-    CUSOLVER_CHECK(cusolverDnCreate(&scratch.handle));
-    cuSolverGetrfBufferSize(
-      scratch.handle,
-      N,
-      N,
-      this->lower_upper(),
-      mat_S,
-      &scratch.work_size
-    );
-    scratch.work = AlignedSoA<real_t>(
-      static_cast<std::size_t>(scratch.work_size), 1
-    );
-    scratch.info = AlignedSoA<int>(1, 1);
-    scratch.log_abs_det = AlignedSoA<real_t>(1, 1);
-  }
 
   *scratch.log_abs_det[0] = 0.0_r;
 

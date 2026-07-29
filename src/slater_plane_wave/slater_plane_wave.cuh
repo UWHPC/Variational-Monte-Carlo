@@ -15,7 +15,6 @@
 #ifdef VMC_CUDA_BACKEND
 struct CudaScratch {
   cusolverDnHandle_t handle;
-  int work_size;
   AlignedSoA<real_t> work;
   AlignedSoA<int> info;
   AlignedSoA<real_t> log_abs_det;
@@ -142,6 +141,10 @@ public:
   ) const noexcept;
 
 private:
+#ifdef VMC_CUDA_BACKEND
+  void init_cuda_scratch();
+#endif
+
   [[nodiscard]] real_t* new_row() noexcept { return fp_vec_[NEW_ROW]; }
   [[nodiscard]] real_t* inv_d_col() noexcept { return fp_vec_[INV_D_COL]; }
 };
