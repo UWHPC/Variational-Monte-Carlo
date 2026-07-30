@@ -14,7 +14,7 @@ __global__ void cudaBuildRow(
   const auto [i]{vmc::cudaThreadIdx<1>()};
   if (i >= N) { return; }
 
-  build_row_cell(i, particle * trig_S, sin_cache, cos_cache, k_idx[i], orb_t[i], row);
+  build_row_cell(i, particle, trig_S, sin_cache, cos_cache, k_idx[i], orb_t[i], row)
 }
 
 __global__ void cudaDeterminantRatio(
@@ -25,7 +25,8 @@ __global__ void cudaDeterminantRatio(
   const auto [i]{vmc::cudaThreadIdx<1>()};
   if (i >= N) { return; }
 
-  real_t product{determinant_ratio_term(i, particle * S, new_row, inv_det)};
+  const std::size_t row_offset{particle * S + i};
+  real_t product{determinant_ratio_term(i, row_offset, new_row, inv_det)};
 
   atomicAdd(ratio, product);
 }
@@ -68,12 +69,10 @@ real_t* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
   ASSUME_ALIGNED(sin_cache, SIMD_BYTES);
   ASSUME_ALIGNED(cos_cache, SIMD_BYTES);
 
-  const std::size_t row_offset{particle * ROW_STRIDE};
-
   // Not vectorized: loop-carried data dependency
   #pragma omp simd
   for (std::size_t i = 0; i < N; ++i) {
-    build_row_cell(i, row_offset, sin_cache, cos_cache, k_index[i], orb_type[i], row);
+    build_row_cell(i, particle, ROW_STRIDE, sin_cache, cos_cache, k_index[i], orb_type[i], row);
   }
 
   return row;
@@ -107,11 +106,10 @@ real_t SlaterPlaneWave::determinant_ratio(
   const real_t* RESTRICT inv_det{inv_determinant()};
 
   ASSUME_ALIGNED(inv_det, SIMD_BYTES);
-  const std::size_t row_offset{particle * S};
-
   real_t ratio{};
   #pragma omp simd reduction(+ : ratio)
   for (std::size_t j = 0; j < N; ++j) {
+    const std::size_t row_offset{particle * S + j};
     ratio += determinant_ratio_term(j, row_offset, new_row, inv_det);
   }
 

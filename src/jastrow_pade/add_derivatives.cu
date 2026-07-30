@@ -1,5 +1,4 @@
 #include "jastrow_pade.cuh"
-#include "jastrow_kernels.cuh"
 
 #ifdef VMC_CUDA_BACKEND
 
@@ -17,19 +16,44 @@ void cudaAddDerivatives(
   if (i >= num_particles || j >= num_particles) { return; }
   if (i == j) { return; }
 
-  const JastrowDerivativeTerms terms{
-    jastrow_derivative_terms(
-      j, i,
-      p_x[i], p_y[i], p_z[i],
-      L, a, b, -2.0_r * a * b,
-      p_x, p_y, p_z
-    )
+  auto displ_x{p_x[i] - p_x[j]};
+  auto displ_y{p_y[i] - p_y[j]};
+  auto displ_z{p_z[i] - p_z[j]};
+
+  const auto neg_L{-1.0_r * L};
+  const auto half_L{0.5_r * L};
+  const auto neg_half_L{-1.0_r * half_L};
+
+
+  displ_x += L * (displ_x <= neg_half_L) + neg_L * (displ_x > half_L);
+  displ_y += L * (displ_y <= neg_half_L) + neg_L * (displ_y > half_L);
+  displ_z += L * (displ_z <= neg_half_L) + neg_L * (displ_z > half_L);
+
+  const auto dist_sq{
+    displ_x * displ_x +
+    displ_y * displ_y +
+    displ_z * displ_z
   };
 
-  atomicAdd(&grad_x[i], terms.grad_x);
-  atomicAdd(&grad_y[i], terms.grad_y);
-  atomicAdd(&grad_z[i], terms.grad_z);
-  atomicAdd(&laplacian[i], terms.laplacian);
+  const auto dist{vmc::sqrt(dist_sq)};
+
+  if (dist < 1e-12_r) { return; }
+  const real_t inv_dist{1.0_r / dist};
+
+  const auto denom{1.0_r / (1.0_r + b * dist)};
+  const auto denom_sq{denom * denom};
+  const auto denom_cb{denom_sq * denom};
+
+  const auto first_deriv{a * denom_sq};
+  const auto second_deriv{(-2.0_r * a * b) * denom_cb};
+
+  const auto grad_factor{first_deriv * inv_dist};
+  const auto laplacian_pair{second_deriv + 2.0_r * first_deriv * inv_dist};
+
+  atomicAdd(&grad_x[i], grad_factor * displ_x);
+  atomicAdd(&grad_y[i], grad_factor * displ_y);
+  atomicAdd(&grad_z[i], grad_factor * displ_z);
+  atomicAdd(&laplacian[i], laplacian_pair);
 }
 
 }
@@ -63,6 +87,9 @@ void JastrowPade::add_derivatives(
 #else
   const std::size_t num_particles{particles.size()};
   const real_t L{box_length_};
+  const real_t neg_L{-1.0_r * L};
+  const real_t half_L{0.5_r * L};
+  const real_t neg_half_L{-1.0_r * half_L};
 
   const auto p{particles.pos().align()};
 
@@ -76,28 +103,47 @@ void JastrowPade::add_derivatives(
   const real_t neg_two_a_b{-2.0_r * a_local * b_local};
 
   for (std::size_t i = 0; i < num_particles; ++i) {
-    const real_t self_x{p.x_[i]};
-    const real_t self_y{p.y_[i]};
-    const real_t self_z{p.z_[i]};
-
     real_t d_grad_x{}, d_grad_y{}, d_grad_z{}, d_lap{};
 
     // Not vectorized: loop contains control flow
     #pragma omp simd reduction(+ : d_grad_x, d_grad_y, d_grad_z, d_lap)
     for (std::size_t j = 0; j < num_particles; ++j) {
-      const JastrowDerivativeTerms terms{
-        jastrow_derivative_terms(
-          j, i,
-          self_x, self_y, self_z,
-          L, a_local, b_local, neg_two_a_b,
-          p.x_, p.y_, p.z_
-        )
-      };
+      const real_t valid_idx{i == j ? 0.0_r : 1.0_r};
 
-      d_grad_x += terms.grad_x;
-      d_grad_y += terms.grad_y;
-      d_grad_z += terms.grad_z;
-      d_lap += terms.laplacian;
+      real_t displ_x{p.x_[i] - p.x_[j]};
+      real_t displ_y{p.y_[i] - p.y_[j]};
+      real_t displ_z{p.z_[i] - p.z_[j]};
+
+      displ_x += L * (displ_x <= neg_half_L) + neg_L * (displ_x > half_L);
+      displ_y += L * (displ_y <= neg_half_L) + neg_L * (displ_y > half_L);
+      displ_z += L * (displ_z <= neg_half_L) + neg_L * (displ_z > half_L);
+
+      const real_t dist_sq{
+        displ_x * displ_x +
+        displ_y * displ_y +
+        displ_z * displ_z
+      };
+      const real_t dist{vmc::sqrt(dist_sq)};
+
+      const bool degenerate{dist < 1e-12_r};
+      const real_t inv_dist{degenerate ? 1.0_r : 1.0_r / dist};
+      const real_t mask{degenerate ? 0.0_r : valid_idx};
+
+      const real_t denom{1.0_r / (1.0_r + b_local * dist)};
+      const real_t denom_sq{denom * denom};
+      const real_t denom_cb{denom_sq * denom};
+
+      const real_t first_deriv{a_local * denom_sq};
+      const real_t second_deriv{neg_two_a_b * denom_cb};
+
+      const real_t grad_factor{mask * first_deriv * inv_dist};
+      const real_t laplacian_pair{mask * (second_deriv + 2.0_r * first_deriv * inv_dist)};
+
+      d_grad_x += grad_factor * displ_x;
+      d_grad_y += grad_factor * displ_y;
+      d_grad_z += grad_factor * displ_z;
+
+      d_lap += laplacian_pair;
     }
 
     grad_x[i] += d_grad_x;

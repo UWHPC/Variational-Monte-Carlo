@@ -1,5 +1,4 @@
 #include "energy_tracking.cuh"
-#include "energy_kernels.cuh"
 
 #include <numbers>
 
@@ -86,8 +85,7 @@ void cudaInitializeReciprocalEnergy(
 ) {
   const auto [g]{vmc::cudaThreadIdx<1>()};
   if (g >= num_G) { return; }
-
-  atomicAdd(G_sum, reciprocal_energy_term(g, g_weights, sum_real, sum_imag));
+  atomicAdd(G_sum, g_weights[g] * (sum_real[g] * sum_real[g] + sum_imag[g] * sum_imag[g]));
 }
 
 } // namespace
@@ -132,7 +130,7 @@ void EnergyTracker::initialize_reciprocal_energy() noexcept {
   real_t sum{};
   #pragma omp simd reduction(+ : sum)
   for (std::size_t g = 0; g < num_G; ++g) {
-    sum += reciprocal_energy_term(g, g_weights, sum_real, sum_imag);
+    sum += g_weights[g] * (sum_real[g] * sum_real[g] + sum_imag[g] * sum_imag[g]);
   }
   V_recip_ = prefactor * sum;
   #endif
@@ -159,10 +157,18 @@ void cudaInitializeRealEnergy(
   if (i >= N || j >= N) return;
   if (j <= i) return;
 
-  atomicAdd(
-    sum,
-    real_energy_term(j, pos_x[i], pos_y[i], pos_z[i], L, alpha, pos_x, pos_y, pos_z)
-  );
+  real_t dx{pos_x[i] - pos_x[j]};
+  real_t dy{pos_y[i] - pos_y[j]};
+  real_t dz{pos_z[i] - pos_z[j]};
+
+  dx += L * (dx <= neg_half_L) + neg_L * (dx > half_L);
+  dy += L * (dy <= neg_half_L) + neg_L * (dy > half_L);
+  dz += L * (dz <= neg_half_L) + neg_L * (dz > half_L);
+
+  const real_t r{vmc::sqrt(dx * dx + dy * dy + dz * dz)};
+  const real_t inv_r{(r < 1e-12_r) ? 1.0_r : 1.0_r / r};
+
+  atomicAdd(sum, vmc::erfc(alpha * r) * inv_r);
 }
 
 } // namespace
@@ -200,24 +206,37 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
   #else
   const std::size_t N{particles.size()};
   const real_t L{box_length_};
+  const real_t neg_L{-1.0_r * L};
+  const real_t half_L{0.5_r * L};
+  const real_t neg_half_L{-1.0_r * half_L};
   const real_t alpha{ewald_alpha_};
 
   const auto pos{particles.pos().align()};
 
   real_t sum{};
   for (std::size_t i = 0; i < N; ++i) {
-    const real_t self_x{pos.x_[i]};
-    const real_t self_y{pos.y_[i]};
-    const real_t self_z{pos.z_[i]};
-
     real_t local_sum{};
 
     // Not vectorzied: loop contains a mathematical function
     #pragma omp simd reduction(+ : local_sum)
     for (std::size_t j = i + 1; j < N; ++j) {
-      local_sum += real_energy_term(
-        j, self_x, self_y, self_z, L, alpha, pos.x_, pos.y_, pos.z_
-      );
+      real_t dx{pos.x_[i] - pos.x_[j]};
+      real_t dy{pos.y_[i] - pos.y_[j]};
+      real_t dz{pos.z_[i] - pos.z_[j]};
+
+      dx += L * (dx <= neg_half_L) + neg_L * (dx > half_L);
+      dy += L * (dy <= neg_half_L) + neg_L * (dy > half_L);
+      dz += L * (dz <= neg_half_L) + neg_L * (dz > half_L);
+
+      const real_t r{
+        vmc::sqrt(
+          dx * dx +
+          dy * dy +
+          dz * dz
+        )
+      };
+      const real_t inv_r{(r < 1e-12_r) ? 1.0_r : 1.0_r / r};
+      local_sum += vmc::erfc(alpha * r) * inv_r;
     }
     sum += local_sum;
   }
@@ -237,13 +256,19 @@ void cudaInitializeStructureFactors(
 ) {
   const auto [i, j]{vmc::cudaThreadIdx<2>()};
   if (i >= num_G || j >= N) return;
-
-  const StructureFactorTerm term{
-    structure_factor_term(j, g_x[i], g_y[i], g_z[i], pos_x, pos_y, pos_z)
+  const real_t G_dot_r{
+    g_x[i] * pos_x[j] +
+    g_y[i] * pos_y[j] +
+    g_z[i] * pos_z[j]
   };
+  real_t cos_temp{};
+  real_t sin_temp{};
+  vmc::sincos(G_dot_r, &sin_temp, &cos_temp);
 
-  atomicAdd(&sum_real[i], term.cos_term);
-  atomicAdd(&sum_imag[i], term.sin_term);
+  atomicAdd(&sum_real[i], cos_temp);
+  atomicAdd(&sum_imag[i], sin_temp);
+
+
  }
 } // namespace
 #endif
@@ -290,22 +315,24 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
   ASSUME_ALIGNED(sum_imag, SIMD_BYTES);
 
   for (std::size_t g = 0; g < num_G; ++g) {
-    const real_t g_x{gv.x_[g]};
-    const real_t g_y{gv.y_[g]};
-    const real_t g_z{gv.z_[g]};
-
     real_t cos_sum{};
     real_t sin_sum{};
 
     // Not vectorzied: loop contains a mathematical function
     #pragma omp simd reduction(+ : cos_sum, sin_sum)
     for (std::size_t j = 0; j < N; ++j) {
-      const StructureFactorTerm term{
-        structure_factor_term(j, g_x, g_y, g_z, pos.x_, pos.y_, pos.z_)
+      const real_t G_dot_r{
+        gv.x_[g] * pos.x_[j] +
+        gv.y_[g] * pos.y_[j] +
+        gv.z_[g] * pos.z_[j]
       };
+      real_t cos_temp{};
+      real_t sin_temp{};
 
-      cos_sum += term.cos_term;
-      sin_sum += term.sin_term;
+      vmc::sincos(G_dot_r, &sin_temp, &cos_temp);
+
+      cos_sum += cos_temp;
+      sin_sum += sin_temp;
     }
 
     sum_real[g] = cos_sum;
@@ -329,12 +356,25 @@ void cudaUpdateStructureFactors(
   const auto [g]{vmc::cudaThreadIdx<1>()};
   if (g >= num_G) return;
 
-  const StructureFactorTerm d{
-    structure_factor_delta(g, g_x, g_y, g_z, old_x, old_y, old_z, new_x, new_y, new_z)
+  const real_t old_dot{
+    g_x[g] * old_x +
+    g_y[g] * old_y +
+    g_z[g] * old_z
+  };
+  const real_t new_dot{
+    g_x[g] * new_x +
+    g_y[g] * new_y +
+    g_z[g] * new_z
   };
 
-  sum_real[g] += d.cos_term;
-  sum_imag[g] += d.sin_term;
+  real_t new_sin{}, new_cos{};
+  real_t old_sin{}, old_cos{};
+
+  vmc::sincos(new_dot, &new_sin, &new_cos);
+  vmc::sincos(old_dot, &old_sin, &old_cos);
+
+  sum_real[g] += new_cos - old_cos;
+  sum_imag[g] += new_sin - old_sin;
 }
 
 } // namespace
@@ -393,16 +433,25 @@ void EnergyTracker::update_structure_factors(
   // Not vectorzied: loop contains a mathematical function
   #pragma omp simd
   for (std::size_t g = 0; g < num_G; ++g) {
-    const StructureFactorTerm d{
-      structure_factor_delta(
-        g, gv.x_, gv.y_, gv.z_,
-        old_x, old_y, old_z,
-        new_x, new_y, new_z
-      )
+    const real_t old_dot{
+      gv.x_[g] * old_x +
+      gv.y_[g] * old_y +
+      gv.z_[g] * old_z
+    };
+    const real_t new_dot{
+      gv.x_[g] * new_x +
+      gv.y_[g] * new_y +
+      gv.z_[g] * new_z
     };
 
-    d_real_temp[g] = d.cos_term;
-    d_imag_temp[g] = d.sin_term;
+    real_t new_sin{}, new_cos{};
+    real_t old_sin{}, old_cos{};
+
+    vmc::sincos(new_dot, &new_sin, &new_cos);
+    vmc::sincos(old_dot, &old_sin, &old_cos);
+
+    d_real_temp[g] = new_cos - old_cos;
+    d_imag_temp[g] = new_sin - old_sin;
   }
 
   // Accumulate delta and update sum_real / sum_imag
@@ -437,7 +486,15 @@ void cudaKineticEnergy(
   const auto [i]{vmc::cudaThreadIdx<1>()};
   if (i >= N) return;
 
-  atomicAdd(T_sum, kinetic_energy_term(i, grad_x, grad_y, grad_z, lap));
+  // ||Grad(logPsi)||^2 for particle i
+  const real_t grad_sq{
+    grad_x[i] * grad_x[i] +
+    grad_y[i] * grad_y[i] +
+    grad_z[i] * grad_z[i]
+  };
+
+  // Accumulate Lapl(logPsi) + ||Grad(logPsi)||^2
+  atomicAdd(T_sum, lap[i] + grad_sq);
 }
 
 } // namespace
@@ -475,7 +532,15 @@ real_t EnergyTracker::kinetic_energy(const Particles& particles) const noexcept 
 
   #pragma omp simd reduction(+ : T_sum)
   for (std::size_t i = 0; i < N; ++i) {
-    T_sum += kinetic_energy_term(i, grad.x_, grad.y_, grad.z_, lap);
+    // Computes ||Grad(logPsi)||^2
+    const real_t grad_sq{
+      grad.x_[i] * grad.x_[i] +
+      grad.y_[i] * grad.y_[i] +
+      grad.z_[i] * grad.z_[i]
+    };
+
+    // Accumulate Lapl(LogPsi) + ||Grad(LogPsi)||^2
+    T_sum += (lap[i] + grad_sq);
   }
 
   return -0.5_r * T_sum;
@@ -496,19 +561,57 @@ void cudaUpdateRealEnergy(
   const real_t* RESTRICT pos_x, const real_t* RESTRICT pos_y, const real_t* RESTRICT pos_z,
   real_t* RESTRICT delta
 ) {
+  const real_t neg_L{-1.0_r * L};
+  const real_t half_L{0.5_r * L};
+  const real_t neg_half_L{-1.0_r * half_L};
+
   const auto [j]{vmc::cudaThreadIdx<1>()};
   if (j >= N) return;
 
-  atomicAdd(
-    delta,
-    real_energy_delta_term(
-      j, moved_idx,
-      old_x, old_y, old_z,
-      new_x, new_y, new_z,
-      L, alpha,
-      pos_x, pos_y, pos_z
+  // Branchless mask to safely skip the moved particle
+  const real_t valid_mask{(j == moved_idx) ? 0.0_r : 1.0_r};
+
+  // Old pair
+  real_t dx_old{old_x - pos_x[j]};
+  real_t dy_old{old_y - pos_y[j]};
+  real_t dz_old{old_z - pos_z[j]};
+
+  dx_old += L * (dx_old <= neg_half_L) + neg_L * (dx_old > half_L);
+  dy_old += L * (dy_old <= neg_half_L) + neg_L * (dy_old > half_L);
+  dz_old += L * (dz_old <= neg_half_L) + neg_L * (dz_old > half_L);
+
+  const real_t r_old{
+    vmc::sqrt(
+      dx_old * dx_old +
+      dy_old * dy_old +
+      dz_old * dz_old
     )
-  );
+  };
+  // Protect against 1.0 / 0.0 generating NaN
+  const real_t inv_r_old{(r_old < 1e-12_r) ? 1.0_r : 1.0_r / r_old};
+  const real_t erfc_old{vmc::erfc(alpha * r_old) * inv_r_old};
+
+  real_t dx_new{new_x - pos_x[j]};
+  real_t dy_new{new_y - pos_y[j]};
+  real_t dz_new{new_z - pos_z[j]};
+
+  dx_new += L * (dx_new <= neg_half_L) + neg_L * (dx_new > half_L);
+  dy_new += L * (dy_new <= neg_half_L) + neg_L * (dy_new > half_L);
+  dz_new += L * (dz_new <= neg_half_L) + neg_L * (dz_new > half_L);
+
+  const real_t r_new{
+    vmc::sqrt(
+      dx_new * dx_new +
+      dy_new * dy_new +
+      dz_new * dz_new
+    )
+  };
+
+  // Protect against 1.0 / 0.0 generating NaN
+  const real_t inv_r_new{(r_new < 1e-12_r) ? 1.0_r : 1.0_r / r_new};
+  const real_t erfc_new{vmc::erfc(alpha * r_new) * inv_r_new};
+
+  atomicAdd(delta, valid_mask * (erfc_new - erfc_old));
 }
 
 }
@@ -552,6 +655,9 @@ void EnergyTracker::update_real_energy(
 #else
   const std::size_t N{particles.size()};
   const real_t L{box_length_};
+  const real_t neg_L{-1.0_r * L};
+  const real_t half_L{0.5_r * L};
+  const real_t neg_half_L{-1.0_r * half_L};
   const real_t alpha{ewald_alpha_};
 
   const auto pos{particles.pos().align()};
@@ -565,13 +671,51 @@ void EnergyTracker::update_real_energy(
   // Not vectorzied: loop contains a mathematical function
   #pragma omp simd reduction(+ : delta)
   for (std::size_t j = 0; j < N; ++j) {
-    delta += real_energy_delta_term(
-      j, moved_idx,
-      old_x, old_y, old_z,
-      new_x, new_y, new_z,
-      L, alpha,
-      pos.x_, pos.y_, pos.z_
-    );
+    // Branchless mask to safely skip the moved particle
+    const real_t valid_mask{(j == moved_idx) ? 0.0_r : 1.0_r};
+
+    // Old pair
+    real_t dx_old{old_x - pos.x_[j]};
+    real_t dy_old{old_y - pos.y_[j]};
+    real_t dz_old{old_z - pos.z_[j]};
+
+    dx_old += L * (dx_old <= neg_half_L) + neg_L * (dx_old > half_L);
+    dy_old += L * (dy_old <= neg_half_L) + neg_L * (dy_old > half_L);
+    dz_old += L * (dz_old <= neg_half_L) + neg_L * (dz_old > half_L);
+
+    const real_t r_old{
+      vmc::sqrt(
+        dx_old * dx_old +
+        dy_old * dy_old +
+        dz_old * dz_old
+      )
+    };
+    // Protect against 1.0 / 0.0 generating NaN
+    const real_t inv_r_old{(r_old < 1e-12_r) ? 1.0_r : 1.0_r / r_old};
+    const real_t erfc_old{vmc::erfc(alpha * r_old) * inv_r_old};
+
+    // New pair
+    real_t dx_new{new_x - pos.x_[j]};
+    real_t dy_new{new_y - pos.y_[j]};
+    real_t dz_new{new_z - pos.z_[j]};
+
+    dx_new += L * (dx_new <= neg_half_L) + neg_L * (dx_new > half_L);
+    dy_new += L * (dy_new <= neg_half_L) + neg_L * (dy_new > half_L);
+    dz_new += L * (dz_new <= neg_half_L) + neg_L * (dz_new > half_L);
+
+    const real_t r_new{
+      vmc::sqrt(
+        dx_new * dx_new +
+        dy_new * dy_new +
+        dz_new * dz_new
+      )
+    };
+
+    // Protect against 1.0 / 0.0 generating NaN
+    const real_t inv_r_new{(r_new < 1e-12_r) ? 1.0_r : 1.0_r / r_new};
+    const real_t erfc_new{vmc::erfc(alpha * r_new) * inv_r_new};
+
+    delta += valid_mask * (erfc_new - erfc_old);
   }
 
   V_real_ += delta;
