@@ -44,3 +44,31 @@ void trig_cell(
 
   vmc::sincos(dot, &sin_cache[cache_idx], &cos_cache[cache_idx]);
 }
+
+CUDA_CALLABLE inline
+real_t log_abs_det_term(
+  std::size_t idx, std::size_t mat_S,
+  const real_t* RESTRICT lower_upper
+) {
+  const real_t U_diag{lower_upper[idx * mat_S + idx]};
+  
+  return vmc::log(vmc::abs(U_diag));
+}
+
+CUDA_CALLABLE inline
+void inv_det_scale_cell(
+  std::size_t idx, std::size_t row_offset,
+  const real_t* RESTRICT inv_d_col, real_t inv_ratio,
+  real_t* RESTRICT inv_det
+) {
+  inv_det[row_offset + idx] = inv_d_col[idx] * inv_ratio;
+}
+
+CUDA_CALLABLE inline
+void inv_det_update_cell(
+  std::size_t idx, std::size_t row_offset,
+  const real_t* RESTRICT inv_d_col, real_t factor,
+  real_t* RESTRICT inv_det
+) {
+  inv_det[row_offset + idx] -= inv_d_col[idx] * factor;
+}

@@ -1,4 +1,5 @@
 #include "slater_plane_wave.cuh"
+#include "slater_kernels.cuh"
 #include "../utilities/matrix.hpp"
 #include "particles/particles.cuh"
 #include "utilities/aligned_soa.cuh"
@@ -58,8 +59,7 @@ void kComputeSK(
   if (m >= N || k >= N) return;
   if (k == particle) return;
 
-  const real_t product{new_row[m] * inv_det[k * S + m]};
-  atomicAdd(&s_k_array[k], product);
+  atomicAdd(&s_k_array[k], inv_det_dot_term(m, k * S, new_row, inv_det));
 }
 
 __global__
@@ -80,10 +80,9 @@ void kUpdateInverse(
   const std::size_t idx{k * S + j};
 
   if (k == particle) {
-    inv_det[idx] = inv_d_col[j] * inv_ratio;
+    inv_det_scale_cell(j, k * S, inv_d_col, inv_ratio, inv_det);
   } else {
-    const real_t factor{s_k_array[k] * inv_ratio};
-    inv_det[idx] -= inv_d_col[j] * factor;
+    inv_det_update_cell(j, k * S, inv_d_col, s_k_array[k] * inv_ratio, inv_det);
   }
 }
 
@@ -162,20 +161,20 @@ void SlaterPlaneWave::accept_move(
 
     #pragma omp simd reduction(+ : s_k)
     for (std::size_t m = 0; m < N; ++m) {
-      s_k += new_row[m] * inv_det[k_offset + m];
+      s_k += inv_det_dot_term(m, k_offset, new_row, inv_det);
     }
 
     const real_t factor{s_k * inv_ratio};
 
     #pragma omp simd
     for (std::size_t j = 0; j < N; ++j) {
-      inv_det[k_offset + j] -= inv_d_col[j] * factor;
+      inv_det_update_cell(j, k_offset, inv_d_col, factor, inv_det);
     }
   }
 
   #pragma omp simd
   for (std::size_t j = 0; j < N; ++j) {
-    inv_det[p_offset + j] = inv_d_col[j] * inv_ratio;
+    inv_det_scale_cell(j, p_offset, inv_d_col, inv_ratio, inv_det);
   }
 
   std::memcpy(&det_matrix[p_offset], new_row, N * sizeof(real_t));

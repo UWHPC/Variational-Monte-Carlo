@@ -121,9 +121,7 @@ void cudaComputeLogAbsDet(
   const auto [i]{vmc::cudaThreadIdx<1>()};
   if (i >= N) { return; }
 
-  const real_t U_diag{lower_upper[i * mat_S + i]};
-
-  atomicAdd(log_abs_det, vmc::log(vmc::abs(U_diag)));
+  atomicAdd(log_abs_det, log_abs_det_term(i, mat_S, lower_upper));
 }
 
 __global__
@@ -329,10 +327,7 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
   // Not vectorzied: loop-carried data dependency
   #pragma omp simd reduction(+ : log_abs_det)
   for (std::size_t diag = 0; diag < N; ++diag) {
-    const real_t U_ii{lower_upper_matrix[diag * S + diag]};
-    const real_t abs_U_ii{vmc::abs(U_ii)};
-
-    log_abs_det += vmc::log(abs_U_ii);
+    log_abs_det += log_abs_det_term(diag, S, lower_upper_matrix);
   }
 
   if (!std::isfinite(log_abs_det)) {
