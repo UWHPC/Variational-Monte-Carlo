@@ -89,24 +89,14 @@ void cudaBuildTrigCache(
   std::size_t N, std::size_t trig_S, std::size_t num_unique_k,
   const real_t* RESTRICT p_x, const real_t* RESTRICT p_y, const real_t* RESTRICT p_z,
   const real_t* RESTRICT k_x, const real_t* RESTRICT k_y, const real_t* RESTRICT k_z,
-  real_t* RESTRICT s_cache, real_t* RESTRICT c_cache
+  real_t* RESTRICT sin_cache, real_t* RESTRICT cos_cache
 ) {
   const auto [i, j]{vmc::cudaThreadIdx<2>()};
   if (i >= num_unique_k || j >= N) {return; }
 
-  const real_t dot{
-    k_x[i] * p_x[j] +
-    k_y[i] * p_y[j] +
-    k_z[i] * p_z[j]
-  };
-
   const std::size_t offset{j * trig_S};
-  const std::size_t sc_idx{offset + i};
 
-  vmc::sincos(dot, &s_cache[sc_idx], &c_cache[sc_idx]);
-  // trig_cell(i, offset, p_x[j], p_y[j], p_z[j], kv.x_, kv.y_, kv.z_, sin_cache, cos_cache);
-  // TODO:
-
+  trig_cell(i, offset, p_x[j], p_y[j], p_z[j], k_x, k_y, k_z, sin_cache, cos_cache);
 }
 
 __global__
@@ -324,15 +314,6 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
     // Not vectorized: data dependency
     #pragma omp simd
     for (std::size_t k = 0; k < num_k; ++k) {
-      const real_t dot{
-        kv.x_[k] * px +
-        kv.y_[k] * py +
-        kv.z_[k] * pz
-      };
-      const std::size_t i{offset + k};
-
-      vmc::sincos(dot, &sin_cache[i], &cos_cache[i]);
-      // TODO: reomove above
       trig_cell(k, offset, px, py, pz, kv.x_, kv.y_, kv.z_, sin_cache, cos_cache);
     }
 

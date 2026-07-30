@@ -14,7 +14,7 @@ __global__ void cudaBuildRow(
   const auto [i]{vmc::cudaThreadIdx<1>()};
   if (i >= N) { return; }
 
-  build_row_cell(i, particle, trig_S, sin_cache, cos_cache, k_idx[i], orb_t[i], row)
+  build_row_cell(i, particle, trig_S, sin_cache, cos_cache, k_idx[i], orb_t[i], row);
 }
 
 __global__ void cudaDeterminantRatio(
@@ -25,8 +25,8 @@ __global__ void cudaDeterminantRatio(
   const auto [i]{vmc::cudaThreadIdx<1>()};
   if (i >= N) { return; }
 
-  const std::size_t row_offset{particle * S + i};
-  real_t product{determinant_ratio_term(i, row_offset, new_row, inv_det)};
+  const std::size_t row_offset{particle * S};
+  real_t product{determinant_ratio_term(new_row[i], inv_det[row_offset + i])};
 
   atomicAdd(ratio, product);
 }
@@ -109,8 +109,8 @@ real_t SlaterPlaneWave::determinant_ratio(
   real_t ratio{};
   #pragma omp simd reduction(+ : ratio)
   for (std::size_t j = 0; j < N; ++j) {
-    const std::size_t row_offset{particle * S + j};
-    ratio += determinant_ratio_term(j, row_offset, new_row, inv_det);
+    const std::size_t row_offset{particle * S};
+    ratio += determinant_ratio_term(new_row[j], inv_det[row_offset + j]);
   }
 
   return ratio;

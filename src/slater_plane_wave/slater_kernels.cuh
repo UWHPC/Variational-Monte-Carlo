@@ -19,12 +19,18 @@ void build_row_cell(
   row[idx] = cos_term + type * (sin_term - cos_term);
 }
 
+/*
+TODO: is this really necessary...
+Note to self: what I'm thinking is: theres two ideas.
+Physics shouldn't be maintained in two places but with the way this function is called,
+we end up maintaining the indexing in two places while the kernel just has one multiplication
+seems weird and not needed, probably should rethink where the abstraction lives.
+*/
 CUDA_CALLABLE inline
 real_t determinant_ratio_term(
-  std::size_t idx, std::size_t row_offset,
-  const real_t* RESTRICT new_row, const real_t* RESTRICT inv_det
+  const real_t new_row_idx, const real_t inv_det_idx
 ) {
-  return new_row[idx] * inv_det[row_offset + idx];
+  return new_row_idx * inv_det_idx;
 }
 
 CUDA_CALLABLE inline
