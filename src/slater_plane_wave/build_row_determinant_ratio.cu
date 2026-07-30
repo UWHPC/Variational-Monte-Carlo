@@ -26,7 +26,8 @@ __global__ void cudaDeterminantRatio(
   if (i >= N) { return; }
 
   const std::size_t row_offset{particle * S};
-  real_t product{determinant_ratio_term(new_row[i], inv_det[row_offset + i])};
+
+  real_t product{inv_det_dot_term(i, row_offset, new_row, inv_det)};
 
   atomicAdd(ratio, product);
 }
@@ -107,10 +108,11 @@ real_t SlaterPlaneWave::determinant_ratio(
 
   ASSUME_ALIGNED(inv_det, SIMD_BYTES);
   real_t ratio{};
+  const std::size_t row_offset{particle * S};
+
   #pragma omp simd reduction(+ : ratio)
   for (std::size_t j = 0; j < N; ++j) {
-    const std::size_t row_offset{particle * S};
-    ratio += determinant_ratio_term(new_row[j], inv_det[row_offset + j]);
+    ratio += inv_det_dot_term(j, row_offset, new_row, inv_det);
   }
 
   return ratio;
