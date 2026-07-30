@@ -1,4 +1,5 @@
 #include "jastrow_pade.cuh"
+#include "jastrow_kernels.cuh"
 
 #ifdef VMC_CUDA_BACKEND
 #include <cstddef>
@@ -17,31 +18,10 @@ void cudaValue(
   const std::size_t j{blockIdx.y * blockDim.y + threadIdx.y};
   if (j >= num_particles) { return; }
 
-  const real_t mask{i == j ? 0.0_r : 1.0_r};
-
-  const real_t neg_L{-1.0_r * L};
-  const real_t half_L{0.5_r * L};
-  const real_t neg_half_L{-1.0_r * half_L};
-
-  real_t displ_x{p_x[i] - p_x[j]};
-  real_t displ_y{p_y[i] - p_y[j]};
-  real_t displ_z{p_z[i] - p_z[j]};
-
-  displ_x += L * (displ_x <= neg_half_L) + neg_L * (displ_x > half_L);
-  displ_y += L * (displ_y <= neg_half_L) + neg_L * (displ_y > half_L);
-  displ_z += L * (displ_z <= neg_half_L) + neg_L * (displ_z > half_L);
-
-  const real_t dist_sq{
-    displ_x * displ_x +
-    displ_y * displ_y +
-    displ_z * displ_z
-  };
-  const real_t dist{vmc::sqrt(dist_sq)};
-
-  const real_t denom{1.0_r + b * dist};
-  const real_t inv_denom{1.0_r / denom};
-
-  atomicAdd(jastrow_pade, mask * a * dist * inv_denom);
+  atomicAdd(
+    jastrow_pade,
+    jastrow_value_term(j, i, p_x[i], p_y[i], p_z[i], L, a, b, p_x, p_y, p_z)
+  );
 }
 
 __global__
@@ -56,49 +36,16 @@ void cudaDeltaValue(
   const std::size_t j{blockIdx.x * blockDim.x + threadIdx.x};
   if (j >= num_particles) { return; }
 
-  const real_t neg_L{-1.0_r * L};
-  const real_t half_L{0.5_r * L};
-  const real_t neg_half_L{-1.0_r * half_L};
-
-  const real_t valid_mask{(j == moved) ? 0.0_r : 1.0_r};
-
-  real_t displ_old_x{old_x - p_x[j]};
-  real_t displ_old_y{old_y - p_y[j]};
-  real_t displ_old_z{old_z - p_z[j]};
-
-  displ_old_x += L * (displ_old_x <= neg_half_L) + neg_L * (displ_old_x > half_L);
-  displ_old_y += L * (displ_old_y <= neg_half_L) + neg_L * (displ_old_y > half_L);
-  displ_old_z += L * (displ_old_z <= neg_half_L) + neg_L * (displ_old_z > half_L);
-
-  const real_t dist_old{
-    vmc::sqrt(
-      displ_old_x * displ_old_x +
-      displ_old_y * displ_old_y +
-      displ_old_z * displ_old_z
+  atomicAdd(
+    delta,
+    jastrow_delta_term(
+      j, moved,
+      old_x, old_y, old_z,
+      new_x, new_y, new_z,
+      L, a, b,
+      p_x, p_y, p_z
     )
-  };
-  const real_t denom_old{1.0_r / (1.0_r + b * dist_old)};
-
-  real_t displ_new_x{new_x - p_x[j]};
-  real_t displ_new_y{new_y - p_y[j]};
-  real_t displ_new_z{new_z - p_z[j]};
-
-  displ_new_x += L * (displ_new_x <= neg_half_L) + neg_L * (displ_new_x > half_L);
-  displ_new_y += L * (displ_new_y <= neg_half_L) + neg_L * (displ_new_y > half_L);
-  displ_new_z += L * (displ_new_z <= neg_half_L) + neg_L * (displ_new_z > half_L);
-
-  const real_t dist_new{
-    vmc::sqrt(
-      displ_new_x * displ_new_x +
-      displ_new_y * displ_new_y +
-      displ_new_z * displ_new_z
-    )
-  };
-  const real_t denom_new{1.0_r / (1.0_r + b * dist_new)};
-
-  const real_t term{valid_mask * a * (dist_new * denom_new - dist_old * denom_old)};
-
-  atomicAdd(delta, term);
+  );
 }
 
 }
@@ -133,9 +80,6 @@ real_t JastrowPade::value(const Particles& particles) const noexcept {
 #else
   const std::size_t num_particles{particles.size()};
   const real_t L{box_length_};
-  const real_t neg_L{-1.0_r * L};
-  const real_t half_L{0.5_r * L};
-  const real_t neg_half_L{-1.0_r * half_L};
 
   const auto p{particles.pos().align()};
 
@@ -144,32 +88,21 @@ real_t JastrowPade::value(const Particles& particles) const noexcept {
 
   real_t jastrow_pade{};
   for (std::size_t i = 0; i < num_particles; ++i) {
+    const real_t self_x{p.x_[i]};
+    const real_t self_y{p.y_[i]};
+    const real_t self_z{p.z_[i]};
+
     real_t local_jastrow{};
 
     // Not vectorized: loop contains control flow
     #pragma omp simd reduction(+ : local_jastrow)
     for (std::size_t j = 0; j < num_particles; ++j) {
-      const real_t mask{i == j ? 0.0_r : 1.0_r};
-
-      real_t displ_x{p.x_[i] - p.x_[j]};
-      real_t displ_y{p.y_[i] - p.y_[j]};
-      real_t displ_z{p.z_[i] - p.z_[j]};
-
-      displ_x += L * (displ_x <= neg_half_L) + neg_L * (displ_x > half_L);
-      displ_y += L * (displ_y <= neg_half_L) + neg_L * (displ_y > half_L);
-      displ_z += L * (displ_z <= neg_half_L) + neg_L * (displ_z > half_L);
-
-      const real_t dist_sq{
-        displ_x * displ_x +
-        displ_y * displ_y +
-        displ_z * displ_z
-      };
-      const real_t dist{vmc::sqrt(dist_sq)};
-
-      const real_t denom{1.0_r + b_local * dist};
-      const real_t inv_denom{1.0_r / denom};
-
-      local_jastrow += mask * a_local * dist * inv_denom;
+      local_jastrow += jastrow_value_term(
+        j, i,
+        self_x, self_y, self_z,
+        L, a_local, b_local,
+        p.x_, p.y_, p.z_
+      );
     }
     jastrow_pade += local_jastrow;
   }
@@ -209,9 +142,6 @@ real_t JastrowPade::delta_value(
 #else
   const std::size_t num_particles{particles.size()};
   const real_t L{box_length_};
-  const real_t neg_L{-1.0_r * L};
-  const real_t half_L{0.5_r * L};
-  const real_t neg_half_L{-1.0_r * half_L};
 
   const auto p{particles.pos().align()};
 
@@ -227,43 +157,13 @@ real_t JastrowPade::delta_value(
   // Not vectorized: loop contains control flow
   #pragma omp simd reduction(+ : delta)
   for (std::size_t j = 0; j < num_particles; ++j) {
-    const real_t valid_mask{(j == moved) ? 0.0_r : 1.0_r};
-
-    real_t displ_old_x{old_x - p.x_[j]};
-    real_t displ_old_y{old_y - p.y_[j]};
-    real_t displ_old_z{old_z - p.z_[j]};
-
-    displ_old_x += L * (displ_old_x <= neg_half_L) + neg_L * (displ_old_x > half_L);
-    displ_old_y += L * (displ_old_y <= neg_half_L) + neg_L * (displ_old_y > half_L);
-    displ_old_z += L * (displ_old_z <= neg_half_L) + neg_L * (displ_old_z > half_L);
-
-    const real_t dist_old{
-      vmc::sqrt(
-        displ_old_x * displ_old_x +
-        displ_old_y * displ_old_y +
-        displ_old_z * displ_old_z
-      )
-    };
-    const real_t denom_old{1.0_r / (1.0_r + b_local * dist_old)};
-
-    real_t displ_new_x{new_x - p.x_[j]};
-    real_t displ_new_y{new_y - p.y_[j]};
-    real_t displ_new_z{new_z - p.z_[j]};
-
-    displ_new_x += L * (displ_new_x <= neg_half_L) + neg_L * (displ_new_x > half_L);
-    displ_new_y += L * (displ_new_y <= neg_half_L) + neg_L * (displ_new_y > half_L);
-    displ_new_z += L * (displ_new_z <= neg_half_L) + neg_L * (displ_new_z > half_L);
-
-    const real_t dist_new{
-      vmc::sqrt(
-        displ_new_x * displ_new_x +
-        displ_new_y * displ_new_y +
-        displ_new_z * displ_new_z
-      )
-    };
-    const real_t denom_new{1.0_r / (1.0_r + b_local * dist_new)};
-
-    delta += valid_mask * a_local * (dist_new * denom_new - dist_old * denom_old);
+    delta += jastrow_delta_term(
+      j, moved,
+      old_x, old_y, old_z,
+      new_x, new_y, new_z,
+      L, a_local, b_local,
+      p.x_, p.y_, p.z_
+    );
   }
 
   return delta;

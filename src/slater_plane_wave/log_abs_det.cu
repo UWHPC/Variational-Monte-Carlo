@@ -89,45 +89,30 @@ void cudaBuildTrigCache(
   std::size_t N, std::size_t trig_S, std::size_t num_unique_k,
   const real_t* RESTRICT p_x, const real_t* RESTRICT p_y, const real_t* RESTRICT p_z,
   const real_t* RESTRICT k_x, const real_t* RESTRICT k_y, const real_t* RESTRICT k_z,
-  real_t* RESTRICT s_cache, real_t* RESTRICT c_cache
+  real_t* RESTRICT sin_cache, real_t* RESTRICT cos_cache
 ) {
   const auto [i, j]{vmc::cudaThreadIdx<2>()};
   if (i >= num_unique_k || j >= N) {return; }
 
-  const real_t dot{
-    k_x[i] * p_x[j] +
-    k_y[i] * p_y[j] +
-    k_z[i] * p_z[j]
-  };
-
-  const std::size_t offset{j * trig_S};
-  const std::size_t sc_idx{offset + i};
-
-  vmc::sincos(dot, &s_cache[sc_idx], &c_cache[sc_idx]);
-  // trig_cell(i, offset, p_x[j], p_y[j], p_z[j], kv.x_, kv.y_, kv.z_, sin_cache, cos_cache);
-  // TODO:
-
+  trig_cell(i, j * trig_S, p_x[j], p_y[j], p_z[j], k_x, k_y, k_z, sin_cache, cos_cache);
 }
 
 __global__
 void cudaBuildDetFromCache(
   std::size_t N, std::size_t trig_S, std::size_t mat_S,
-  const real_t* RESTRICT s_cache, const real_t* RESTRICT c_cache,
+  const real_t* RESTRICT sin_cache, const real_t* RESTRICT cos_cache,
   const std::size_t* RESTRICT k_idx, const std::uint8_t* RESTRICT orb_t,
   real_t* RESTRICT det_mat
 ) {
   const auto [i, j]{vmc::cudaThreadIdx<2>()};
   if (i >= N || j >= N) { return; }
 
-  const std::size_t offset{j * trig_S};
-  const std::size_t trig_idx{offset + k_idx[i]};
-  const std::size_t mat_idx{j * mat_S + i};
-
-  const real_t type{static_cast<real_t>(orb_t[i])};
-  const real_t cos_term{c_cache[trig_idx]};
-  const real_t sin_term{s_cache[trig_idx]};
-
-  det_mat[mat_idx] = cos_term + type * (sin_term - cos_term);
+  build_row_cell(
+    i, j * trig_S,
+    sin_cache, cos_cache,
+    k_idx[i], orb_t[i],
+    det_mat + j * mat_S
+  );
 }
 
 __global__
@@ -139,9 +124,7 @@ void cudaComputeLogAbsDet(
   const auto [i]{vmc::cudaThreadIdx<1>()};
   if (i >= N) { return; }
 
-  const real_t U_diag{lower_upper[i * mat_S + i]};
-
-  atomicAdd(log_abs_det, vmc::log(vmc::abs(U_diag)));
+  atomicAdd(log_abs_det, log_abs_det_term(i, mat_S, lower_upper));
 }
 
 __global__
@@ -324,30 +307,20 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
     // Not vectorized: data dependency
     #pragma omp simd
     for (std::size_t k = 0; k < num_k; ++k) {
-      const real_t dot{
-        kv.x_[k] * px +
-        kv.y_[k] * py +
-        kv.z_[k] * pz
-      };
-      const std::size_t i{offset + k};
-
-      vmc::sincos(dot, &sin_cache[i], &cos_cache[i]);
-      // TODO: reomove above
       trig_cell(k, offset, px, py, pz, kv.x_, kv.y_, kv.z_, sin_cache, cos_cache);
     }
+
+    real_t* RESTRICT det_row{det_matrix + particle * S};
 
     // Not vectorized: non-contiguous memory accesses
     #pragma omp simd
     for (std::size_t orbital = 0; orbital < N; ++orbital) {
-      const std::size_t k_idx{k_index[orbital]};
-      const std::size_t trig_idx{offset + k_idx};
-      const std::size_t mat_idx{particle * S + orbital};
-      
-      const real_t type{static_cast<real_t>(orb_type[orbital])};
-      const real_t cos_term{cos_cache[trig_idx]};
-      const real_t sin_term{sin_cache[trig_idx]};
-
-      det_matrix[mat_idx] = cos_term + type * (sin_term - cos_term);
+      build_row_cell(
+        orbital, offset,
+        sin_cache, cos_cache,
+        k_index[orbital], orb_type[orbital],
+        det_row
+      );
     }
   }
 
@@ -362,10 +335,7 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
   // Not vectorzied: loop-carried data dependency
   #pragma omp simd reduction(+ : log_abs_det)
   for (std::size_t diag = 0; diag < N; ++diag) {
-    const real_t U_ii{lower_upper_matrix[diag * S + diag]};
-    const real_t abs_U_ii{vmc::abs(U_ii)};
-
-    log_abs_det += vmc::log(abs_U_ii);
+    log_abs_det += log_abs_det_term(diag, S, lower_upper_matrix);
   }
 
   if (!std::isfinite(log_abs_det)) {
