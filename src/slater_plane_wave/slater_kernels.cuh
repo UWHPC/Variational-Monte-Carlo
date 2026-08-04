@@ -72,3 +72,44 @@ void inv_det_update_cell(
 ) {
   inv_det[row_offset + idx] -= inv_d_col[idx] * factor;
 }
+
+struct [[nodiscard]] SlaterDerivativeTerms {
+  real_t grad_x;
+  real_t grad_y;
+  real_t grad_z;
+  real_t laplacian;
+};
+
+CUDA_CALLABLE inline
+SlaterDerivativeTerms slater_derivative_terms(
+  std::size_t idx, std::size_t row_offset, std::size_t mat_offset,
+  const real_t* RESTRICT k_x, const real_t* RESTRICT k_y, const real_t* RESTRICT k_z,
+  const std::size_t k_idx, const std::uint8_t orb_t_idx,
+  const real_t* RESTRICT inv_det,
+  const real_t* RESTRICT sin_cache, const real_t* RESTRICT cos_cache
+) {
+  const real_t kx{k_x[k_idx]};
+  const real_t ky{k_y[k_idx]};
+  const real_t kz{k_z[k_idx]};
+
+  const real_t k_sq{kx * kx + ky * ky + kz * kz};
+
+  const real_t type{static_cast<real_t>(orb_t_idx)};
+
+  const std::size_t cache_idx{row_offset + k_idx};
+
+  const real_t cos_term{cos_cache[cache_idx]};
+  const real_t sin_term{sin_cache[cache_idx]};
+
+  const real_t grad_factor{-sin_term + type * (sin_term + cos_term)};
+  const real_t lap_factor{-cos_term + type * (cos_term - sin_term)};
+
+  const real_t weight{inv_det[mat_offset + idx]};
+
+  return {
+    weight * kx * grad_factor,
+    weight * ky * grad_factor,
+    weight * kz * grad_factor,
+    weight * k_sq * lap_factor
+  };
+}
