@@ -284,7 +284,7 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
  
   auto const total_bytes{num_G * sizeof(real_t)};
   CUDA_CHECK(cudaMemset(this->sum_real(), 0, total_bytes));
-  CUDA_CHECK(cudaMemset(this->sum_imagl(), 0, total_bytes));
+  CUDA_CHECK(cudaMemset(this->sum_imag(), 0, total_bytes));
 
   dim3 initializeStructureFactorsThreads(16, 16);
   dim3 initializeStructureFactorsBlocks(
@@ -295,7 +295,7 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
   cudaInitializeStructureFactors<<<initializeStructureFactorsBlocks, initializeStructureFactorsThreads>>>(
     gv.x_, gv.y_, gv.z_,
     pos.x_, pos.y_, pos.z_,
-    sr, si,
+    this->sum_real(), this->sum_imag(),
     num_G, N
   );
   CUDA_CHECK(cudaGetLastError());
