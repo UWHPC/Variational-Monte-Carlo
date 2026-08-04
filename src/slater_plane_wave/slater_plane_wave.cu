@@ -36,8 +36,12 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, real_t box_lengthL)
 , int_vec_{particles.size(), NUM_INT_VECTORS}
 , fp_vec_{particles.size(), NUM_DOUBLE_VECTORS}
 , trig_cache_{}
-, matrices_{matrix_row_stride_ * particles.size(), NUM_MATRIX} {
+, matrices_{matrix_row_stride_ * particles.size(), NUM_MATRIX}
+{
   this->initialize(particles);
+#ifdef VMC_CUDA_BACKEND
+  this->init_cuda_scratch();
+#endif
 };
 
 #ifdef VMC_CUDA_BACKEND

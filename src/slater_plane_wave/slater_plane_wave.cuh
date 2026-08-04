@@ -12,6 +12,15 @@
 #include <numbers>
 #include <vector>
 
+#ifdef VMC_CUDA_BACKEND
+struct CudaScratch {
+  cusolverDnHandle_t handle;
+  AlignedSoA<real_t> work;
+  AlignedSoA<int> info;
+  AlignedSoA<real_t> log_abs_det;
+};
+#endif
+
 class SlaterPlaneWave {
 private:
   std::size_t num_orbitals_;
@@ -51,9 +60,21 @@ private:
   enum MatrixIndex : std::size_t { D, INV_D, LU, NUM_MATRIX };
   AlignedSoA<real_t> matrices_;
 
+#ifdef VMC_CUDA_BACKEND
+  CudaScratch cuda_scratch_;
+#endif
+
 public:
   explicit SlaterPlaneWave(const Particles& particles, real_t box_length);
   void initialize(const Particles& particles);
+
+  ~SlaterPlaneWave();
+
+  SlaterPlaneWave(const SlaterPlaneWave&) = delete;
+  SlaterPlaneWave& operator=(const SlaterPlaneWave&) = delete;
+
+  SlaterPlaneWave(SlaterPlaneWave&&) = delete;
+  SlaterPlaneWave& operator=(SlaterPlaneWave&&) = delete;
 
   [[nodiscard]] std::size_t num_orbitals() const noexcept { return num_orbitals_; }
   [[nodiscard]] std::size_t num_unique_k() const noexcept { return num_unique_k_; }
@@ -120,6 +141,10 @@ public:
   ) const noexcept;
 
 private:
+#ifdef VMC_CUDA_BACKEND
+  void init_cuda_scratch();
+#endif
+
   [[nodiscard]] real_t* new_row() noexcept { return fp_vec_[NEW_ROW]; }
   [[nodiscard]] real_t* inv_d_col() noexcept { return fp_vec_[INV_D_COL]; }
 };
