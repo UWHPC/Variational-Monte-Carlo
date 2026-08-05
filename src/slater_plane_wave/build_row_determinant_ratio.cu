@@ -1,4 +1,5 @@
 #include "slater_plane_wave.cuh"
+#include "slater_kernels.cuh"
 
 #ifdef VMC_CUDA_BACKEND
 #include <cstddef>
@@ -6,19 +7,14 @@ namespace {
 
 __global__ void cudaBuildRow(
   std::size_t N, std::size_t trig_S, std::size_t particle,
-  const real_t* RESTRICT s_cache, const real_t* RESTRICT c_cache,
+  const real_t* RESTRICT sin_cache, const real_t* RESTRICT cos_cache,
   const std::size_t* RESTRICT k_idx, const std::uint8_t* RESTRICT orb_t,
   real_t* RESTRICT row
 ) {
   const auto [i]{vmc::cudaThreadIdx<1>()};
   if (i >= N) { return; }
 
-  const real_t type{static_cast<real_t>(orb_t[i])};
-
-  const real_t cos_term{c_cache[particle * trig_S + k_idx[i]]};
-  const real_t sin_term{s_cache[particle * trig_S + k_idx[i]]};
-
-  row[i] = cos_term + type * (sin_term - cos_term);
+  build_row_cell(i, particle, trig_S, sin_cache, cos_cache, k_idx[i], orb_t[i], row);
 }
 
 __global__ void cudaDeterminantRatio(
@@ -29,7 +25,9 @@ __global__ void cudaDeterminantRatio(
   const auto [i]{vmc::cudaThreadIdx<1>()};
   if (i >= N) { return; }
 
-  real_t product{new_row[i] * inv_det[particle * S + i]};
+  const std::size_t row_offset{particle * S};
+
+  real_t product{inv_det_dot_term(i, row_offset, new_row, inv_det)};
 
   atomicAdd(ratio, product);
 }
@@ -74,15 +72,8 @@ real_t* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
 
   // Not vectorized: loop-carried data dependency
   #pragma omp simd
-  for (std::size_t orbital = 0; orbital < N; ++orbital) {
-    const std::size_t k_idx{k_index[orbital]};
-
-    const real_t type{static_cast<real_t>(orb_type[orbital])};
-
-    const real_t cos_term{cos_cache[particle * ROW_STRIDE + k_idx]};
-    const real_t sin_term{sin_cache[particle * ROW_STRIDE + k_idx]};
-
-    row[orbital] = cos_term + type * (sin_term - cos_term);
+  for (std::size_t i = 0; i < N; ++i) {
+    build_row_cell(i, particle, ROW_STRIDE, sin_cache, cos_cache, k_index[i], orb_type[i], row);
   }
 
   return row;
@@ -117,9 +108,11 @@ real_t SlaterPlaneWave::determinant_ratio(
 
   ASSUME_ALIGNED(inv_det, SIMD_BYTES);
   real_t ratio{};
+  const std::size_t row_offset{particle * S};
+
   #pragma omp simd reduction(+ : ratio)
   for (std::size_t j = 0; j < N; ++j) {
-    ratio += new_row[j] * inv_det[particle * S + j];
+    ratio += inv_det_dot_term(j, row_offset, new_row, inv_det);
   }
 
   return ratio;
