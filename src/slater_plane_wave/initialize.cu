@@ -18,7 +18,7 @@ void cudaFindNVecCandidates(
   int* RESTRICT nv_y,
   int* RESTRICT nv_z,
   int* RESTRICT nv_mag_sq,
-  std::size_t* RESTRICT counter
+  unsigned long long* RESTRICT counter
 ) {
   const auto [raw_i, raw_j, raw_k]{vmc::cudaThreadIdx<3>()};
   const auto side{static_cast<std::size_t>(2 * n_max + 1)};
@@ -30,7 +30,7 @@ void cudaFindNVecCandidates(
 
   if (!is_canonical(i, j, k)) { return; }
 
-  const auto c{atomicAdd(counter, std::size_t{1})};
+  const auto c{atomicAdd(counter, 1ull)};
   nv_x[c] = i;
   nv_y[c] = j;
   nv_z[c] = k;
@@ -107,7 +107,7 @@ void SlaterPlaneWave::initialize(const Particles& particles) {
   const std::size_t max_candidates{side * side * side};
 
   AlignedSoA<int> n_vec_tmp{max_candidates, N_VEC_ARR};
-  AlignedSoA<std::size_t> counter{1, 1};
+  AlignedSoA<unsigned long long> counter{1, 1};
 
   dim3 findNVecCandidatesThreads(8, 8, 8);
   dim3 findNVecCandidatesBlocks(
@@ -128,12 +128,14 @@ void SlaterPlaneWave::initialize(const Particles& particles) {
   auto* RESTRICT cand_z{n_vec_tmp[CAND_Z]};
   auto* RESTRICT cand_mag_sq{n_vec_tmp[CAND_MAG_SQ]};
 
-  AlignedSoA<std::size_t> order{*counter[0], 1};
-  std::iota(order[0], order[0] + *counter[0], std::size_t{0});
+  const std::size_t num_candidates{static_cast<std::size_t>(*counter[0])};
+
+  AlignedSoA<std::size_t> order{num_candidates, 1};
+  std::iota(order[0], order[0] + num_candidates, std::size_t{0});
 
   std::sort(
     order[0],
-    order[0] + *counter[0],
+    order[0] + num_candidates,
     [&](std::size_t a, std::size_t b) {
       return
         std::tie(cand_mag_sq[a], cand_x[a], cand_y[a], cand_z[a]) <
