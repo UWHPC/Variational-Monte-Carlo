@@ -66,12 +66,16 @@ using complex_t = std::complex<real_t>;
 #endif
 
 // Restrict pointers:
-#if defined(__GNUC__) || defined(__clang__)
-  #define RESTRICT __restrict__
-#elif defined(_MSC_VER)
-  #define RESTRICT __restrict
-#else
-  #define RESTRICT
+// Guarded because xpu/config.hpp defines RESTRICT too. The expansions are
+// equivalent on every compiler we target, so whichever header lands first wins.
+#ifndef RESTRICT
+  #if defined(__GNUC__) || defined(__clang__)
+    #define RESTRICT __restrict__
+  #elif defined(_MSC_VER)
+    #define RESTRICT __restrict
+  #else
+    #define RESTRICT
+  #endif
 #endif
 
 // SIMD Bytes

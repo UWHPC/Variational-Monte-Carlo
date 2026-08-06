@@ -1,3 +1,4 @@
+#include <xpu/xpu.hpp>
 #include "energy_tracking.cuh"
 
 #include <numbers>
@@ -5,7 +6,7 @@
 EnergyTracker::EnergyTracker(real_t box_length, real_t num_particles)
 : box_length_{box_length}
 , ewald_alpha_{6.0_r / box_length}
-, ewald_correction_{-6.0_r * num_particles / (vmc::sqrt(std::numbers::pi_v<real_t>) * box_length)}
+, ewald_correction_{-6.0_r * num_particles / (xpu::sqrt(std::numbers::pi_v<real_t>) * box_length)}
 , ewald_background_{-std::numbers::pi_v<real_t> * num_particles * num_particles / (72.0_r * box_length)}
 , V_recip_{}
 , V_real_{}
@@ -13,10 +14,10 @@ EnergyTracker::EnergyTracker(real_t box_length, real_t num_particles)
 , data_{} {
   const real_t two_pi_over_L{2.0_r * std::numbers::pi_v<real_t> / box_length};
   const real_t four_alpha_sq{4.0_r * ewald_alpha_ * ewald_alpha_};
-  const real_t cutoff_factor{-vmc::log(EWALD_RECIPROCAL_TOLERANCE)};
+  const real_t cutoff_factor{-xpu::log(EWALD_RECIPROCAL_TOLERANCE)};
 
   const real_t g_max_mag_sq{four_alpha_sq * cutoff_factor};
-  const int m_max{static_cast<int>(vmc::ceil(vmc::sqrt(g_max_mag_sq) / two_pi_over_L)) + 1};
+  const int m_max{static_cast<int>(xpu::ceil(xpu::sqrt(g_max_mag_sq) / two_pi_over_L)) + 1};
 
   std::vector<real_t> tmp_x, tmp_y, tmp_z, tmp_w;
 
@@ -55,7 +56,7 @@ EnergyTracker::EnergyTracker(real_t box_length, real_t num_particles)
         g_z.emplace_back(g_cand_z);
         weights.emplace_back(
           8.0_r * std::numbers::pi_v<real_t> * std::numbers::pi_v<real_t> / g_cand_mag_sq *
-          vmc::exp(-g_cand_mag_sq / four_alpha_sq)
+          xpu::exp(-g_cand_mag_sq / four_alpha_sq)
         );
       }
     }
@@ -83,7 +84,7 @@ void cudaInitializeReciprocalEnergy(
   const real_t* RESTRICT sum_imag,
   real_t* RESTRICT G_sum
 ) {
-  const auto [g]{vmc::cudaThreadIdx<1>()};
+  const auto [g]{xpu::global_index<1>()};
   if (g >= num_G) { return; }
   atomicAdd(G_sum, g_weights[g] * (sum_real[g] * sum_real[g] + sum_imag[g] * sum_imag[g]));
 }
@@ -152,7 +153,7 @@ void cudaInitializeRealEnergy(
   const real_t* RESTRICT pos_z,
   real_t* RESTRICT sum
 ) {
-  const auto [i, j]{vmc::cudaThreadIdx<2>()};
+  const auto [i, j]{xpu::global_index<2>()};
 
   if (i >= N || j >= N) return;
   if (j <= i) return;
@@ -165,10 +166,10 @@ void cudaInitializeRealEnergy(
   dy += L * (dy <= neg_half_L) + neg_L * (dy > half_L);
   dz += L * (dz <= neg_half_L) + neg_L * (dz > half_L);
 
-  const real_t r{vmc::sqrt(dx * dx + dy * dy + dz * dz)};
+  const real_t r{xpu::sqrt(dx * dx + dy * dy + dz * dz)};
   const real_t inv_r{(r < 1e-12_r) ? 1.0_r : 1.0_r / r};
 
-  atomicAdd(sum, vmc::erfc(alpha * r) * inv_r);
+  atomicAdd(sum, xpu::erfc(alpha * r) * inv_r);
 }
 
 } // namespace
@@ -229,14 +230,14 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
       dz += L * (dz <= neg_half_L) + neg_L * (dz > half_L);
 
       const real_t r{
-        vmc::sqrt(
+        xpu::sqrt(
           dx * dx +
           dy * dy +
           dz * dz
         )
       };
       const real_t inv_r{(r < 1e-12_r) ? 1.0_r : 1.0_r / r};
-      local_sum += vmc::erfc(alpha * r) * inv_r;
+      local_sum += xpu::erfc(alpha * r) * inv_r;
     }
     sum += local_sum;
   }
@@ -254,7 +255,7 @@ void cudaInitializeStructureFactors(
   real_t* RESTRICT sum_real, real_t* RESTRICT sum_imag,
   const std::size_t num_G, const std::size_t N
 ) {
-  const auto [i, j]{vmc::cudaThreadIdx<2>()};
+  const auto [i, j]{xpu::global_index<2>()};
   if (i >= num_G || j >= N) return;
   const real_t G_dot_r{
     g_x[i] * pos_x[j] +
@@ -353,7 +354,7 @@ void cudaUpdateStructureFactors(
   const real_t old_x, const real_t old_y, const real_t old_z,
   const real_t new_x, const real_t new_y, const real_t new_z
 ) {
-  const auto [g]{vmc::cudaThreadIdx<1>()};
+  const auto [g]{xpu::global_index<1>()};
   if (g >= num_G) return;
 
   const real_t old_dot{
@@ -483,7 +484,7 @@ void cudaKineticEnergy(
   const real_t* RESTRICT lap,
   real_t* RESTRICT T_sum
 ) {
-  const auto [i]{vmc::cudaThreadIdx<1>()};
+  const auto [i]{xpu::global_index<1>()};
   if (i >= N) return;
 
   // ||Grad(logPsi)||^2 for particle i
@@ -565,7 +566,7 @@ void cudaUpdateRealEnergy(
   const real_t half_L{0.5_r * L};
   const real_t neg_half_L{-1.0_r * half_L};
 
-  const auto [j]{vmc::cudaThreadIdx<1>()};
+  const auto [j]{xpu::global_index<1>()};
   if (j >= N) return;
 
   // Branchless mask to safely skip the moved particle
@@ -581,7 +582,7 @@ void cudaUpdateRealEnergy(
   dz_old += L * (dz_old <= neg_half_L) + neg_L * (dz_old > half_L);
 
   const real_t r_old{
-    vmc::sqrt(
+    xpu::sqrt(
       dx_old * dx_old +
       dy_old * dy_old +
       dz_old * dz_old
@@ -589,7 +590,7 @@ void cudaUpdateRealEnergy(
   };
   // Protect against 1.0 / 0.0 generating NaN
   const real_t inv_r_old{(r_old < 1e-12_r) ? 1.0_r : 1.0_r / r_old};
-  const real_t erfc_old{vmc::erfc(alpha * r_old) * inv_r_old};
+  const real_t erfc_old{xpu::erfc(alpha * r_old) * inv_r_old};
 
   real_t dx_new{new_x - pos_x[j]};
   real_t dy_new{new_y - pos_y[j]};
@@ -600,7 +601,7 @@ void cudaUpdateRealEnergy(
   dz_new += L * (dz_new <= neg_half_L) + neg_L * (dz_new > half_L);
 
   const real_t r_new{
-    vmc::sqrt(
+    xpu::sqrt(
       dx_new * dx_new +
       dy_new * dy_new +
       dz_new * dz_new
@@ -609,7 +610,7 @@ void cudaUpdateRealEnergy(
 
   // Protect against 1.0 / 0.0 generating NaN
   const real_t inv_r_new{(r_new < 1e-12_r) ? 1.0_r : 1.0_r / r_new};
-  const real_t erfc_new{vmc::erfc(alpha * r_new) * inv_r_new};
+  const real_t erfc_new{xpu::erfc(alpha * r_new) * inv_r_new};
 
   atomicAdd(delta, valid_mask * (erfc_new - erfc_old));
 }
@@ -684,7 +685,7 @@ void EnergyTracker::update_real_energy(
     dz_old += L * (dz_old <= neg_half_L) + neg_L * (dz_old > half_L);
 
     const real_t r_old{
-      vmc::sqrt(
+      xpu::sqrt(
         dx_old * dx_old +
         dy_old * dy_old +
         dz_old * dz_old
@@ -692,7 +693,7 @@ void EnergyTracker::update_real_energy(
     };
     // Protect against 1.0 / 0.0 generating NaN
     const real_t inv_r_old{(r_old < 1e-12_r) ? 1.0_r : 1.0_r / r_old};
-    const real_t erfc_old{vmc::erfc(alpha * r_old) * inv_r_old};
+    const real_t erfc_old{xpu::erfc(alpha * r_old) * inv_r_old};
 
     // New pair
     real_t dx_new{new_x - pos.x_[j]};
@@ -704,7 +705,7 @@ void EnergyTracker::update_real_energy(
     dz_new += L * (dz_new <= neg_half_L) + neg_L * (dz_new > half_L);
 
     const real_t r_new{
-      vmc::sqrt(
+      xpu::sqrt(
         dx_new * dx_new +
         dy_new * dy_new +
         dz_new * dz_new
@@ -713,7 +714,7 @@ void EnergyTracker::update_real_energy(
 
     // Protect against 1.0 / 0.0 generating NaN
     const real_t inv_r_new{(r_new < 1e-12_r) ? 1.0_r : 1.0_r / r_new};
-    const real_t erfc_new{vmc::erfc(alpha * r_new) * inv_r_new};
+    const real_t erfc_new{xpu::erfc(alpha * r_new) * inv_r_new};
 
     delta += valid_mask * (erfc_new - erfc_old);
   }

@@ -1,3 +1,4 @@
+#include <xpu/xpu.hpp>
 #include "jastrow_pade.cuh"
 
 #ifdef VMC_CUDA_BACKEND
@@ -36,7 +37,7 @@ void cudaValue(
     displ_y * displ_y +
     displ_z * displ_z
   };
-  const real_t dist{vmc::sqrt(dist_sq)};
+  const real_t dist{xpu::sqrt(dist_sq)};
 
   const real_t denom{1.0_r + b * dist};
   const real_t inv_denom{1.0_r / denom};
@@ -71,7 +72,7 @@ void cudaDeltaValue(
   displ_old_z += L * (displ_old_z <= neg_half_L) + neg_L * (displ_old_z > half_L);
 
   const real_t dist_old{
-    vmc::sqrt(
+    xpu::sqrt(
       displ_old_x * displ_old_x +
       displ_old_y * displ_old_y +
       displ_old_z * displ_old_z
@@ -88,7 +89,7 @@ void cudaDeltaValue(
   displ_new_z += L * (displ_new_z <= neg_half_L) + neg_L * (displ_new_z > half_L);
 
   const real_t dist_new{
-    vmc::sqrt(
+    xpu::sqrt(
       displ_new_x * displ_new_x +
       displ_new_y * displ_new_y +
       displ_new_z * displ_new_z
@@ -164,7 +165,7 @@ real_t JastrowPade::value(const Particles& particles) const noexcept {
         displ_y * displ_y +
         displ_z * displ_z
       };
-      const real_t dist{vmc::sqrt(dist_sq)};
+      const real_t dist{xpu::sqrt(dist_sq)};
 
       const real_t denom{1.0_r + b_local * dist};
       const real_t inv_denom{1.0_r / denom};
@@ -238,7 +239,7 @@ real_t JastrowPade::delta_value(
     displ_old_z += L * (displ_old_z <= neg_half_L) + neg_L * (displ_old_z > half_L);
 
     const real_t dist_old{
-      vmc::sqrt(
+      xpu::sqrt(
         displ_old_x * displ_old_x +
         displ_old_y * displ_old_y +
         displ_old_z * displ_old_z
@@ -255,7 +256,7 @@ real_t JastrowPade::delta_value(
     displ_new_z += L * (displ_new_z <= neg_half_L) + neg_L * (displ_new_z > half_L);
 
     const real_t dist_new{
-      vmc::sqrt(
+      xpu::sqrt(
         displ_new_x * displ_new_x +
         displ_new_y * displ_new_y +
         displ_new_z * displ_new_z

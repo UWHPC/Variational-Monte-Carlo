@@ -1,3 +1,4 @@
+#include <xpu/xpu.hpp>
 #include "slater_plane_wave.cuh"
 
 #ifdef VMC_CUDA_BACKEND
@@ -13,7 +14,7 @@ void cudaAccumulateDerivatives(
   real_t* RESTRICT g_mag,
   real_t* RESTRICT lap
 ) {
-  const auto [i]{vmc::cudaThreadIdx<1>()};
+  const auto [i]{xpu::global_index<1>()};
   if (i >= size_orb) { return; }
 
   g_mag[i] = (
@@ -33,7 +34,7 @@ void cudaAddDerivatives(
   const real_t* RESTRICT inv_det, const real_t* RESTRICT s_cache, const real_t* RESTRICT c_cache,
   real_t* RESTRICT grad_x, real_t* RESTRICT grad_y, real_t* RESTRICT grad_z, real_t* RESTRICT lap
 ) {
-  const auto [i, j]{vmc::cudaThreadIdx<2>()};
+  const auto [i, j]{xpu::global_index<2>()};
   if (i >= size_orb || j >= size_orb) { return; }
 
   const std::size_t trig_offset{i * trig_S};

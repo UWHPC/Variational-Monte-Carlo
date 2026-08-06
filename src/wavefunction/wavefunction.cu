@@ -1,3 +1,4 @@
+#include <xpu/xpu.hpp>
 #include "wavefunction.cuh"
 
 #include <algorithm>
@@ -16,7 +17,7 @@ void cudaDerivativeSums(
   real_t* log_gx, real_t* log_gy, real_t* log_gz, real_t* log_lap,
   real_t* jp_gx, real_t* jp_gy, real_t* jp_gz, real_t* jp_lap
 ) {
-  const auto [i]{vmc::cudaThreadIdx<1>()};
+  const auto [i]{xpu::global_index<1>()};
   if (i >= p_N) { return; }
 
   log_gx[i] += jp_gx[i];

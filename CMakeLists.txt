@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.25)
 
 if(
   NOT DEFINED CMAKE_EXPORT_COMPILE_COMMANDS
@@ -25,8 +25,9 @@ if(VMC_ENABLE_CUDA)
   check_language(CUDA)
   if(CMAKE_CUDA_COMPILER)
     enable_language(CUDA)
-    set(CMAKE_CUDA_STANDARD 20)
+    set(CMAKE_CUDA_STANDARD 23)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+    set(CMAKE_CUDA_EXTENSIONS OFF)
     if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
       set(CMAKE_CUDA_ARCHITECTURES native)
     endif()
@@ -44,6 +45,20 @@ if(VMC_FAST_MATH AND FP_64)
 endif()
 
 # --- Dependencies ---
+include(FetchContent)
+
+# xpu must use the same backend as VMC: mixing CPU and CUDA allocation in one
+# linked program is undefined. Let VMC own its own -march flags.
+set(XPU_ENABLE_CUDA ${VMC_ENABLE_CUDA} CACHE BOOL "" FORCE)
+set(XPU_ARCH_NATIVE OFF CACHE BOOL "" FORCE)
+
+fetchcontent_declare(
+  xpu
+  GIT_REPOSITORY https://github.com/UWHPC/xpu.git
+  GIT_TAG 22fdac2
+)
+fetchcontent_makeavailable(xpu)
+
 find_package(OpenMP QUIET COMPONENTS CXX)
 
 if(OpenMP_CXX_FOUND)
@@ -132,6 +147,8 @@ add_library(vmc_lib STATIC
 
 target_include_directories(vmc_lib PUBLIC src)
 
+target_link_libraries(vmc_lib PUBLIC xpu::xpu)
+
 if(NOT VMC_CUDA AND VMC_CUDA_EXTENSION_SOURCES)
   set_source_files_properties(
     ${VMC_CUDA_EXTENSION_SOURCES}
@@ -217,7 +234,6 @@ if(BUILD_TESTING)
     GIT_REPOSITORY https://github.com/catchorg/Catch2.git
     GIT_TAG v3.8.1
   )
-
   fetchcontent_makeavailable(Catch2)
 
   add_executable(vmc_tests

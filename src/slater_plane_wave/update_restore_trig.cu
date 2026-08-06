@@ -1,3 +1,4 @@
+#include <xpu/xpu.hpp>
 #include "slater_plane_wave.cuh"
 
 #ifdef VMC_CUDA_BACKEND
@@ -10,7 +11,7 @@ __global__ void cudaUpdateTrigRow(
   const real_t* RESTRICT k_x, const real_t* RESTRICT k_y, const real_t* RESTRICT k_z,
   real_t* RESTRICT s_cache, real_t* RESTRICT c_cache
 ) {
-  const auto [i]{vmc::cudaThreadIdx<1>()};
+  const auto [i]{xpu::global_index<1>()};
   if (i >= num_k) { return; }
 
   const real_t dot{

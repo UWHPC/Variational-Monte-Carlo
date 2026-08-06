@@ -1,3 +1,4 @@
+#include <xpu/xpu.hpp>
 #include "jastrow_pade.cuh"
 
 #ifdef VMC_CUDA_BACKEND
@@ -12,7 +13,7 @@ void cudaAddDerivatives(
   real_t* RESTRICT grad_x, real_t* RESTRICT grad_y, real_t* RESTRICT grad_z,
   real_t* RESTRICT laplacian
 ) {
-  const auto [i, j]{vmc::cudaThreadIdx<2>()};
+  const auto [i, j]{xpu::global_index<2>()};
   if (i >= num_particles || j >= num_particles) { return; }
   if (i == j) { return; }
 
@@ -35,7 +36,7 @@ void cudaAddDerivatives(
     displ_z * displ_z
   };
 
-  const auto dist{vmc::sqrt(dist_sq)};
+  const auto dist{xpu::sqrt(dist_sq)};
 
   if (dist < 1e-12_r) { return; }
   const real_t inv_dist{1.0_r / dist};
@@ -123,7 +124,7 @@ void JastrowPade::add_derivatives(
         displ_y * displ_y +
         displ_z * displ_z
       };
-      const real_t dist{vmc::sqrt(dist_sq)};
+      const real_t dist{xpu::sqrt(dist_sq)};
 
       const bool degenerate{dist < 1e-12_r};
       const real_t inv_dist{degenerate ? 1.0_r : 1.0_r / dist};

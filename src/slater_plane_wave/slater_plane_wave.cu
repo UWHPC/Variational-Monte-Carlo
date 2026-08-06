@@ -1,3 +1,4 @@
+#include <xpu/xpu.hpp>
 #include "slater_plane_wave.cuh"
 #include "../utilities/matrix.hpp"
 #include "particles/particles.cuh"
