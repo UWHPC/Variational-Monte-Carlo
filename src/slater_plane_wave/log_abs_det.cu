@@ -1,3 +1,4 @@
+#include <xpu/xpu.hpp>
 #include "slater_plane_wave.cuh"
 
 #ifdef VMC_CUDA_BACKEND
@@ -92,7 +93,7 @@ void cudaBuildTrigCache(
   const real_t* RESTRICT k_x, const real_t* RESTRICT k_y, const real_t* RESTRICT k_z,
   real_t* RESTRICT s_cache, real_t* RESTRICT c_cache
 ) {
-  const auto [i, j]{vmc::cudaThreadIdx<2>()};
+  const auto [i, j]{xpu::global_index<2>()};
   if (i >= num_unique_k || j >= N) {return; }
 
   const real_t dot{
@@ -114,7 +115,7 @@ void cudaBuildDetFromCache(
   const std::size_t* RESTRICT k_idx, const std::uint8_t* RESTRICT orb_t,
   real_t* RESTRICT det_mat
 ) {
-  const auto [i, j]{vmc::cudaThreadIdx<2>()};
+  const auto [i, j]{xpu::global_index<2>()};
   if (i >= N || j >= N) { return; }
 
   const std::size_t offset{j * trig_S};
@@ -134,12 +135,12 @@ void cudaComputeLogAbsDet(
   const real_t* lower_upper,
   real_t* log_abs_det
 ) {
-  const auto [i]{vmc::cudaThreadIdx<1>()};
+  const auto [i]{xpu::global_index<1>()};
   if (i >= N) { return; }
 
   const real_t U_diag{lower_upper[i * mat_S + i]};
 
-  atomicAdd(log_abs_det, vmc::log(vmc::abs(U_diag)));
+  atomicAdd(log_abs_det, xpu::log(xpu::abs(U_diag)));
 }
 
 __global__
@@ -148,7 +149,7 @@ void cudaBuildIdentity(
   std::size_t mat_S,
   real_t* matrix
 ) {
-  const auto [i]{vmc::cudaThreadIdx<1>()};
+  const auto [i]{xpu::global_index<1>()};
   if (i >= N * mat_S) { return; }
 
   const std::size_t row{i / mat_S};
@@ -375,9 +376,9 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
   #pragma omp simd reduction(+ : log_abs_det)
   for (std::size_t diag = 0; diag < N; ++diag) {
     const real_t U_ii{lower_upper_matrix[diag * S + diag]};
-    const real_t abs_U_ii{vmc::abs(U_ii)};
+    const real_t abs_U_ii{xpu::abs(U_ii)};
 
-    log_abs_det += vmc::log(abs_U_ii);
+    log_abs_det += xpu::log(abs_U_ii);
   }
 
   if (!std::isfinite(log_abs_det)) {

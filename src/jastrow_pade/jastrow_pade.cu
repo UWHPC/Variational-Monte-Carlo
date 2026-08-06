@@ -1,3 +1,4 @@
+#include <xpu/xpu.hpp>
 #include "jastrow_pade.cuh"
 
 #include <cmath>
@@ -17,7 +18,7 @@ void cudaComputeDerivatives(
   real_t* RESTRICT grad_x, real_t* RESTRICT grad_y, real_t* RESTRICT grad_z,
   real_t* RESTRICT laplacian
 ) {
-  const auto [i]{vmc::cudaThreadIdx<1>()};
+  const auto [i]{xpu::global_index<1>()};
   if (i >= N || i == moved) { return; }
 
   real_t displ_old_x{old_x - p_x[i]};
@@ -29,7 +30,7 @@ void cudaComputeDerivatives(
   displ_old_z += L * (displ_old_z <= -half_L) + -L * (displ_old_z > half_L);
 
   const real_t dist_old{
-    vmc::sqrt(
+    xpu::sqrt(
       displ_old_x * displ_old_x +
       displ_old_y * displ_old_y +
       displ_old_z * displ_old_z
@@ -60,7 +61,7 @@ void cudaComputeDerivatives(
   displ_new_z += L * (displ_new_z <= -half_L) + -L * (displ_new_z > half_L);
 
   const real_t dist_new{
-    vmc::sqrt(
+    xpu::sqrt(
       displ_new_x * displ_new_x +
       displ_new_y * displ_new_y +
       displ_new_z * displ_new_z
@@ -186,7 +187,7 @@ void JastrowPade::update_derivatives_for_move(
     displ_old_z += L * (displ_old_z <= neg_half_L) + neg_L * (displ_old_z > half_L);
 
     const real_t dist_old{
-      vmc::sqrt(
+      xpu::sqrt(
         displ_old_x * displ_old_x +
         displ_old_y * displ_old_y +
         displ_old_z * displ_old_z
@@ -214,7 +215,7 @@ void JastrowPade::update_derivatives_for_move(
     displ_new_z += L * (displ_new_z <= neg_half_L) + neg_L * (displ_new_z > half_L);
 
     const real_t dist_new{
-      vmc::sqrt(
+      xpu::sqrt(
         displ_new_x * displ_new_x +
         displ_new_y * displ_new_y +
         displ_new_z * displ_new_z

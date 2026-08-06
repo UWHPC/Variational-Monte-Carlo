@@ -1,3 +1,4 @@
+#include <xpu/xpu.hpp>
 #include "slater_plane_wave.cuh"
 #include "../utilities/matrix.hpp"
 
@@ -20,7 +21,7 @@ void cudaFindNVecCandidates(
   int* RESTRICT nv_mag_sq,
   unsigned long long* RESTRICT counter
 ) {
-  const auto [raw_i, raw_j, raw_k]{vmc::cudaThreadIdx<3>()};
+  const auto [raw_i, raw_j, raw_k]{xpu::global_index<3>()};
   const auto side{static_cast<std::size_t>(2 * n_max + 1)};
   if (raw_i >= side || raw_j >= side || raw_k >= side) { return; }
 
@@ -50,7 +51,7 @@ void cudaAssignOrbitals(
   real_t* RESTRICT k_x, real_t* RESTRICT k_y, real_t* RESTRICT k_z,
   std::size_t* RESTRICT orb_k_idx, std::uint8_t* RESTRICT orb_type
 ) {
-  const auto [i]{vmc::cudaThreadIdx<1>()};
+  const auto [i]{xpu::global_index<1>()};
   if (i >= num_unique_k) { return; }
 
   const std::size_t src{order[i]};
@@ -102,7 +103,7 @@ void SlaterPlaneWave::initialize(const Particles& particles) {
     N_VEC_ARR
   };
 
-  const int n_max{static_cast<int>(vmc::ceil(vmc::cbrt(static_cast<real_t>(N)))) + 2};
+  const int n_max{static_cast<int>(xpu::ceil(xpu::cbrt(static_cast<real_t>(N)))) + 2};
   const std::size_t side{static_cast<std::size_t>(2 * n_max + 1)};
   const std::size_t max_candidates{side * side * side};
 
@@ -181,7 +182,7 @@ void SlaterPlaneWave::initialize(const Particles& particles) {
     int n_mag_sq;
   };
 
-  const int N_MAX{static_cast<int>(vmc::ceil(vmc::cbrt(static_cast<real_t>(N)))) + 2};
+  const int N_MAX{static_cast<int>(xpu::ceil(xpu::cbrt(static_cast<real_t>(N)))) + 2};
   const std::size_t side{static_cast<std::size_t>((2 * N_MAX + 1))};
 
   std::vector<nVectorCandidate> n_candidates{};

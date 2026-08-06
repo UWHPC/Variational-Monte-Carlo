@@ -1,3 +1,4 @@
+#include <xpu/xpu.hpp>
 #include "jastrow_optimizer.hpp"
 #include "../simulation/simulation.cuh"
 
@@ -14,7 +15,7 @@ real_t JastrowOptimizer::compute_rs(const Config& cfg) {
   const real_t N{static_cast<real_t>(cfg.num_particles)};
   const real_t volume{cfg.box_length * cfg.box_length * cfg.box_length};
   const real_t density{N / volume};
-  return vmc::cbrt(3.0_r / (4.0_r * std::numbers::pi_v<real_t> * density));
+  return xpu::cbrt(3.0_r / (4.0_r * std::numbers::pi_v<real_t> * density));
 }
 
 JastrowOptimizer::Result JastrowOptimizer::optimize(const Config& base_config, bool verbose) {
@@ -99,13 +100,13 @@ JastrowOptimizer::Result JastrowOptimizer::optimize(const Config& base_config, b
   }
 
   // Check if the winner is the boundary point and an outlier
-  const bool at_boundary{vmc::abs(best_b - b_min) < 1e-10_r};
+  const bool at_boundary{xpu::abs(best_b - b_min) < 1e-10_r};
   if (at_boundary && results.size() > 2) {
     // Compute the energy spread of all non-boundary points
     real_t interior_min{std::numeric_limits<real_t>::max()};
     real_t interior_max{std::numeric_limits<real_t>::lowest()};
     for (const auto& r : results) {
-      if (vmc::abs(r.b - b_min) < 1e-10_r)
+      if (xpu::abs(r.b - b_min) < 1e-10_r)
         continue;
       interior_min = std::min(interior_min, r.energy);
       interior_max = std::max(interior_max, r.energy);
@@ -123,7 +124,7 @@ JastrowOptimizer::Result JastrowOptimizer::optimize(const Config& base_config, b
       best_b = 1.0_r;
       best_energy = std::numeric_limits<real_t>::max();
       for (const auto& r : results) {
-        if (vmc::abs(r.b - b_min) < 1e-10_r)
+        if (xpu::abs(r.b - b_min) < 1e-10_r)
           continue;
         if (r.energy < best_energy) {
           best_energy = r.energy;
