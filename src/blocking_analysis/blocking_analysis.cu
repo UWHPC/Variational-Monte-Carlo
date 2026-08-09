@@ -17,7 +17,7 @@ std::pair<real_t, real_t> BlockingAnalysis::mean_and_standard_error() const {
     throw std::runtime_error("Not enough blocks");
   }
   const real_t variance{running_m2_ / static_cast<real_t>(num_blocks_ - 1)};
-  const real_t standard_error{vmc::sqrt(variance / static_cast<real_t>(num_blocks_))};
+  const real_t standard_error{xpu::sqrt(variance / static_cast<real_t>(num_blocks_))};
 
   return {running_mean_, standard_error};
 }

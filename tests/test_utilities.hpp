@@ -4,8 +4,8 @@
 
 #include "config/config.hpp"
 #include "output_writer/output_writer.hpp"
-#include "particles/particles.cuh"
-#include "slater_plane_wave/slater_plane_wave.cuh"
+#include "particles/particles.hpp"
+#include "slater_plane_wave/slater_plane_wave.hpp"
 
 #include <algorithm>
 #include <cmath>

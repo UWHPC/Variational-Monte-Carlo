@@ -1,23 +1,21 @@
 #pragma once
 
-#include "../particles/particles.cuh"
-#include "../utilities/aligned_soa.cuh"
-#include "../utilities/macros.cuh"
-#include "../utilities/math.cuh"
-#include "../utilities/ptr3d.hpp"
+#include "../particles/particles.hpp"
+#include <xpu/buffer.hpp>
+#include <xpu/soa.hpp>
+#include "../utilities/macros.hpp"
+#include <xpu/math.hpp>
 
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
-#include <numbers>
-#include <vector>
 
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 struct CudaScratch {
   cusolverDnHandle_t handle;
-  AlignedSoA<real_t> work;
-  AlignedSoA<int> info;
-  AlignedSoA<real_t> log_abs_det;
+  xpu::buffer<real_t> work;
+  xpu::buffer<int> info;
+  xpu::buffer<real_t> log_abs_det;
 };
 #endif
 
@@ -31,13 +29,13 @@ private:
   real_t box_length_;
 
   enum OrbKIndex : std::size_t { K, NUM_ORB_K };
-  AlignedSoA<std::size_t> orbital_k_index_;
+  xpu::soa<std::size_t, NUM_ORB_K> orbital_k_index_;
   
   enum OrbType : std::size_t { O, NUM_ORB_TYPE };
-  AlignedSoA<std::uint8_t> orbital_type_;
+  xpu::soa<std::uint8_t, NUM_ORB_TYPE> orbital_type_;
 
   enum PivotIndex : std::size_t { N_X, N_Y, N_Z, PIVOT, NUM_INT_VECTORS };
-  AlignedSoA<int> int_vec_;
+  xpu::soa<int, NUM_INT_VECTORS> int_vec_;
 
   enum VectorIndex : std::size_t {
     K_X,
@@ -49,18 +47,18 @@ private:
     INV_D_COL,
     NUM_DOUBLE_VECTORS
   };
-  AlignedSoA<real_t> fp_vec_;
+  xpu::soa<real_t, NUM_DOUBLE_VECTORS> fp_vec_;
 
   enum TrigIndex : std::size_t { SIN_CACHE, COS_CACHE, NUM_TRIG_ARRAYS };
-  AlignedSoA<real_t> trig_cache_;
+  xpu::soa<real_t, NUM_TRIG_ARRAYS> trig_cache_;
 
   enum ScratchTrigIndex : std::size_t { SIN_SAVED, COS_SAVED, NUM_SCRATCH_TRIG };
-  AlignedSoA<real_t> trig_scratch_;
+  xpu::soa<real_t, NUM_SCRATCH_TRIG> trig_scratch_;
 
   enum MatrixIndex : std::size_t { D, INV_D, LU, NUM_MATRIX };
-  AlignedSoA<real_t> matrices_;
+  xpu::soa<real_t, NUM_MATRIX> matrices_;
 
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
   CudaScratch cuda_scratch_;
 #endif
 
@@ -101,11 +99,25 @@ public:
   [[nodiscard]] int*       pivot()       noexcept { return int_vec_[PIVOT]; }
   [[nodiscard]] int const* pivot() const noexcept { return int_vec_[PIVOT]; }
 
-  Ptr3D<      int> n_vector()       noexcept { return {int_vec_[N_X], int_vec_[N_Y], int_vec_[N_Z]}; }
-  Ptr3D<const int> n_vector() const noexcept { return {int_vec_[N_X], int_vec_[N_Y], int_vec_[N_Z]}; }
+  [[nodiscard]] CUDA_CALLABLE
+  xpu::soa_view<real_t, 3> n_vector() {
+    return int_vec_.view<3, N_X>();
+  }
 
-  Ptr3D<      real_t> k_vector()       noexcept { return {fp_vec_[K_X], fp_vec_[K_Y], fp_vec_[K_Z]}; }
-  Ptr3D<const real_t> k_vector() const noexcept { return {fp_vec_[K_X], fp_vec_[K_Y], fp_vec_[K_Z]}; }
+  [[nodiscard]] CUDA_CALLABLE
+  xpu::soa_view<const real_t, 3> n_vector() const {
+    return int_vec_.view<3, N_X>();
+  }
+
+  [[nodiscard]] CUDA_CALLABLE
+  xpu::soa_view<real_t, 3> k_vector() {
+    return fp_vec_.view<3, K_X>();
+  }
+
+  [[nodiscard]] CUDA_CALLABLE
+  xpu::soa_view<const real_t, 3> k_vector() const {
+    return fp_vec_.view<3, K_X>();
+  }
 
   [[nodiscard]] real_t*       solution()       noexcept { return fp_vec_[SOLUTION]; }
   [[nodiscard]] real_t const* solution() const noexcept { return fp_vec_[SOLUTION]; }
@@ -141,7 +153,7 @@ public:
   ) const noexcept;
 
 private:
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
   void init_cuda_scratch();
 #endif
 

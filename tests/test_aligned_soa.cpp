@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "utilities/aligned_soa.cuh"
+#include "utilities/aligned_soa.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -9,14 +9,14 @@ TEST_CASE("AlignedSoA rounds stride to SIMD alignment and zero-initializes", "[a
   AlignedSoA<double> soa{3U, 2U};
 
   const std::size_t stride{soa.stride()};
-  const std::size_t doubles_per_alignment{SIMD_BYTES / sizeof(double)};
+  const std::size_t doubles_per_alignment{xpu::simd_bytes / sizeof(double)};
 
   REQUIRE(soa.num_elements() == 3U);
   REQUIRE(stride >= 3U);
   REQUIRE(stride % doubles_per_alignment == 0U);
 
   const auto address{reinterpret_cast<std::uintptr_t>(soa[0])};
-  REQUIRE(address % SIMD_BYTES == 0U);
+  REQUIRE(address % xpu::simd_bytes == 0U);
 
   for (std::size_t i = 0; i < stride; ++i) {
     REQUIRE(soa[0][i] == 0.0);

@@ -1,8 +1,7 @@
 #include <xpu/xpu.hpp>
-#include "simulation.cuh"
+#include "simulation.hpp"
 
 #include <cmath>
-#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <optional>
@@ -20,15 +19,15 @@ Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_write
 , proposed_{}
 , accepted_{}
 , log_psi_current_{}
-, positions_{particles_.size(), 3}
+, positions_{particles_.count()}
 , walker_rng_{}
 {
   walker_rng_.init(config_, 0);
 }
 
-const AlignedSoA<real_t>& Simulation::positions_snapshot() {
-  const std::size_t N{particles_.size()};
-  auto [p_x, p_y, p_z]{particles_.pos().align()};
+  const xpu::soa<real_t, 3>& Simulation::positions_snapshot() {
+  const std::size_t N{particles_.count()};
+  auto [p_x, p_y, p_z]{particles_.pos().pointers()};
 
   for (std::size_t i{}; i < N; ++i) {
     positions_[0][i] = p_x[i];
@@ -39,9 +38,9 @@ const AlignedSoA<real_t>& Simulation::positions_snapshot() {
 }
 
 void Simulation::initialize_positions() {
-  const std::size_t N{particles_.size()};
+  const std::size_t N{particles_.count()};
   const real_t length{config_.box_length};
-  auto [p_x, p_y, p_z]{particles_.pos().align()};
+  auto [p_x, p_y, p_z]{particles_.pos().pointers()};
 
   constexpr std::size_t MAX_INIT_ATTEMPTS{100};
 
@@ -68,7 +67,7 @@ void Simulation::initialize_positions() {
 
 CUDA_CALLABLE
 Simulation::StepResult Simulation::metropolis_step() {
-  auto [p_x, p_y, p_z]{particles_.pos().align()};
+  auto [p_x, p_y, p_z]{particles_.pos().pointers()};
 
   const std::size_t rand{rand_particle()};
   const real_t L{config_.box_length};
@@ -133,7 +132,7 @@ void Simulation::warmup() {
   real_t& step_size{config_.step_size};
 
   const std::size_t warmup_steps{config_.warmup_steps};
-  const std::size_t warmup_batch_size{particles_.size()};
+  const std::size_t warmup_batch_size{particles_.count()};
 
   std::size_t window_proposed{};
   std::size_t window_accepted{};
@@ -209,7 +208,7 @@ Simulation::MeasurementSummary Simulation::measure() {
 
     if (output_writer_) {
       const auto& snapshot{positions_snapshot()};
-      const std::size_t N{particles_.size()};
+      const std::size_t N{particles_.count()};
 
       std::vector<real_t> flat_positions(N * 3U);
       for (std::size_t p{}; p < N; ++p) {

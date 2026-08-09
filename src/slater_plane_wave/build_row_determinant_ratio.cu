@@ -1,7 +1,7 @@
 #include <xpu/xpu.hpp>
-#include "slater_plane_wave.cuh"
+#include "slater_plane_wave.hpp"
 
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 #include <cstddef>
 namespace {
 
@@ -38,16 +38,16 @@ __global__ void cudaDeterminantRatio(
 }
 
 #else
-#include "particles/particles.cuh"
-#include "utilities/aligned_soa.cuh"
+#include "particles/particles.hpp"
+#include "utilities/aligned_soa.hpp"
 #include <cstring>
 #endif
 
 real_t* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
   dim3 buildRowThreads(256);
   dim3 buildRowBlocks(
-    vmc::cudaNumBlocks(this->num_orbitals(), buildRowThreads.x)
+    xpu::block_per_dim(this->num_orbitals(), buildRowThreads.x)
   );
   cudaBuildRow<<<buildRowBlocks, buildRowThreads>>>(
     this->num_orbitals(), this->trig_row_stride(), particle,
@@ -55,8 +55,8 @@ real_t* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
     this->orbital_k_index(), this->orbital_type(),
     this->new_row()
   );
-  CUDA_CHECK(cudaGetLastError());
-  CUDA_CHECK(cudaDeviceSynchronize());
+  xpu::cuda_check(cudaGetLastError());
+  xpu::cuda_check(cudaDeviceSynchronize());
   return this->new_row();
 
 #else
@@ -69,9 +69,6 @@ real_t* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
   real_t* RESTRICT sin_cache{this->sin_cache()};
   real_t* RESTRICT cos_cache{this->cos_cache()};
 
-  ASSUME_ALIGNED(row, SIMD_BYTES);
-  ASSUME_ALIGNED(sin_cache, SIMD_BYTES);
-  ASSUME_ALIGNED(cos_cache, SIMD_BYTES);
 
   // Not vectorized: loop-carried data dependency
   #pragma omp simd
@@ -94,10 +91,10 @@ real_t SlaterPlaneWave::determinant_ratio(
   std::size_t particle,
   const real_t* new_row
 ) const noexcept {
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
   dim3 determinantRatioThreads(256);
   dim3 determinantRatioBlocks(
-    vmc::cudaNumBlocks(this->num_orbitals(), determinantRatioThreads.x)
+    xpu::block_per_dim(this->num_orbitals(), determinantRatioThreads.x)
   );
 
   AlignedSoA<real_t> ratio{1, 1};
@@ -108,15 +105,14 @@ real_t SlaterPlaneWave::determinant_ratio(
     ratio[0]
   );
 
-  CUDA_CHECK(cudaGetLastError());
-  CUDA_CHECK(cudaDeviceSynchronize());
+  xpu::cuda_check(cudaGetLastError());
+  xpu::cuda_check(cudaDeviceSynchronize());
   return *ratio[0];
 #else
   const std::size_t N{num_orbitals()};
   const std::size_t S{matrix_row_stride()};
   const real_t* RESTRICT inv_det{inv_determinant()};
 
-  ASSUME_ALIGNED(inv_det, SIMD_BYTES);
   real_t ratio{};
   #pragma omp simd reduction(+ : ratio)
   for (std::size_t j = 0; j < N; ++j) {

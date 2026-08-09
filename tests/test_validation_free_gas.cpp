@@ -1,7 +1,7 @@
 #include "test_utilities.hpp"
 
-#include "energy_tracking/energy_tracking.cuh"
-#include "wavefunction/wavefunction.cuh"
+#include "energy_tracking/energy_tracking.hpp"
+#include "wavefunction/wavefunction.hpp"
 
 #include <cstddef>
 #include <numbers>

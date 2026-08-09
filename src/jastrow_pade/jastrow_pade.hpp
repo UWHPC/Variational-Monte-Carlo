@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../particles/particles.cuh"
-#include "../utilities/math.cuh"
+#include "../particles/particles.hpp"
+#include <xpu/math.hpp>
 
 class JastrowPade {
 private:

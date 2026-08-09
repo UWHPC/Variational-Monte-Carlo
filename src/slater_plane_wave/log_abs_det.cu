@@ -1,7 +1,7 @@
 #include <xpu/xpu.hpp>
-#include "slater_plane_wave.cuh"
+#include "slater_plane_wave.hpp"
 
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 #include <cublas_v2.h>
 #include <cmath>
 #include <cstddef>
@@ -10,7 +10,7 @@
 #include <cstdlib>
 #include <limits>
 
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 
 namespace {
 
@@ -105,7 +105,7 @@ void cudaBuildTrigCache(
   const std::size_t offset{j * trig_S};
   const std::size_t sc_idx{offset + i};
 
-  vmc::sincos(dot, &s_cache[sc_idx], &c_cache[sc_idx]);
+  xpu::sincos(dot, &s_cache[sc_idx], &c_cache[sc_idx]);
 }
 
 __global__
@@ -162,10 +162,10 @@ void cudaBuildIdentity(
 
 #endif
 #else
-#include "slater_plane_wave.cuh"
+#include "slater_plane_wave.hpp"
 #include "../utilities/matrix.hpp"
-#include "particles/particles.cuh"
-#include "utilities/aligned_soa.cuh"
+#include "particles/particles.hpp"
+#include "utilities/aligned_soa.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -175,7 +175,7 @@ void cudaBuildIdentity(
 #include <vector>
 #endif
 
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 void SlaterPlaneWave::init_cuda_scratch() {
   const int N{static_cast<int>(this->num_orbitals())};
   const int mat_S{static_cast<int>(this->matrix_row_stride())};
@@ -196,7 +196,7 @@ void SlaterPlaneWave::init_cuda_scratch() {
 #endif
 
 SlaterPlaneWave::~SlaterPlaneWave() {
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
   if (cuda_scratch_.handle) {
     CUSOLVER_CHECK(cusolverDnDestroy(cuda_scratch_.handle));
   }
@@ -204,7 +204,7 @@ SlaterPlaneWave::~SlaterPlaneWave() {
 }
 
 real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
   const int N{static_cast<int>(particles.size())};
   const int mat_S{static_cast<int>(this->matrix_row_stride())};
   auto& scratch{cuda_scratch_};
@@ -213,8 +213,8 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
 
   dim3 buildTrigCacheThreads(16, 16);
   dim3 buildTrigCacheBlocks(
-    vmc::cudaNumBlocks(num_unique_k(), buildTrigCacheThreads.x),
-    vmc::cudaNumBlocks(particles.size(), buildTrigCacheThreads.y)
+    xpu::block_per_dim(num_unique_k(), buildTrigCacheThreads.x),
+    xpu::block_per_dim(particles.size(), buildTrigCacheThreads.y)
   );
   cudaBuildTrigCache<<<buildTrigCacheBlocks, buildTrigCacheThreads>>>(
     particles.size(), this->trig_row_stride(), this->num_unique_k(),
@@ -222,12 +222,12 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
     this->k_vector().x_, this->k_vector().y_, this->k_vector().z_,
     this->sin_cache(), this->cos_cache()
   );
-  CUDA_CHECK(cudaGetLastError());
+  xpu::cuda_check(cudaGetLastError());
 
   dim3 buildDetFromCacheThreads(16, 16);
   dim3 buildDetFromCacheBlocks(
-    vmc::cudaNumBlocks(particles.size(), buildDetFromCacheThreads.x),
-    vmc::cudaNumBlocks(particles.size(), buildDetFromCacheThreads.y)
+    xpu::block_per_dim(particles.size(), buildDetFromCacheThreads.x),
+    xpu::block_per_dim(particles.size(), buildDetFromCacheThreads.y)
   );
   cudaBuildDetFromCache<<<buildDetFromCacheBlocks, buildDetFromCacheThreads>>>(
     particles.size(),
@@ -236,9 +236,9 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
     this->orbital_k_index(), this->orbital_type(),
     this->determinant()
   );
-  CUDA_CHECK(cudaGetLastError());
+  xpu::cuda_check(cudaGetLastError());
 
-  CUDA_CHECK(cudaMemcpyAsync(
+  xpu::cuda_check(cudaMemcpyAsync(
     this->lower_upper(),
     this->determinant(),
     this->matrix_row_stride() *
@@ -256,7 +256,7 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
     scratch.info[0]
   );
 
-  CUDA_CHECK(cudaDeviceSynchronize());
+  xpu::cuda_check(cudaDeviceSynchronize());
   checkCusolverInfo(*scratch.info[0], "getrf");
   if (*scratch.info[0] > 0) {
     return -std::numeric_limits<real_t>::infinity();
@@ -264,18 +264,18 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
 
   dim3 computeLogAbsDetThreads(256);
   dim3 computeLogAbsDetBlocks(
-    vmc::cudaNumBlocks(particles.size(), computeLogAbsDetThreads.x)
+    xpu::block_per_dim(particles.size(), computeLogAbsDetThreads.x)
   );
   cudaComputeLogAbsDet<<<computeLogAbsDetBlocks, computeLogAbsDetThreads>>>(
     particles.size(), this->matrix_row_stride(),
     this->lower_upper(),
     scratch.log_abs_det[0]
   );
-  CUDA_CHECK(cudaGetLastError());
+  xpu::cuda_check(cudaGetLastError());
 
   dim3 buildIdentityThreads(256);
   dim3 buildIdentityBlocks(
-    vmc::cudaNumBlocks(
+    xpu::block_per_dim(
       particles.size() * this->matrix_row_stride(),
       buildIdentityThreads.x
     )
@@ -285,7 +285,7 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
     this->matrix_row_stride(),
     this->inv_determinant()
   );
-  CUDA_CHECK(cudaGetLastError());
+  xpu::cuda_check(cudaGetLastError());
 
   cusolverGetrs(
     scratch.handle,
@@ -297,7 +297,7 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
     scratch.info[0]
   );
 
-  CUDA_CHECK(cudaDeviceSynchronize());
+  xpu::cuda_check(cudaDeviceSynchronize());
   checkCusolverInfo(*scratch.info[0], "getrs");
 
   if (!std::isfinite(*scratch.log_abs_det[0])) {
@@ -310,24 +310,24 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
   const std::size_t S{this->matrix_row_stride()};
   const std::size_t padded_N{particles.p_stride()};
 
-  const auto pos{particles.pos().align()};
-  const auto kv{this->k_vector().align()};
+  const auto pos{particles.pos()};
+  const auto kv{this->k_vector()};
 
   const auto* k_index{this->orbital_k_index()};
   const auto* orb_type{this->orbital_type()};
 
-  real_t* RESTRICT det_matrix{this->determinant()}; ASSUME_ALIGNED(det_matrix, SIMD_BYTES);
-  real_t* RESTRICT lower_upper_matrix{this->lower_upper()}; ASSUME_ALIGNED(lower_upper_matrix, SIMD_BYTES);
-  real_t* RESTRICT inv_det_matrix{this->inv_determinant()}; ASSUME_ALIGNED(inv_det_matrix, SIMD_BYTES);
+  real_t* RESTRICT det_matrix{this->determinant()};
+  real_t* RESTRICT lower_upper_matrix{this->lower_upper()};
+  real_t* RESTRICT inv_det_matrix{this->inv_determinant()};
 
-  int* RESTRICT pivot_vector{this->pivot()}; ASSUME_ALIGNED(pivot_vector, SIMD_BYTES);
+  int* RESTRICT pivot_vector{this->pivot()};
 
-  real_t* RESTRICT rhs{this->rhs()}; ASSUME_ALIGNED(rhs, SIMD_BYTES);
-  real_t* RESTRICT solution{this->solution()}; ASSUME_ALIGNED(solution, SIMD_BYTES);
+  real_t* RESTRICT rhs{this->rhs()};
+  real_t* RESTRICT solution{this->solution()};
 
   const std::size_t num_k{this->num_unique_k()};
-  real_t* RESTRICT cos_cache{this->cos_cache()}; ASSUME_ALIGNED(cos_cache, SIMD_BYTES);
-  real_t* RESTRICT sin_cache{this->sin_cache()}; ASSUME_ALIGNED(sin_cache, SIMD_BYTES);
+  real_t* RESTRICT cos_cache{this->cos_cache()};
+  real_t* RESTRICT sin_cache{this->sin_cache()};
 
   const std::size_t ROW_STRIDE{this->trig_row_stride()};
   for (std::size_t particle = 0; particle < N; ++particle) {
@@ -346,7 +346,7 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
       };
       const std::size_t i{offset + k};
 
-      vmc::sincos(dot, &sin_cache[i], &cos_cache[i]);
+      xpu::sincos(dot, &sin_cache[i], &cos_cache[i]);
     }
 
     // Not vectorized: non-contiguous memory accesses

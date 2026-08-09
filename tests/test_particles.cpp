@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "particles/particles.cuh"
+#include "particles/particles.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -10,14 +10,14 @@ TEST_CASE("Particles allocates aligned padded blocks and zero-initializes them",
   Particles particles{numParticles};
 
   const std::size_t stride{particles.p_stride()};
-  const std::size_t doublesPerAlignment{SIMD_BYTES / sizeof(real_t)};
+  const std::size_t doublesPerAlignment{xpu::simd_bytes / sizeof(real_t)};
 
   REQUIRE(particles.size() == numParticles);
   REQUIRE(stride >= numParticles);
   REQUIRE(stride % doublesPerAlignment == 0U);
 
   const auto baseAddress{reinterpret_cast<std::uintptr_t>(particles.pos().x_)};
-  REQUIRE(baseAddress % SIMD_BYTES == 0U);
+  REQUIRE(baseAddress % xpu::simd_bytes == 0U);
 
   for (std::size_t i = 0; i < stride; ++i) {
     REQUIRE(particles.pos().x_[i] == 0.0_r);

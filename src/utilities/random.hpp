@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 #include <curand_kernel.h>
 #endif
 
@@ -8,7 +8,7 @@
 #include <memory>
 
 #include "../config/config.hpp"
-#include "../utilities/macros.cuh"
+#include "../utilities/macros.hpp"
 
 class WalkerRNG {
 private:

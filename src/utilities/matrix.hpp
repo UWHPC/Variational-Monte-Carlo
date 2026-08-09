@@ -1,7 +1,7 @@
 #pragma once
 
-#include "macros.cuh"
-#include "math.cuh"
+#include "macros.hpp"
+#include <xpu/math.hpp>
 
 #include <cmath>
 #include <cstddef>
@@ -22,10 +22,10 @@ inline int lower_upper_decomp(
 
   for (std::size_t col = 0; col < N; ++col) {
     std::size_t pivot_row{col};
-    real_t max_abs{vmc::abs(lower_upper[col * stride + col])};
+    real_t max_abs{xpu::abs(lower_upper[col * stride + col])};
 
     for (std::size_t row = col + 1; row < N; ++row) {
-      const real_t value{vmc::abs(lower_upper[row * stride + col])};
+      const real_t value{xpu::abs(lower_upper[row * stride + col])};
       if (value > max_abs) {
         max_abs = value;
         pivot_row = row;
@@ -88,7 +88,7 @@ inline void solve_lower_upper(
     }
 
     const real_t diag{lower_upper[row * stride + row]};
-    x[row] = (vmc::abs(diag) > std::numeric_limits<real_t>::min()) ? (sum / diag) : 0.0_r;
+    x[row] = (xpu::abs(diag) > std::numeric_limits<real_t>::min()) ? (sum / diag) : 0.0_r;
   }
 }
 

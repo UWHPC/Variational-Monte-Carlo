@@ -1,10 +1,10 @@
 #include <xpu/xpu.hpp>
-#include "jastrow_pade.cuh"
+#include "jastrow_pade.hpp"
 
 #include <cmath>
 #include <cstddef>
 
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 namespace {
 
 __global__
@@ -109,7 +109,7 @@ void JastrowPade::update_derivatives_for_move(
   real_t* RESTRICT grad_z,
   real_t* RESTRICT laplacian
 ) const noexcept {
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
   grad_x[moved] = 0.0_r;
   grad_y[moved] = 0.0_r;
   grad_z[moved] = 0.0_r;
@@ -130,7 +130,7 @@ void JastrowPade::update_derivatives_for_move(
   const real_t new_z{p.z_[moved]};
 
   dim3 computeDerivativesThreads(256);
-  dim3 computeDerivativesBlocks(vmc::cudaNumBlocks(num_particles, computeDerivativesThreads.x));
+  dim3 computeDerivativesBlocks(xpu::block_per_dim(num_particles, computeDerivativesThreads.x));
 
   cudaComputeDerivatives<<<computeDerivativesBlocks, computeDerivativesThreads>>>(
     moved, num_particles,
@@ -156,12 +156,8 @@ void JastrowPade::update_derivatives_for_move(
   const real_t half_L{0.5_r * L};
   const real_t neg_half_L{-1.0_r * half_L};
 
-  const auto p{particles.pos().align()};
+  const auto p{particles.pos()};
 
-  ASSUME_ALIGNED(grad_x, SIMD_BYTES);
-  ASSUME_ALIGNED(grad_y, SIMD_BYTES);
-  ASSUME_ALIGNED(grad_z, SIMD_BYTES);
-  ASSUME_ALIGNED(laplacian, SIMD_BYTES);
 
   const real_t a_local{a()};
   const real_t b_local{b()};

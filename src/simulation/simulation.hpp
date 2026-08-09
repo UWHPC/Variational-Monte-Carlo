@@ -2,12 +2,12 @@
 
 #include "../blocking_analysis/blocking_analysis.hpp"
 #include "../config/config.hpp"
-#include "../energy_tracking/energy_tracking.cuh"
+#include "../energy_tracking/energy_tracking.hpp"
 #include "../output_writer/output_writer.hpp"
-#include "../particles/particles.cuh"
-#include "../wavefunction/wavefunction.cuh"
-#include "../utilities/random.cuh"
-#include "../utilities/aligned_soa.cuh"
+#include "../particles/particles.hpp"
+#include "../wavefunction/wavefunction.hpp"
+#include "../utilities/random.hpp"
+#include <xpu/soa.hpp>
 
 #include <memory>
 #include <optional>
@@ -28,7 +28,7 @@ private:
   std::size_t accepted_;
   real_t log_psi_current_;
 
-  AlignedSoA<real_t> positions_;
+  xpu::soa<real_t, 3> positions_;
 
 
   WalkerRNG walker_rng_;
@@ -52,7 +52,7 @@ private:
     real_t old_z;
   };
 
-  [[nodiscard]] const AlignedSoA<real_t>& positions_snapshot();
+  [[nodiscard]] const xpu::soa<real_t, 3>& positions_snapshot();
 
 public:
   struct MeasurementSummary {

@@ -1,5 +1,5 @@
 #include <xpu/xpu.hpp>
-#include "energy_tracking.cuh"
+#include "energy_tracking.hpp"
 
 #include <numbers>
 
@@ -11,7 +11,7 @@ EnergyTracker::EnergyTracker(real_t box_length, real_t num_particles)
 , V_recip_{}
 , V_real_{}
 , num_g_vectors_{}
-, data_{} {
+, data_{0} {
   const real_t two_pi_over_L{2.0_r * std::numbers::pi_v<real_t> / box_length};
   const real_t four_alpha_sq{4.0_r * ewald_alpha_ * ewald_alpha_};
   const real_t cutoff_factor{-xpu::log(EWALD_RECIPROCAL_TOLERANCE)};
@@ -64,7 +64,7 @@ EnergyTracker::EnergyTracker(real_t box_length, real_t num_particles)
 
   num_g_vectors_ = g_x.size();
 
-  data_ = AlignedSoA<real_t>(num_g_vectors_, NUM_ARRAYS);
+  data_ = xpu::soa<real_t, NUM_ARRAYS>(num_g_vectors_);
 
   const auto g_dst{g_vector()};
   std::copy_n(tmp_x.data(), num_g_vectors_, g_dst.x_);
@@ -73,7 +73,7 @@ EnergyTracker::EnergyTracker(real_t box_length, real_t num_particles)
   std::copy_n(tmp_w.data(), num_g_vectors_, g_weights());
 }
 
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 namespace {
 
 __global__
@@ -94,25 +94,27 @@ void cudaInitializeReciprocalEnergy(
 
 
 void EnergyTracker::initialize_reciprocal_energy() noexcept {
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 
   const real_t prefactor{1.0_r / (2.0_r * std::numbers::pi_v<real_t> * box_length_ * box_length_ * box_length_)};
-  AlignedSoA<real_t> G_sum{1, 1};
+  xpu::buffer<real_t> G_sum{1};
   const auto num_G{num_g_vectors_};
 
   dim3 initalizeReciprocalEnergyThreads(256);
-  dim3 initalizeReciprocalEnergyBlocks(vmc::cudaNumBlocks(num_G, initalizeReciprocalEnergyThreads.x));
+  dim3 initalizeReciprocalEnergyBlocks(xpu::block_per_dim(num_G, initalizeReciprocalEnergyThreads.x));
 
  cudaInitializeReciprocalEnergy<<<initalizeReciprocalEnergyBlocks, initalizeReciprocalEnergyThreads>>>(
    num_G,
     this->g_weights(),
     this->sum_real(),
     this->sum_imag(),
-    G_sum[0]
+    G_sum.data()
  );
- CUDA_CHECK(cudaGetLastError());
- CUDA_CHECK(cudaDeviceSynchronize());
- V_recip_ = prefactor * *G_sum[0];
+ xpu::cuda_check(cudaGetLastError());
+ xpu::cuda_check(cudaDeviceSynchronize());
+ real_t g_sum_host{};
+ xpu::cuda_check(cudaMemcpy(&g_sum_host, G_sum.data(), sizeof(real_t), cudaMemcpyDeviceToHost));
+ V_recip_ = prefactor * g_sum_host;
  return;
 
   #else
@@ -124,9 +126,6 @@ void EnergyTracker::initialize_reciprocal_energy() noexcept {
   const real_t* RESTRICT sum_real{this->sum_real()};
   const real_t* RESTRICT sum_imag{this->sum_imag()};
 
-  ASSUME_ALIGNED(g_weights, SIMD_BYTES);
-  ASSUME_ALIGNED(sum_real, SIMD_BYTES);
-  ASSUME_ALIGNED(sum_imag, SIMD_BYTES);
 
   real_t sum{};
   #pragma omp simd reduction(+ : sum)
@@ -137,7 +136,7 @@ void EnergyTracker::initialize_reciprocal_energy() noexcept {
   #endif
 }
 
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 namespace {
 
 __global__
@@ -176,7 +175,7 @@ void cudaInitializeRealEnergy(
 #endif
 
 void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept {
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 
   const std::size_t N{particles.size()};
   const real_t L{box_length_};
@@ -186,23 +185,23 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
   const real_t alpha{ewald_alpha_};
 
   const auto pos{particles.pos()};
-  AlignedSoA<real_t> Sum{1, 1};
+  xpu::buffer<real_t> Sum{1};
 
   dim3 initializeRealEnergyThreads(16, 16);
   dim3 initializeRealEnergyBlocks(
-    vmc::cudaNumBlocks(N, initializeRealEnergyThreads.x),
-    vmc::cudaNumBlocks(N, initializeRealEnergyThreads.y)
+    xpu::block_per_dim(N, initializeRealEnergyThreads.x),
+    xpu::block_per_dim(N, initializeRealEnergyThreads.y)
   );
 
   cudaInitializeRealEnergy<<<initializeRealEnergyBlocks, initializeRealEnergyThreads>>>(
     N, L, neg_L, half_L, neg_half_L, alpha,
     pos.x_, pos.y_, pos.z_,
-    Sum[0]
+    Sum.data()
   );
-  CUDA_CHECK(cudaGetLastError());
-  CUDA_CHECK(cudaDeviceSynchronize());
+  xpu::cuda_check(cudaGetLastError());
+  xpu::cuda_check(cudaDeviceSynchronize());
 
-  V_real_ = *Sum[0];
+  xpu::cuda_check(cudaMemcpy(&V_real_, Sum.data(), sizeof(real_t), cudaMemcpyDeviceToHost));
   return;
   #else
   const std::size_t N{particles.size()};
@@ -212,7 +211,7 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
   const real_t neg_half_L{-1.0_r * half_L};
   const real_t alpha{ewald_alpha_};
 
-  const auto pos{particles.pos().align()};
+  const auto pos{particles.pos()};
 
   real_t sum{};
   for (std::size_t i = 0; i < N; ++i) {
@@ -245,7 +244,7 @@ void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept 
   #endif
 }
 
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 namespace {
 
 __global__
@@ -264,7 +263,7 @@ void cudaInitializeStructureFactors(
   };
   real_t cos_temp{};
   real_t sin_temp{};
-  vmc::sincos(G_dot_r, &sin_temp, &cos_temp);
+  xpu::sincos(G_dot_r, &sin_temp, &cos_temp);
 
   atomicAdd(&sum_real[i], cos_temp);
   atomicAdd(&sum_imag[i], sin_temp);
@@ -275,7 +274,7 @@ void cudaInitializeStructureFactors(
 #endif
 
 void EnergyTracker::initialize_structure_factors(const Particles& particles) noexcept {
-  #ifdef VMC_CUDA_BACKEND
+  #ifdef XPU_CUDA
   const std::size_t N{particles.size()};
   const std::size_t num_G{num_g_vectors_};
 
@@ -284,13 +283,13 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
 
  
   auto const total_bytes{num_G * sizeof(real_t)};
-  CUDA_CHECK(cudaMemset(this->sum_real(), 0, total_bytes));
-  CUDA_CHECK(cudaMemset(this->sum_imag(), 0, total_bytes));
+  xpu::cuda_check(cudaMemset(this->sum_real(), 0, total_bytes));
+  xpu::cuda_check(cudaMemset(this->sum_imag(), 0, total_bytes));
 
   dim3 initializeStructureFactorsThreads(16, 16);
   dim3 initializeStructureFactorsBlocks(
-    vmc::cudaNumBlocks(num_G, initializeStructureFactorsThreads.x),
-    vmc::cudaNumBlocks(N,     initializeStructureFactorsThreads.y)
+    xpu::block_per_dim(num_G, initializeStructureFactorsThreads.x),
+    xpu::block_per_dim(N,     initializeStructureFactorsThreads.y)
   );
 
   cudaInitializeStructureFactors<<<initializeStructureFactorsBlocks, initializeStructureFactorsThreads>>>(
@@ -299,21 +298,19 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
     this->sum_real(), this->sum_imag(),
     num_G, N
   );
-  CUDA_CHECK(cudaGetLastError());
-  CUDA_CHECK(cudaDeviceSynchronize());
+  xpu::cuda_check(cudaGetLastError());
+  xpu::cuda_check(cudaDeviceSynchronize());
 
   #else
   const std::size_t N{particles.size()};
   const std::size_t num_G{num_g_vectors_};
 
-  const auto pos{particles.pos().align()};
-  const auto gv{g_vector().align()};
+  const auto pos{particles.pos()};
+  const auto gv{g_vector()};
 
   real_t* RESTRICT sum_real{this->sum_real()};
   real_t* RESTRICT sum_imag{this->sum_imag()};
 
-  ASSUME_ALIGNED(sum_real, SIMD_BYTES);
-  ASSUME_ALIGNED(sum_imag, SIMD_BYTES);
 
   for (std::size_t g = 0; g < num_G; ++g) {
     real_t cos_sum{};
@@ -330,7 +327,7 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
       real_t cos_temp{};
       real_t sin_temp{};
 
-      vmc::sincos(G_dot_r, &sin_temp, &cos_temp);
+      xpu::sincos(G_dot_r, &sin_temp, &cos_temp);
 
       cos_sum += cos_temp;
       sin_sum += sin_temp;
@@ -343,7 +340,7 @@ void EnergyTracker::initialize_structure_factors(const Particles& particles) noe
 }
 
 
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 namespace {
 
 __global__
@@ -371,8 +368,8 @@ void cudaUpdateStructureFactors(
   real_t new_sin{}, new_cos{};
   real_t old_sin{}, old_cos{};
 
-  vmc::sincos(new_dot, &new_sin, &new_cos);
-  vmc::sincos(old_dot, &old_sin, &old_cos);
+  xpu::sincos(new_dot, &new_sin, &new_cos);
+  xpu::sincos(old_dot, &old_sin, &old_cos);
 
   sum_real[g] += new_cos - old_cos;
   sum_imag[g] += new_sin - old_sin;
@@ -390,12 +387,12 @@ void EnergyTracker::update_structure_factors(
   real_t new_y,
   real_t new_z
 ) noexcept {
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
   const std::size_t num_G{this->num_g_vectors_};
   const auto gv{this->g_vector()};
 
   dim3 updateStructureFactorsThreads(256);
-  dim3 updateStructureFactorsBlocks(vmc::cudaNumBlocks(num_G, updateStructureFactorsThreads.x));
+  dim3 updateStructureFactorsBlocks(xpu::block_per_dim(num_G, updateStructureFactorsThreads.x));
 
   cudaUpdateStructureFactors<<<updateStructureFactorsBlocks, updateStructureFactorsThreads>>>(
     gv.x_, gv.y_, gv.z_,
@@ -404,8 +401,8 @@ void EnergyTracker::update_structure_factors(
     old_x, old_y, old_z,
     new_x, new_y, new_z
   );
-  CUDA_CHECK(cudaGetLastError());
-  CUDA_CHECK(cudaDeviceSynchronize());
+  xpu::cuda_check(cudaGetLastError());
+  xpu::cuda_check(cudaDeviceSynchronize());
 
   initialize_reciprocal_energy();
 #else
@@ -415,19 +412,14 @@ void EnergyTracker::update_structure_factors(
   const real_t prefactor{1.0_r / (2.0_r * std::numbers::pi_v<real_t> * L * L * L)};
 
   const real_t* RESTRICT g_weights{this->g_weights()};
-  const auto gv{g_vector().align()};
+  const auto gv{g_vector()};
 
   real_t* RESTRICT sum_real{this->sum_real()};
   real_t* RESTRICT sum_imag{this->sum_imag()};
   real_t* RESTRICT d_imag_temp{this->d_imag_temp()};
   real_t* RESTRICT d_real_temp{this->d_real_temp()};
 
-  ASSUME_ALIGNED(g_weights, SIMD_BYTES);
 
-  ASSUME_ALIGNED(sum_real, SIMD_BYTES);
-  ASSUME_ALIGNED(sum_imag, SIMD_BYTES);
-  ASSUME_ALIGNED(d_imag_temp, SIMD_BYTES);
-  ASSUME_ALIGNED(d_real_temp, SIMD_BYTES);
 
   real_t delta{};
 
@@ -448,8 +440,8 @@ void EnergyTracker::update_structure_factors(
     real_t new_sin{}, new_cos{};
     real_t old_sin{}, old_cos{};
 
-    vmc::sincos(new_dot, &new_sin, &new_cos);
-    vmc::sincos(old_dot, &old_sin, &old_cos);
+    xpu::sincos(new_dot, &new_sin, &new_cos);
+    xpu::sincos(old_dot, &old_sin, &old_cos);
 
     d_real_temp[g] = new_cos - old_cos;
     d_imag_temp[g] = new_sin - old_sin;
@@ -472,7 +464,7 @@ void EnergyTracker::update_structure_factors(
 }
 
 
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 namespace {
 
 __global__
@@ -503,29 +495,30 @@ void cudaKineticEnergy(
 
 
 real_t EnergyTracker::kinetic_energy(const Particles& particles) const noexcept {
- #ifdef VMC_CUDA_BACKEND
+ #ifdef XPU_CUDA
 
   const std::size_t N{particles.size()};
   const auto grad{particles.grad_log_psi()};   
   const real_t* lap{particles.lap_log_psi()};
 
-  AlignedSoA<real_t> T_sum{1, 1};           
+  xpu::buffer<real_t> T_sum{1};           
 
   dim3 kineticEnergyThreads(256);
-  dim3 kineticEnergyBlocks(vmc::cudaNumBlocks(N, kineticEnergyThreads.x));
+  dim3 kineticEnergyBlocks(xpu::block_per_dim(N, kineticEnergyThreads.x));
 
   cudaKineticEnergy<<<kineticEnergyBlocks, kineticEnergyThreads>>>(
-    N, grad.x_, grad.y_, grad.z_, lap, T_sum[0]
+    N, grad.x_, grad.y_, grad.z_, lap, T_sum.data()
   );
-  CUDA_CHECK(cudaGetLastError());
-  CUDA_CHECK(cudaDeviceSynchronize());
+  xpu::cuda_check(cudaGetLastError());
+  xpu::cuda_check(cudaDeviceSynchronize());
 
-  return *T_sum[0]*-0.5_r ;
+  real_t t_sum_host{};
+  xpu::cuda_check(cudaMemcpy(&t_sum_host, T_sum.data(), sizeof(real_t), cudaMemcpyDeviceToHost));
+  return t_sum_host * -0.5_r;
 #else
- const auto grad{particles.grad_log_psi().align()};
-  const real_t* RESTRICT lap{particles.lap_log_psi()};
+ const auto grad{particles.grad_log_psi()};
+  const real_t* RESTRICT lap{particles.lap()};
 
-  ASSUME_ALIGNED(lap, SIMD_BYTES);
 
   // Kinetic
   real_t T_sum{};
@@ -549,7 +542,7 @@ real_t EnergyTracker::kinetic_energy(const Particles& particles) const noexcept 
 }
 
 
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 
 namespace {
 
@@ -625,21 +618,21 @@ void EnergyTracker::update_real_energy(
   real_t old_z,
   const Particles& particles
 ) noexcept {
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
   const std::size_t N{particles.size()};
   const real_t L{box_length_};
   const real_t alpha{ewald_alpha_};
 
   const auto pos{particles.pos()};
 
-  AlignedSoA<real_t> delta{1, 1};
+  xpu::buffer<real_t> delta{1};
 
-  const real_t new_x{pos.x_[moved_idx]};
-  const real_t new_y{pos.y_[moved_idx]};
-  const real_t new_z{pos.z_[moved_idx]};
+  const real_t new_x{[&]{ real_t v{}; xpu::cuda_check(cudaMemcpy(&v, pos.x_ + moved_idx, sizeof(real_t), cudaMemcpyDeviceToHost)); return v; }()};
+  const real_t new_y{[&]{ real_t v{}; xpu::cuda_check(cudaMemcpy(&v, pos.y_ + moved_idx, sizeof(real_t), cudaMemcpyDeviceToHost)); return v; }()};
+  const real_t new_z{[&]{ real_t v{}; xpu::cuda_check(cudaMemcpy(&v, pos.z_ + moved_idx, sizeof(real_t), cudaMemcpyDeviceToHost)); return v; }()};
 
   dim3 updateRealEnergyThreads(256);
-  dim3 updateRealEnergyBlocks(vmc::cudaNumBlocks(N, updateRealEnergyThreads.x));
+  dim3 updateRealEnergyBlocks(xpu::block_per_dim(N, updateRealEnergyThreads.x));
 
  cudaUpdateRealEnergy<<<updateRealEnergyBlocks, updateRealEnergyThreads>>>(
     N, moved_idx,
@@ -647,12 +640,14 @@ void EnergyTracker::update_real_energy(
     old_x, old_y, old_z,
     new_x, new_y, new_z,
     pos.x_, pos.y_, pos.z_,
-    delta[0]
+    delta.data()
   );
-  CUDA_CHECK(cudaGetLastError());
-  CUDA_CHECK(cudaDeviceSynchronize());
+  xpu::cuda_check(cudaGetLastError());
+  xpu::cuda_check(cudaDeviceSynchronize());
 
-  V_real_ += *delta[0];
+  real_t delta_host{};
+  xpu::cuda_check(cudaMemcpy(&delta_host, delta.data(), sizeof(real_t), cudaMemcpyDeviceToHost));
+  V_real_ += delta_host;
 #else
   const std::size_t N{particles.size()};
   const real_t L{box_length_};
@@ -661,7 +656,7 @@ void EnergyTracker::update_real_energy(
   const real_t neg_half_L{-1.0_r * half_L};
   const real_t alpha{ewald_alpha_};
 
-  const auto pos{particles.pos().align()};
+  const auto pos{particles.pos()};
 
   const real_t new_x{pos.x_[moved_idx]};
   const real_t new_y{pos.y_[moved_idx]};

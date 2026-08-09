@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../utilities/macros.cuh"
-#include "../utilities/math.cuh"
+#include "../utilities/macros.hpp"
+#include <xpu/math.hpp>
 
 #include <cstddef>
 #include <utility>

@@ -13,10 +13,29 @@ endif()
 
 project(Variational-Monte-Carlo LANGUAGES CXX)
 
-option(VMC_ENABLE_CUDA "Enable CUDA acceleration if a CUDA compiler is available" ON)
-
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# --- Toolchain requirements ---
+if(WIN32)
+  message(FATAL_ERROR
+    "Native Windows builds are not supported. Build under WSL2 or Linux.")
+endif()
+
+if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  message(FATAL_ERROR
+    "GCC is the only supported host compiler (found ${CMAKE_CXX_COMPILER_ID}). "
+    "Configure with -DCMAKE_CXX_COMPILER=g++-15.")
+endif()
+
+if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15)
+  message(FATAL_ERROR
+    "GCC 15 or newer is required (found ${CMAKE_CXX_COMPILER_VERSION}). "
+    "Configure with -DCMAKE_CXX_COMPILER=g++-15.")
+endif()
+
+option(VMC_ENABLE_CUDA "Enable CUDA acceleration if a CUDA compiler is available" ON)
 
 # --- CUDA detection ---
 set(VMC_CUDA OFF)
@@ -24,6 +43,10 @@ if(VMC_ENABLE_CUDA)
   include(CheckLanguage)
   check_language(CUDA)
   if(CMAKE_CUDA_COMPILER)
+    if(NOT CMAKE_CUDA_HOST_COMPILER)
+      set(CMAKE_CUDA_HOST_COMPILER "${CMAKE_CXX_COMPILER}")
+    endif()
+
     enable_language(CUDA)
     set(CMAKE_CUDA_STANDARD 23)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
@@ -32,12 +55,15 @@ if(VMC_ENABLE_CUDA)
       set(CMAKE_CUDA_ARCHITECTURES native)
     endif()
     set(VMC_CUDA ON)
+    message(STATUS
+      "VMC: CUDA ${CMAKE_CUDA_COMPILER_VERSION}, arch ${CMAKE_CUDA_ARCHITECTURES}, "
+      "device host compiler ${CMAKE_CUDA_HOST_COMPILER}")
   endif()
 endif()
 
 # --- Floating point precision ---
 option(FP_64 "Use double precision (real_t = double) instead of single precision (real_t = float)" ON)
-option(VMC_FAST_MATH "Use fast approximate math intrinsics (__sincosf, __expf, ...) in CUDA device code; forces single precision (FP_64=OFF)" OFF)
+option(VMC_FAST_MATH "Fast approximate math intrinsics in device code (inert: pending an xpu fast-math tier); forces single precision (FP_64=OFF)" OFF)
 
 if(VMC_FAST_MATH AND FP_64)
   message(STATUS "VMC_FAST_MATH is ON: forcing single precision (FP_64=OFF).")
@@ -47,15 +73,13 @@ endif()
 # --- Dependencies ---
 include(FetchContent)
 
-# xpu must use the same backend as VMC: mixing CPU and CUDA allocation in one
-# linked program is undefined. Let VMC own its own -march flags.
-set(XPU_ENABLE_CUDA ${VMC_ENABLE_CUDA} CACHE BOOL "" FORCE)
+set(XPU_ENABLE_CUDA ${VMC_CUDA} CACHE BOOL "" FORCE)
 set(XPU_ARCH_NATIVE OFF CACHE BOOL "" FORCE)
 
 fetchcontent_declare(
   xpu
   GIT_REPOSITORY https://github.com/UWHPC/xpu.git
-  GIT_TAG 22fdac2
+  GIT_TAG e6d1b39
 )
 fetchcontent_makeavailable(xpu)
 
@@ -78,39 +102,24 @@ if(NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 # --- Compiler warnings and optimizations ---
-if(MSVC)
-  set(VMC_WARNING_OPTIONS /W4 /permissive- /arch:AVX2)
-  set(VMC_RELEASE_OPTIONS /O2)
-  set(VMC_DEBUG_OPTIONS   /Od /Zi)
-  set(VMC_RELWITHDEBINFO_OPT_1 /O2)
-  set(VMC_RELWITHDEBINFO_OPT_2 /Oy-)
-  set(VMC_RELWITHDEBINFO_OPT_3 "")
-else()
-  set(VMC_WARNING_OPTIONS
-    -Wall
-    -Wextra
-    -Wpedantic
-    -Wshadow
-    -Wconversion
-    -Wsign-conversion
-  )
-  set(VMC_RELEASE_OPTIONS -O3 -march=native)
-  set(VMC_DEBUG_OPTIONS   -g -O0)
-  set(VMC_RELWITHDEBINFO_OPT_1 -O3)
-  set(VMC_RELWITHDEBINFO_OPT_2 -march=native)
-  set(VMC_RELWITHDEBINFO_OPT_3 -fno-omit-frame-pointer)
-endif()
+set(VMC_WARNING_OPTIONS
+  -Wall
+  -Wextra
+  -Wpedantic
+  -Wshadow
+  -Wconversion
+  -Wsign-conversion
+)
+set(VMC_RELEASE_OPTIONS -O3 -march=native)
+set(VMC_DEBUG_OPTIONS   -g -O0)
+set(VMC_RELWITHDEBINFO_OPT_1 -O3)
+set(VMC_RELWITHDEBINFO_OPT_2 -march=native)
+set(VMC_RELWITHDEBINFO_OPT_3 -fno-omit-frame-pointer)
 
 if(VMC_CUDA)
-  if(MSVC)
-    set(VMC_CUDA_XCOMPILE "-Xcompiler=/W4,/permissive-")
-    set(VMC_CUDA_RELEASE_OPTIONS -Xcompiler=/O2)
-    set(VMC_CUDA_DEBUG_OPTIONS   -Xcompiler=/Od,/Zi -G)
-  else()
-    set(VMC_CUDA_XCOMPILE "-Xcompiler=-Wall,-Wextra,-march=native")
-    set(VMC_CUDA_RELEASE_OPTIONS -O3 -Xcompiler=-O3)
-    set(VMC_CUDA_DEBUG_OPTIONS   -g -G -O0 -Xcompiler=-O0)
-  endif()
+  set(VMC_CUDA_XCOMPILE "-Xcompiler=-Wall,-Wextra,-march=native")
+  set(VMC_CUDA_RELEASE_OPTIONS -O3 -Xcompiler=-O3)
+  set(VMC_CUDA_DEBUG_OPTIONS   -g -G -O0 -Xcompiler=-O0)
 endif()
 
 # --- Source lists ---
@@ -128,20 +137,21 @@ set(VMC_CUDA_SOURCES
   src/simulation/simulation.cu
   src/energy_tracking/energy_tracking.cu
   src/optimizer/jastrow_optimizer.cu
+  src/blocking_analysis/blocking_analysis.cu
+  src/output_writer/output_writer.cu
 )
 
-set(VMC_CXX_SOURCES
-  src/blocking_analysis/blocking_analysis.cpp
-  src/output_writer/output_writer.cpp
-)
+set(VMC_MAIN_SOURCE src/main.cu)
+set(VMC_TEST_SOURCE tests/test_tests.cu)
 
 set(VMC_CUDA_EXTENSION_SOURCES
   ${VMC_CUDA_SOURCES}
+  ${VMC_MAIN_SOURCE}
+  ${VMC_TEST_SOURCE}
 )
 
 # --- Library target for all source files ---
 add_library(vmc_lib STATIC
-  ${VMC_CXX_SOURCES}
   ${VMC_CUDA_SOURCES}
 )
 
@@ -155,12 +165,10 @@ if(NOT VMC_CUDA AND VMC_CUDA_EXTENSION_SOURCES)
     PROPERTIES LANGUAGE CXX
   )
 
-  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    set_source_files_properties(
-      ${VMC_CUDA_EXTENSION_SOURCES}
-      PROPERTIES COMPILE_OPTIONS "-x;c++"
-    )
-  endif()
+  set_source_files_properties(
+    ${VMC_CUDA_EXTENSION_SOURCES}
+    PROPERTIES COMPILE_OPTIONS "-x;c++"
+  )
 endif()
 
 if(FP_64)
@@ -173,13 +181,10 @@ endif()
 
 if(OpenMP_CXX_FOUND)
   target_link_libraries(vmc_lib PUBLIC OpenMP::OpenMP_CXX)
-  if(MSVC)
-    target_compile_options(vmc_lib PUBLIC $<$<COMPILE_LANGUAGE:CXX>:/openmp:experimental>)
-  endif()
 elseif(VMC_HAS_FOPENMP_SIMD)
   target_compile_options(vmc_lib PUBLIC -fopenmp-simd)
 endif()
-target_compile_options(vmc_lib PRIVATE
+set(VMC_COMPILE_OPTIONS
   $<$<COMPILE_LANGUAGE:CXX>:${VMC_WARNING_OPTIONS}>
   $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:Release>>:${VMC_RELEASE_OPTIONS}>
   $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:Debug>>:${VMC_DEBUG_OPTIONS}>
@@ -191,14 +196,14 @@ target_compile_options(vmc_lib PRIVATE
   $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<BOOL:${VMC_CUDA}>,$<CONFIG:Debug>>:${VMC_CUDA_DEBUG_OPTIONS}>
 )
 
+target_compile_options(vmc_lib PRIVATE ${VMC_COMPILE_OPTIONS})
+
 if(VMC_CUDA)
   find_package(CUDAToolkit REQUIRED)
 
   set_target_properties(vmc_lib PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
   )
-
-  target_compile_definitions(vmc_lib PUBLIC VMC_CUDA_BACKEND)
 
   target_link_libraries(vmc_lib PUBLIC
     CUDA::cudart
@@ -209,18 +214,11 @@ endif()
 
 # --- Main executable ---
 add_executable(vmc
-  src/main.cpp
+  ${VMC_MAIN_SOURCE}
 )
 
 target_link_libraries(vmc PRIVATE vmc_lib)
-target_compile_options(vmc PRIVATE
-  ${VMC_WARNING_OPTIONS}
-  $<$<CONFIG:Release>:${VMC_RELEASE_OPTIONS}>
-  $<$<CONFIG:Debug>:${VMC_DEBUG_OPTIONS}>
-  $<$<CONFIG:RelWithDebInfo>:${VMC_RELWITHDEBINFO_OPT_1}>
-  $<$<CONFIG:RelWithDebInfo>:${VMC_RELWITHDEBINFO_OPT_2}>
-  $<$<CONFIG:RelWithDebInfo>:${VMC_RELWITHDEBINFO_OPT_3}>
-)
+target_compile_options(vmc PRIVATE ${VMC_COMPILE_OPTIONS})
 
 # --- Testing (opt-in via BUILD_TESTING argument) ---
 include(CTest)
@@ -237,21 +235,14 @@ if(BUILD_TESTING)
   fetchcontent_makeavailable(Catch2)
 
   add_executable(vmc_tests
-    tests/test_tests.cpp
+    ${VMC_TEST_SOURCE}
   )
 
   target_link_libraries(vmc_tests PRIVATE
     Catch2::Catch2WithMain
     vmc_lib
   )
-  target_compile_options(vmc_tests PRIVATE
-    ${VMC_WARNING_OPTIONS}
-    $<$<CONFIG:Release>:${VMC_RELEASE_OPTIONS}>
-    $<$<CONFIG:Debug>:${VMC_DEBUG_OPTIONS}>
-    $<$<CONFIG:RelWithDebInfo>:${VMC_RELWITHDEBINFO_OPT_1}>
-    $<$<CONFIG:RelWithDebInfo>:${VMC_RELWITHDEBINFO_OPT_2}>
-    $<$<CONFIG:RelWithDebInfo>:${VMC_RELWITHDEBINFO_OPT_3}>
-  )
+  target_compile_options(vmc_tests PRIVATE ${VMC_COMPILE_OPTIONS})
 
   list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
   include(Catch)

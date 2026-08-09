@@ -1,7 +1,7 @@
 #include <xpu/xpu.hpp>
-#include "jastrow_pade.cuh"
+#include "jastrow_pade.hpp"
 
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 #include <cstddef>
 namespace {
 
@@ -110,27 +110,29 @@ void cudaDeltaValue(
 #endif
 
 real_t JastrowPade::value(const Particles& particles) const noexcept {
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
   const std::size_t num_particles{particles.size()};
 
-  AlignedSoA<real_t> jastrow_pade{1, 1};
+  xpu::buffer<real_t> jastrow_pade{1};
 
   dim3 valueThreads(16, 16);
   dim3 valueBlocks(
-    vmc::cudaNumBlocks(num_particles, valueThreads.x),
-    vmc::cudaNumBlocks(num_particles, valueThreads.y)
+    xpu::block_per_dim(num_particles, valueThreads.x),
+    xpu::block_per_dim(num_particles, valueThreads.y)
   );
 
   cudaValue<<<valueBlocks, valueThreads>>>(
     num_particles,
     box_length_, this->a(), this->b(),
     particles.pos().x_, particles.pos().y_, particles.pos().z_,
-    jastrow_pade[0]
+    jastrow_pade.data()
   );
 
-  CUDA_CHECK(cudaGetLastError());
-  CUDA_CHECK(cudaDeviceSynchronize());
-  return 0.5_r * *jastrow_pade[0];
+  xpu::cuda_check(cudaGetLastError());
+  xpu::cuda_check(cudaDeviceSynchronize());
+  real_t value_host{};
+  xpu::cuda_check(cudaMemcpy(&value_host, jastrow_pade.data(), sizeof(real_t), cudaMemcpyDeviceToHost));
+  return 0.5_r * value_host;
 #else
   const std::size_t num_particles{particles.size()};
   const real_t L{box_length_};
@@ -138,7 +140,7 @@ real_t JastrowPade::value(const Particles& particles) const noexcept {
   const real_t half_L{0.5_r * L};
   const real_t neg_half_L{-1.0_r * half_L};
 
-  const auto p{particles.pos().align()};
+  const auto p{particles.pos()};
 
   const real_t a_local{a()};
   const real_t b_local{b()};
@@ -185,28 +187,36 @@ real_t JastrowPade::delta_value(
   real_t old_y,
   real_t old_z
 ) const noexcept {
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
   const std::size_t num_particles{particles.size()};
 
-  AlignedSoA<real_t> delta{1, 1};
+  xpu::buffer<real_t> delta{1};
 
   dim3 deltaValueThreads(256);
   dim3 deltaValueBlocks(
-    vmc::cudaNumBlocks(num_particles, deltaValueThreads.x)
+    xpu::block_per_dim(num_particles, deltaValueThreads.x)
   );
+
+  const auto moved_pos{particles.pos()};
+  real_t new_x{}, new_y{}, new_z{};
+  xpu::cuda_check(cudaMemcpy(&new_x, moved_pos.x_ + moved, sizeof(real_t), cudaMemcpyDeviceToHost));
+  xpu::cuda_check(cudaMemcpy(&new_y, moved_pos.y_ + moved, sizeof(real_t), cudaMemcpyDeviceToHost));
+  xpu::cuda_check(cudaMemcpy(&new_z, moved_pos.z_ + moved, sizeof(real_t), cudaMemcpyDeviceToHost));
 
   cudaDeltaValue<<<deltaValueBlocks, deltaValueThreads>>>(
     num_particles, moved,
     old_x, old_y, old_z,
-    particles.pos().x_[moved], particles.pos().y_[moved], particles.pos().z_[moved],
+    new_x, new_y, new_z,
     box_length_, a(), b(),
     particles.pos().x_, particles.pos().y_, particles.pos().z_,
-    delta[0]
+    delta.data()
   );
 
-  CUDA_CHECK(cudaGetLastError());
-  CUDA_CHECK(cudaDeviceSynchronize());
-  return *delta[0];
+  xpu::cuda_check(cudaGetLastError());
+  xpu::cuda_check(cudaDeviceSynchronize());
+  real_t delta_host{};
+  xpu::cuda_check(cudaMemcpy(&delta_host, delta.data(), sizeof(real_t), cudaMemcpyDeviceToHost));
+  return delta_host;
 #else
   const std::size_t num_particles{particles.size()};
   const real_t L{box_length_};
@@ -214,7 +224,7 @@ real_t JastrowPade::delta_value(
   const real_t half_L{0.5_r * L};
   const real_t neg_half_L{-1.0_r * half_L};
 
-  const auto p{particles.pos().align()};
+  const auto p{particles.pos()};
 
   const real_t a_local{a()};
   const real_t b_local{b()};

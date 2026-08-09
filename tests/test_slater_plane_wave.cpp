@@ -2,7 +2,7 @@
 
 #include <catch2/catch_message.hpp>
 
-#include "slater_plane_wave/slater_plane_wave.cuh"
+#include "slater_plane_wave/slater_plane_wave.hpp"
 
 #include <cmath>
 #include <numbers>
@@ -80,7 +80,7 @@ TEST_CASE("log_abs_det computes an inverse satisfying D*invD = I", "[slater]") {
   }
 }
 
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 TEST_CASE("log_abs_det reuses CUDA scratch across repeated N=512 calls", "[cuda-scratch]") {
   constexpr std::size_t N{512U};
   constexpr real_t L{20.0_r};

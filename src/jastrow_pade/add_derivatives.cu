@@ -1,7 +1,7 @@
 #include <xpu/xpu.hpp>
-#include "jastrow_pade.cuh"
+#include "jastrow_pade.hpp"
 
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 
 namespace {
 
@@ -67,13 +67,13 @@ void JastrowPade::add_derivatives(
   real_t* RESTRICT grad_z,
   real_t* RESTRICT laplacian
 ) const noexcept {
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
   const std::size_t num_particles{particles.size()};
 
   dim3 addDerivativesThreads(16, 16);
   dim3 addDerivativesBlocks(
-    vmc::cudaNumBlocks(num_particles, addDerivativesThreads.x),
-    vmc::cudaNumBlocks(num_particles, addDerivativesThreads.y)
+    xpu::block_per_dim(num_particles, addDerivativesThreads.x),
+    xpu::block_per_dim(num_particles, addDerivativesThreads.y)
   );
 
   cudaAddDerivatives<<<addDerivativesBlocks, addDerivativesThreads>>>(
@@ -82,8 +82,8 @@ void JastrowPade::add_derivatives(
     particles.pos().x_, particles.pos().y_, particles.pos().z_,
     grad_x, grad_y, grad_z, laplacian
   );
-  CUDA_CHECK(cudaGetLastError());
-  CUDA_CHECK(cudaDeviceSynchronize());
+  xpu::cuda_check(cudaGetLastError());
+  xpu::cuda_check(cudaDeviceSynchronize());
 
 #else
   const std::size_t num_particles{particles.size()};
@@ -92,12 +92,7 @@ void JastrowPade::add_derivatives(
   const real_t half_L{0.5_r * L};
   const real_t neg_half_L{-1.0_r * half_L};
 
-  const auto p{particles.pos().align()};
-
-  ASSUME_ALIGNED(grad_x, SIMD_BYTES);
-  ASSUME_ALIGNED(grad_y, SIMD_BYTES);
-  ASSUME_ALIGNED(grad_z, SIMD_BYTES);
-  ASSUME_ALIGNED(laplacian, SIMD_BYTES);
+  const auto p{particles.pos()};
 
   const real_t a_local{a()};
   const real_t b_local{b()};

@@ -1,14 +1,13 @@
 #include <xpu/xpu.hpp>
-#include "slater_plane_wave.cuh"
+#include "slater_plane_wave.hpp"
 #include "../utilities/matrix.hpp"
 
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <numeric>
 #include <numbers>
-#include <tuple>
 
 namespace {
 
@@ -80,8 +79,9 @@ void cudaAssignOrbitals(
 
 } // namespace
 #else
-#include "../particles/particles.cuh"
-#include "../utilities/aligned_soa.cuh"
+#include "../particles/particles.hpp"
+#include <xpu/buffer.hpp>
+#include <xpu/soa.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -91,9 +91,9 @@ void cudaAssignOrbitals(
 #endif
 
 void SlaterPlaneWave::initialize(const Particles& particles) {
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
   const std::size_t N{this->num_orbitals()};
-  const std::size_t num_particles{particles.size()};
+  const std::size_t num_particles{particles.count()};
 
   enum nVectorCandidate : std::size_t {
     CAND_X,
@@ -107,22 +107,22 @@ void SlaterPlaneWave::initialize(const Particles& particles) {
   const std::size_t side{static_cast<std::size_t>(2 * n_max + 1)};
   const std::size_t max_candidates{side * side * side};
 
-  AlignedSoA<int> n_vec_tmp{max_candidates, N_VEC_ARR};
-  AlignedSoA<unsigned long long> counter{1, 1};
+  xpu::soa<int, N_VEC_ARR> n_vec_tmp{max_candidates};
+  xpu::buffer<real_t> counter{1uz};
 
   dim3 findNVecCandidatesThreads(8, 8, 8);
   dim3 findNVecCandidatesBlocks(
-    vmc::cudaNumBlocks(side, findNVecCandidatesThreads.x),
-    vmc::cudaNumBlocks(side, findNVecCandidatesThreads.y),
-    vmc::cudaNumBlocks(side, findNVecCandidatesThreads.z)
+    xpu::block_per_dim(side, findNVecCandidatesThreads.x),
+    xpu::block_per_dim(side, findNVecCandidatesThreads.y),
+    xpu::block_per_dim(side, findNVecCandidatesThreads.z)
   );
   cudaFindNVecCandidates<<<findNVecCandidatesBlocks, findNVecCandidatesThreads>>>(
     n_max,
     n_vec_tmp[CAND_X], n_vec_tmp[CAND_Y], n_vec_tmp[CAND_Z], n_vec_tmp[CAND_MAG_SQ],
     counter[0]
   );
-  CUDA_CHECK(cudaGetLastError());
-  CUDA_CHECK(cudaDeviceSynchronize());
+  xpu::cuda_check(cudaGetLastError());
+  xpu::cuda_check(cudaDeviceSynchronize());
 
   auto* RESTRICT cand_x{n_vec_tmp[CAND_X]};
   auto* RESTRICT cand_y{n_vec_tmp[CAND_Y]};
@@ -156,7 +156,7 @@ void SlaterPlaneWave::initialize(const Particles& particles) {
 
   dim3 assignOrbitalsThreads(256);
   dim3 assignOrbitalsBlocks(
-    vmc::cudaNumBlocks(this->num_unique_k(), assignOrbitalsThreads.x)
+    xpu::block_per_dim(this->num_unique_k(), assignOrbitalsThreads.x)
   );
   cudaAssignOrbitals<<<assignOrbitalsBlocks, assignOrbitalsThreads>>>(
     N, this->num_unique_k(), two_pi_inv_L,
@@ -166,11 +166,11 @@ void SlaterPlaneWave::initialize(const Particles& particles) {
     kv.x_, kv.y_, kv.z_,
     this->orbital_k_index(), this->orbital_type()
   );
-  CUDA_CHECK(cudaGetLastError());
-  CUDA_CHECK(cudaDeviceSynchronize());
+  xpu::cuda_check(cudaGetLastError());
+  xpu::cuda_check(cudaDeviceSynchronize());
 
-  trig_cache_ = AlignedSoA<real_t>(num_particles * this->trig_row_stride(), NUM_TRIG_ARRAYS);
-  trig_scratch_ = AlignedSoA<real_t>(this->num_unique_k(), NUM_SCRATCH_TRIG);
+  trig_cache_ = xpu::soa<real_t, NUM_TRIG_ARRAYS>(num_particles * this->trig_row_stride());
+  trig_scratch_ = xpu::soa<real_t, NUM_SCRATCH_TRIG>(this->num_unique_k());
 #else
   const std::size_t N{num_orbitals()};
   const std::size_t num_particles{particles.size()};
@@ -214,7 +214,7 @@ void SlaterPlaneWave::initialize(const Particles& particles) {
     }
   );
 
-  const auto nv{n_vector().align()};
+  const auto nv{n_vector()};
 
   auto* orb_k_idx{orbital_k_index()};
   auto* orb_type{orbital_type()};
@@ -244,9 +244,9 @@ void SlaterPlaneWave::initialize(const Particles& particles) {
   }
 
   num_unique_k_ = k_idx;
-  trig_row_stride_ = AlignedSoA<real_t>::round_up(k_idx);
+  trig_row_stride_ = xpu::handle_pad<real_t>(k_idx);
 
-  const auto kv{k_vector().align()};
+  const auto kv{k_vector()};
 
   const real_t inv_L{1.0_r / box_length()};
 
@@ -257,10 +257,10 @@ void SlaterPlaneWave::initialize(const Particles& particles) {
     kv.z_[i] = 2.0_r * std::numbers::pi_v<real_t> * inv_L * static_cast<real_t>(nv.z_[i]);
   }
 
-  trig_cache_ = AlignedSoA<real_t>(num_particles * trig_row_stride(), NUM_TRIG_ARRAYS);
-  trig_scratch_ = AlignedSoA<real_t>(num_unique_k(), NUM_SCRATCH_TRIG);
+  trig_cache_ = xpu::soa<real_t, NUM_TRIG_ARRAYS>(num_particles * trig_row_stride());
+  trig_scratch_ = xpu::soa<real_t, NUM_SCRATCH_TRIG>(num_unique_k());
 
-  std::size_t trig_size{trig_cache_.num_elements()};
+  std::size_t trig_size{trig_cache_.count()};
   std::fill_n(sin_cache(), trig_size, 0.0_r);
   std::fill_n(cos_cache(), trig_size, 0.0_r);
 #endif

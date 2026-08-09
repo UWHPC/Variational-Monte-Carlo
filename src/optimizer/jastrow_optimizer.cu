@@ -1,6 +1,6 @@
 #include <xpu/xpu.hpp>
 #include "jastrow_optimizer.hpp"
-#include "../simulation/simulation.cuh"
+#include "../simulation/simulation.hpp"
 
 #include <algorithm>
 #include <cmath>

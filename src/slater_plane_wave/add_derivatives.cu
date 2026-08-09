@@ -1,7 +1,7 @@
 #include <xpu/xpu.hpp>
-#include "slater_plane_wave.cuh"
+#include "slater_plane_wave.hpp"
 
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
 
 namespace {
 
@@ -83,13 +83,13 @@ void SlaterPlaneWave::add_derivatives(
   real_t* RESTRICT grad_z,
   real_t* RESTRICT laplacian
 ) const noexcept {
-#ifdef VMC_CUDA_BACKEND
+#ifdef XPU_CUDA
   AlignedSoA<real_t> grad_mag{this->num_orbitals(), 1};
 
   dim3 addDerivativesThreads(16, 16);
   dim3 addDerivativesBlocks(
-    vmc::cudaNumBlocks(this->num_orbitals(), addDerivativesThreads.x),
-    vmc::cudaNumBlocks(this->num_orbitals(), addDerivativesThreads.y)
+    xpu::block_per_dim(this->num_orbitals(), addDerivativesThreads.x),
+    xpu::block_per_dim(this->num_orbitals(), addDerivativesThreads.y)
   );
   cudaAddDerivatives<<<addDerivativesBlocks, addDerivativesThreads>>>(
     this->num_orbitals(), this->matrix_row_stride(), this->trig_row_stride(),
@@ -101,7 +101,7 @@ void SlaterPlaneWave::add_derivatives(
 
   dim3 accumulateDerivativesThreads(256);
   dim3 accumulateDerivativesBlocks(
-    vmc::cudaNumBlocks(this->num_orbitals(), accumulateDerivativesThreads.x)
+    xpu::block_per_dim(this->num_orbitals(), accumulateDerivativesThreads.x)
   );
   cudaAccumulateDerivatives<<<accumulateDerivativesBlocks, accumulateDerivativesThreads>>>(
     this->num_orbitals(),
@@ -109,24 +109,20 @@ void SlaterPlaneWave::add_derivatives(
     laplacian
   );
 
-  CUDA_CHECK(cudaDeviceSynchronize());
+  xpu::cuda_check(cudaDeviceSynchronize());
 #else
   const std::size_t N{this->num_orbitals()};
   const std::size_t S{this->matrix_row_stride()};
 
-  const auto kv{this->k_vector().align()};
+  const auto kv{this->k_vector()};
 
   const auto& k_index{this->orbital_k_index()};
   const auto& o_type{this->orbital_type()};
 
-  const real_t* RESTRICT inv_det{this->inv_determinant()}; ASSUME_ALIGNED(inv_det, SIMD_BYTES);
-  const real_t* RESTRICT cos_cache{this->cos_cache()}; ASSUME_ALIGNED(cos_cache, SIMD_BYTES);
-  const real_t* RESTRICT sin_cache{this->sin_cache()}; ASSUME_ALIGNED(sin_cache, SIMD_BYTES);
+  const real_t* RESTRICT inv_det{this->inv_determinant()};
+  const real_t* RESTRICT cos_cache{this->cos_cache()};
+  const real_t* RESTRICT sin_cache{this->sin_cache()};
 
-  ASSUME_ALIGNED(grad_x, SIMD_BYTES);
-  ASSUME_ALIGNED(grad_y, SIMD_BYTES);
-  ASSUME_ALIGNED(grad_z, SIMD_BYTES);
-  ASSUME_ALIGNED(laplacian, SIMD_BYTES);
 
   for (std::size_t particle = 0; particle < N; ++particle) {
     real_t d_log_det_dx{}, d_log_det_dy{}, d_log_det_dz{};

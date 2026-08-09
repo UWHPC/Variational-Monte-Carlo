@@ -1,7 +1,7 @@
 #include "test_utilities.hpp"
 
 #include "optimizer/jastrow_optimizer.hpp"
-#include "simulation/simulation.cuh"
+#include "simulation/simulation.hpp"
 
 #include <cmath>
 #include <cstddef>

@@ -1,9 +1,8 @@
 #pragma once
 
-#include "../particles/particles.cuh"
-#include "../utilities/aligned_soa.cuh"
-#include "../utilities/math.cuh"
-#include "../utilities/ptr3d.hpp"
+#include "../particles/particles.hpp"
+#include <xpu/soa.hpp>
+#include <xpu/math.hpp>
 
 #include <cmath>
 #include <cstddef>
@@ -34,7 +33,7 @@ private:
     D_IMAG_TEMP,
     NUM_ARRAYS
   };
-  AlignedSoA<real_t> data_;
+  xpu::soa<real_t, NUM_ARRAYS> data_;
 
 public:
   explicit EnergyTracker(real_t box_length, real_t num_particles);

@@ -1,12 +1,11 @@
 #pragma once
 
-#include "../jastrow_pade/jastrow_pade.cuh"
-#include "../particles/particles.cuh"
-#include "../slater_plane_wave/slater_plane_wave.cuh"
-#include "../utilities/aligned_soa.cuh"
+#include "../jastrow_pade/jastrow_pade.hpp"
+#include "../particles/particles.hpp"
+#include "../slater_plane_wave/slater_plane_wave.hpp"
+#include <xpu/soa.hpp>
 
 #include <cstddef>
-#include <vector>
 
 class WaveFunction {
 private:
@@ -16,8 +15,11 @@ private:
   bool jastrow_cache_valid_;
   std::size_t steps_since_refresh_;
 
-  enum ArrayIndex : std::size_t { GRAD_X, GRAD_Y, GRAD_Z, LAP, NUM_ARRAYS };
-  AlignedSoA<real_t> deriv_;
+  enum class ArrayIndex : std::size_t {
+    DERIVATIVES,
+    NUM_ARRAYS = enum_index(ArrayIndex::DERIVATIVES, Derivatives::NUM)
+  };
+  xpu::soa<real_t, idx(ArrayIndex::NUM_ARRAYS)> deriv_;
 
 public:
   explicit WaveFunction(
@@ -30,7 +32,7 @@ public:
   , slater_plane_wave_{particles, box_length}
   , jastrow_cache_valid_{}
   , steps_since_refresh_{}
-  , deriv_{particles.size(), NUM_ARRAYS}
+  , deriv_{particles.count()}
   { }
 
   [[nodiscard]]       JastrowPade& jastrow_pade()       noexcept { return jastrow_pade_; }
@@ -39,11 +41,15 @@ public:
   [[nodiscard]]       SlaterPlaneWave& slater_plane_wave()       noexcept { return slater_plane_wave_; }
   [[nodiscard]] const SlaterPlaneWave& slater_plane_wave() const noexcept { return slater_plane_wave_; }
 
-  Ptr3D<      real_t> j_grad()       noexcept { return {deriv_[GRAD_X], deriv_[GRAD_Y], deriv_[GRAD_Z]}; }
-  Ptr3D<const real_t> j_grad() const noexcept { return {deriv_[GRAD_X], deriv_[GRAD_Y], deriv_[GRAD_Z]}; }
+  [[nodiscard]] CUDA_CALLABLE
+  xpu::soa_view<real_t, idx(Derivatives::NUM)> j_derivatives() {
+    return deriv_.view<idx(Derivatives::NUM), idx(ArrayIndex::DERIVATIVES)>();
+  }
 
-  [[nodiscard]] real_t*       j_lap()       noexcept { return deriv_[LAP]; }
-  [[nodiscard]] real_t const* j_lap() const noexcept { return deriv_[LAP]; }
+  [[nodiscard]] CUDA_CALLABLE
+  xpu::soa_view<const real_t, idx(Derivatives::NUM)> j_derivatives() const {
+    return deriv_.view<idx(Derivatives::NUM), idx(ArrayIndex::DERIVATIVES)>();
+  }
 
   [[nodiscard]] bool jastrow_cache_valid() const noexcept { return jastrow_cache_valid_; }
   void set_jastrow_cache_valid(bool value) noexcept { jastrow_cache_valid_ = value; }
@@ -59,5 +65,7 @@ public:
     real_t old_x, real_t old_y, real_t old_z
   ) noexcept;
 
-  real_t evaluate_log_psi(const Particles& particles);
+  real_t evaluate_log_psi(const Particles& particles) {
+    return this->slater_plane_wave().log_abs_det(particles) + this->jastrow_pade().value(particles);
+  }
 };
