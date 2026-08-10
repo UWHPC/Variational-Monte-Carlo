@@ -9,34 +9,12 @@
 #include <memory>
 #include <type_traits>
 
-template <typename T>
-concept arithmetic = std::is_arithmetic_v<T>;
-
 #ifdef FP_64
-using real_t = double;
+  using real_t = double;
+  inline constexpr real_t EPSILON{1e-12};
 #else
-using real_t = float;
-#endif
-
-using complex_t = std::complex<real_t>;
-
-#ifdef XPU_CUDA
-#include <cusolverDn.h>
-
-#define CUSOLVER_CHECK(call) \
-  do { \
-    cusolverStatus_t cusolver_check_result_{(call)}; \
-    if (cusolver_check_result_ != CUSOLVER_STATUS_SUCCESS) { \
-      std::fprintf( \
-        stderr, \
-        "cuSOLVER error at %s:%d: %d\n", \
-        __FILE__, \
-        __LINE__, \
-        static_cast<int>(cusolver_check_result_) \
-      ); \
-      std::abort(); \
-    } \
-  } while (0)
+  using real_t = float;
+  inline constexpr real_t EPSILON{1e-5};
 #endif
 
 [[nodiscard]] CUDA_CALLABLE

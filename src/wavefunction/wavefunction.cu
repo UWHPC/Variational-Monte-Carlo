@@ -20,7 +20,7 @@ void WaveFunction::evaluate_derivatives(Particles& particles) noexcept {
   reset_derivatives(this->j_derivatives());
 
   slater_plane_wave_.add_derivatives(particles.derivatives());
-  jastrow_pade_.add_derivatives(particles, this->j_derivatives());
+  jastrow_pade_.add_derivatives(particles.pos(), this->j_derivatives());
 
   kernel::wavefunction::derivative_sums(particles.derivatives(), this->j_derivatives());
 
@@ -32,7 +32,7 @@ void WaveFunction::evaluate_derivatives(
   Particles& particles,
   bool move_accepted,
   std::size_t moved,
-  real_t old_x, real_t old_y, real_t old_z
+  xpu::array<real_t, idx(Axis::NUM)> old_pos
 ) noexcept {
   if (!jastrow_cache_valid()) {
     evaluate_derivatives(particles);
@@ -48,9 +48,9 @@ void WaveFunction::evaluate_derivatives(
   }
 
   jastrow_pade_.update_derivatives_for_move(
-    particles,
     moved,
-    old_x, old_y, old_z,
+    old_pos,
+    particles.pos(),
     this->j_derivatives()
   );
 

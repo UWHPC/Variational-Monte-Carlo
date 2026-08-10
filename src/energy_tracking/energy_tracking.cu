@@ -717,11 +717,3 @@ void EnergyTracker::update_real_energy(
   V_real_ += delta;
 #endif
 }
-
-inline real_t EnergyTracker::potential_energy() const noexcept {
-  return V_real_ + V_recip_ + ewald_correction_ + ewald_background_;
-}
-
-real_t EnergyTracker::eval_total_energy(const Particles& particles) const noexcept {
-  return kinetic_energy(particles) + potential_energy();
-}

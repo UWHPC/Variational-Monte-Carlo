@@ -5,11 +5,10 @@
 #include "../utilities/macros.hpp"
 
 namespace stencil {
-
 namespace wavefunction {
 
 CUDA_CALLABLE
-void derivative_sum(
+inline void derivative_sum(
   std::size_t i,
   xpu::soa_view<real_t, idx(Derivatives::NUM)> log_derivatives,
   xpu::soa_view<real_t, idx(Derivatives::NUM)> jastrow_derivatives
@@ -20,11 +19,9 @@ void derivative_sum(
 }
 
 } // namespace stencil::wavefunction
-
 } // namespace stencil
 
 namespace kernel {
-
 namespace wavefunction {
 
 namespace {
@@ -44,7 +41,7 @@ void cudaDerivativeSums(
 
 } // namespace
 
-void derivative_sums(
+inline void derivative_sums(
   xpu::soa_view<real_t, idx(Derivatives::NUM)> log_derivatives,
   xpu::soa_view<real_t, idx(Derivatives::NUM)> jastrow_derivatives
 ) {
@@ -73,5 +70,4 @@ void derivative_sums(
 }
 
 } // namespace kernel::wavefunction
-
 } // namespace kernel

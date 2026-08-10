@@ -175,7 +175,7 @@ TEST_CASE("Fully polarized Jastrow cusp matches the same-spin analytical form ne
     particles.pos().z_[1] = 0.0_r;
 
     const real_t expected_value{0.25_r * r / (1.0_r + r)};
-    const real_t actual_value{jastrow.value(particles)};
+    const real_t actual_value{jastrow.value(particles.pos())};
 
     INFO("Checking Jastrow value against the exact same-spin Padé form near coalescence.");
     CAPTURE(r, actual_value, expected_value);

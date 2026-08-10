@@ -62,10 +62,10 @@ public:
     Particles& particles,
     bool move_accepted,
     std::size_t moved,
-    real_t old_x, real_t old_y, real_t old_z
+    xpu::array<real_t, idx(Axis::NUM)> old_pos
   ) noexcept;
 
-  real_t evaluate_log_psi(const Particles& particles) {
-    return this->slater_plane_wave().log_abs_det(particles) + this->jastrow_pade().value(particles);
+  real_t evaluate_log_psi(Particles& particles) {
+    return this->slater_plane_wave().log_abs_det(particles) + this->jastrow_pade().value(particles.pos());
   }
 };

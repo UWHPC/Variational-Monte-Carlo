@@ -29,7 +29,7 @@ real_t valueAtOffset(
   shifted.pos().x_[particle] += dx;
   shifted.pos().y_[particle] += dy;
   shifted.pos().z_[particle] += dz;
-  return jastrow.value(shifted);
+  return jastrow.value(shifted.pos());
 }
 
 } // namespace
@@ -48,7 +48,7 @@ TEST_CASE("Jastrow value uses minimum-image pair distances", "[jastrow]") {
 
   const real_t r{0.2_r};
   const real_t expected{(0.25_r * r) / (1.0_r + r)};
-  require_near(jastrow.value(particles), expected);
+  require_near(jastrow.value(particles.pos()), expected);
 }
 
 TEST_CASE("Jastrow value skips degenerate pairs", "[jastrow]") {
@@ -63,7 +63,7 @@ TEST_CASE("Jastrow value skips degenerate pairs", "[jastrow]") {
   particles.pos().y_[1] = 2.0_r;
   particles.pos().z_[1] = 3.0_r;
 
-  require_near(jastrow.value(particles), 0.0_r);
+  require_near(jastrow.value(particles.pos()), 0.0_r);
 }
 
 TEST_CASE("Jastrow derivatives match the analytic two-particle result", "[jastrow]") {
@@ -159,7 +159,7 @@ TEST_CASE("Jastrow derivatives match finite-difference gradients and Laplacians"
   jastrow.add_derivatives(particles, gradX.data(), gradY.data(), gradZ.data(), lap.data());
 
   const real_t h{FD_STEP};
-  const real_t valueCenter{jastrow.value(particles)};
+  const real_t valueCenter{jastrow.value(particles.pos())};
 
   const real_t dJdx{
     (

@@ -100,23 +100,23 @@ public:
   [[nodiscard]] int const* pivot() const noexcept { return int_vec_[PIVOT]; }
 
   [[nodiscard]] CUDA_CALLABLE
-  xpu::soa_view<real_t, 3> n_vector() {
-    return int_vec_.view<3, N_X>();
+  xpu::soa_view<int, idx(Axis::NUM)> n_vector() {
+    return int_vec_.view<idx(Axis::NUM), N_X>();
   }
 
   [[nodiscard]] CUDA_CALLABLE
-  xpu::soa_view<const real_t, 3> n_vector() const {
-    return int_vec_.view<3, N_X>();
+  xpu::soa_view<const int, idx(Axis::NUM)> n_vector() const {
+    return int_vec_.view<idx(Axis::NUM), N_X>();
   }
 
   [[nodiscard]] CUDA_CALLABLE
-  xpu::soa_view<real_t, 3> k_vector() {
-    return fp_vec_.view<3, K_X>();
+  xpu::soa_view<real_t, idx(Axis::NUM)> k_vector() {
+    return fp_vec_.view<idx(Axis::NUM), K_X>();
   }
 
   [[nodiscard]] CUDA_CALLABLE
-  xpu::soa_view<const real_t, 3> k_vector() const {
-    return fp_vec_.view<3, K_X>();
+  xpu::soa_view<const real_t, idx(Axis::NUM)> k_vector() const {
+    return fp_vec_.view<idx(Axis::NUM), K_X>();
   }
 
   [[nodiscard]] real_t*       solution()       noexcept { return fp_vec_[SOLUTION]; }
@@ -146,10 +146,7 @@ public:
   void accept_move(std::size_t particle, const real_t* new_row, real_t ratio) noexcept;
 
   void add_derivatives(
-    real_t* RESTRICT grad_x,
-    real_t* RESTRICT grad_y,
-    real_t* RESTRICT grad_z,
-    real_t* RESTRICT laplacian
+    xpu::soa_view<real_t, idx(Derivatives::NUM)> derivatives
   ) const noexcept;
 
 private:

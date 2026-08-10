@@ -95,8 +95,9 @@ Simulation::StepResult Simulation::metropolis_step() {
 
   const real_t delta_jastrow{
     wave_function_.jastrow_pade().delta_value(
-      particles_,
-      rand, old_x, old_y, old_z
+      rand,
+      {old_x, old_y, old_z},
+      particles_.pos()
     )
   };
   const real_t log_ratio_sq{2.0_r * xpu::log(xpu::abs(slater_ratio)) + 2.0_r * delta_jastrow};

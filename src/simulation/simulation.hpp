@@ -11,8 +11,6 @@
 
 #include <memory>
 #include <optional>
-#include <random>
-#include <vector>
 
 class Simulation {
 private:
@@ -38,10 +36,11 @@ private:
   CUDA_CALLABLE [[nodiscard]] std::size_t rand_particle() { return walker_rng_.rand_particle(); }
 
   [[nodiscard]] real_t acceptance_rate() const {
-    if (proposed_ == 0U) {
+    if (proposed_ == 0uz) {
       return 0.0_r;
+    } else {
+      return static_cast<real_t>(accepted_) / static_cast<real_t>(proposed_);
     }
-    return static_cast<real_t>(accepted_) / static_cast<real_t>(proposed_);
   }
 
   struct StepResult {

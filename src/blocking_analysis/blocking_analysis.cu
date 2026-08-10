@@ -1,6 +1,5 @@
 #include "blocking_analysis.hpp"
 
-#include <cmath>
 #include <stdexcept>
 
 BlockingAnalysis::BlockingAnalysis(std::size_t block_size)
