@@ -121,8 +121,8 @@ void SlaterPlaneWave::initialize(const Particles& particles) {
     n_vec_tmp[CAND_X], n_vec_tmp[CAND_Y], n_vec_tmp[CAND_Z], n_vec_tmp[CAND_MAG_SQ],
     counter[0]
   );
-  xpu::cuda_check(cudaGetLastError());
-  xpu::cuda_check(cudaDeviceSynchronize());
+  xpu::cu_check(cudaGetLastError());
+  xpu::cu_check(cudaDeviceSynchronize());
 
   auto* RESTRICT cand_x{n_vec_tmp[CAND_X]};
   auto* RESTRICT cand_y{n_vec_tmp[CAND_Y]};

@@ -1,5 +1,6 @@
 #include <xpu/xpu.hpp>
 #include "slater_plane_wave.hpp"
+#include "slater_plane_wave_kernels.hpp"
 #include "particles/particles.hpp"
 #include <xpu/soa.hpp>
 
@@ -16,8 +17,8 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, real_t box_lengthL)
   , orbital_type_(particles.count())
   , int_vec_{particles.count()}
   , fp_vec_{particles.count()}
-  , trig_cache_{0}
-  , trig_scratch_{0}
+  , trig_cache_{0uz}
+  , trig_scratch_{0uz}
   , matrices_{matrix_row_stride_ * particles.count()}
 {
   this->initialize(particles);
@@ -25,6 +26,43 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, real_t box_lengthL)
   this->init_cuda_scratch();
 #endif
 };
+
+void SlaterPlaneWave::restore_trig_row(std::size_t particle) {
+  const auto row_offset{
+    static_cast<std::ptrdiff_t>(particle * this->trig_row_stride())
+  };
+
+  const auto sin_start{this->sin_cache() + row_offset};
+  const auto cos_start{this->cos_cache() + row_offset};
+
+  xpu::copy_n(sin_start, trig_scratch_[SIN_SAVED], this->num_unique_k());
+  xpu::copy_n(cos_start, trig_scratch_[COS_SAVED], this->num_unique_k());
+}
+
+void SlaterPlaneWave::save_trig_row(std::size_t particle) {
+  const auto row_offset{
+    static_cast<std::ptrdiff_t>(particle * this->trig_row_stride())
+  };
+  const auto sin_start{this->sin_cache() + row_offset};
+  const auto cos_start{this->cos_cache() + row_offset};
+
+  xpu::copy_n(trig_scratch_[SIN_SAVED], sin_start, this->num_unique_k());
+  xpu::copy_n(trig_scratch_[COS_SAVED], cos_start, this->num_unique_k());
+}
+
+void SlaterPlaneWave::update_trig_cache(
+  std::size_t particle, Particles& particles
+) {
+  const auto row_offset{particle * this->trig_row_stride()};
+
+  this->save_trig_row(particle);
+
+  kernel::slater::update_trig_cache(
+    row_offset, particle,
+    particles.pos(), this->k_vector(),
+    this->sin_cache(), this->cos_cache()
+  );
+}
 
 #ifdef XPU_CUDA
 namespace {
@@ -50,12 +88,10 @@ void kComputeSK(
 
 __global__
 void kUpdateInverse(
-  std::size_t N,
-  std::size_t S,
-  std::size_t particle,
+  std::size_t num_orbitals, std::size_t particle,
+  std::size_t row_stride, real_t inv_ratio,
   const real_t* RESTRICT inv_d_col,
-  const real_t* RESTRICT s_k_array,
-  real_t inv_ratio,
+  const real_t* RESTRICT solution_arr,
   real_t* RESTRICT inv_det
 ) {
   const std::size_t j{blockIdx.x * blockDim.x + threadIdx.x};

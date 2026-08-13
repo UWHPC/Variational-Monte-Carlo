@@ -28,11 +28,11 @@ public:
     real_t a = 0.25_r,
     real_t b = 1.0_r
   )
-  : jastrow_pade_{box_length, a, b}
-  , slater_plane_wave_{particles, box_length}
-  , jastrow_cache_valid_{}
-  , steps_since_refresh_{}
-  , deriv_{particles.count()}
+    : jastrow_pade_{box_length, a, b}
+    , slater_plane_wave_{particles, box_length}
+    , jastrow_cache_valid_{}
+    , steps_since_refresh_{}
+    , deriv_{particles.count()}
   { }
 
   [[nodiscard]]       JastrowPade& jastrow_pade()       noexcept { return jastrow_pade_; }

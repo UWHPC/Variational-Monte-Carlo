@@ -132,7 +132,7 @@ public:
   [[nodiscard]] real_t const* cos_cache() const noexcept { return trig_cache_[COS_CACHE]; }
 
   void restore_trig_row(std::size_t particle);
-  void update_trig_cache(std::size_t particle, const Particles& particles);
+  void update_trig_cache(std::size_t particle, Particles& particles);
 
   real_t log_abs_det(const Particles& particles);
 
@@ -150,6 +150,7 @@ public:
   ) const noexcept;
 
 private:
+  void save_trig_row(std::size_t particle);
 #ifdef XPU_CUDA
   void init_cuda_scratch();
 #endif
