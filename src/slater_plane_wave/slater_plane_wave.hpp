@@ -11,11 +11,13 @@
 #include <cstring>
 
 #ifdef XPU_CUDA
+  #include <cusolverDn.h>
+
 struct CudaScratch {
-  cusolverDnHandle_t handle;
-  xpu::buffer<real_t> work;
-  xpu::buffer<int> info;
-  xpu::buffer<real_t> log_abs_det;
+  cusolverDnHandle_t handle{};
+  xpu::unique_ptr<real_t> work{};
+  xpu::unique_ptr<int> info{};
+  xpu::unique_ptr<real_t> log_abs_det{};
 };
 #endif
 

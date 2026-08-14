@@ -8,11 +8,12 @@
 namespace stencil {
 namespace slater {
 
+template <typename PositionType, typename KVectorType>
 CUDA_CALLABLE
 inline void update_trig_cache(
   std::size_t i, std::size_t offset, std::size_t particle,
-  xpu::soa_view<real_t, idx(Axis::NUM)> particle_pos,
-  xpu::soa_view<real_t, idx(Axis::NUM)> k_vector,
+  xpu::soa_view<PositionType, idx(Axis::NUM)> particle_pos,
+  xpu::soa_view<KVectorType, idx(Axis::NUM)> k_vector,
   real_t* RESTRICT sin_cache, real_t* RESTRICT cos_cache
 ) {
   const auto dot{
@@ -23,6 +24,146 @@ inline void update_trig_cache(
 
   const auto idx{offset + i};
   xpu::sincos(dot, &sin_cache[idx], &cos_cache[idx]);
+}
+
+CUDA_CALLABLE
+inline void build_row(
+  std::size_t i, std::size_t particle,
+  std::size_t trig_row_stride,
+  const real_t* RESTRICT sin_cache,
+  const real_t* RESTRICT cos_cache,
+  const std::size_t* RESTRICT orbital_k_index,
+  const std::uint8_t* RESTRICT orbital_type,
+  real_t* RESTRICT new_row
+) {
+  const auto trig_idx{
+    particle * trig_row_stride + orbital_k_index[i]
+  };
+  const auto type{static_cast<real_t>(orbital_type[i])};
+  const auto sin_term{sin_cache[trig_idx]};
+  const auto cos_term{cos_cache[trig_idx]};
+
+  new_row[i] = cos_term + type * (sin_term - cos_term);
+}
+
+CUDA_CALLABLE
+inline void compute_log_abs_det(
+  std::size_t i, std::size_t matrix_row_stride,
+  const real_t* RESTRICT lower_upper,
+  real_t* RESTRICT log_abs_det
+) {
+  const auto diagonal{lower_upper[i * matrix_row_stride + i]};
+  const auto contribution{xpu::log(xpu::abs(diagonal))};
+
+#if defined(__CUDA_ARCH__)
+  atomicAdd(log_abs_det, contribution);
+#else
+  *log_abs_det += contribution;
+#endif
+}
+
+CUDA_CALLABLE
+inline void build_identity(
+  std::size_t i,
+  std::size_t matrix_row_stride,
+  real_t* RESTRICT matrix
+) {
+  const auto row{i / matrix_row_stride};
+  const auto column{i - row * matrix_row_stride};
+
+  matrix[i] = (row == column) ? 1.0_r : 0.0_r;
+}
+
+CUDA_CALLABLE
+inline void determinant_ratio(
+  std::size_t i, std::size_t particle,
+  std::size_t matrix_row_stride,
+  const real_t* RESTRICT new_row,
+  const real_t* RESTRICT inv_det,
+  real_t* RESTRICT ratio
+) {
+  const auto product{
+    new_row[i] * inv_det[particle * matrix_row_stride + i]
+  };
+
+#if defined(__CUDA_ARCH__)
+  atomicAdd(ratio, product);
+#else
+  *ratio += product;
+#endif
+}
+
+CUDA_CALLABLE
+inline void add_derivatives(
+  std::size_t i, std::size_t j,
+  std::size_t matrix_row_stride,
+  std::size_t trig_row_stride,
+  xpu::soa_view<const real_t, idx(Axis::NUM)> k_vector,
+  const std::size_t* RESTRICT orbital_k_index,
+  const std::uint8_t* RESTRICT orbital_type,
+  const real_t* RESTRICT inv_det,
+  const real_t* RESTRICT sin_cache,
+  const real_t* RESTRICT cos_cache,
+  real_t* RESTRICT gradient_x,
+  real_t* RESTRICT gradient_y,
+  real_t* RESTRICT gradient_z,
+  real_t* RESTRICT laplacian
+) {
+  const auto k_idx{orbital_k_index[j]};
+  const auto k_x{k_vector[idx(Axis::X)][k_idx]};
+  const auto k_y{k_vector[idx(Axis::Y)][k_idx]};
+  const auto k_z{k_vector[idx(Axis::Z)][k_idx]};
+  const auto k_mag{
+    k_x * k_x +
+    k_y * k_y +
+    k_z * k_z
+  };
+
+  const auto type{static_cast<real_t>(orbital_type[j])};
+  const auto trig_idx{i * trig_row_stride + k_idx};
+  const auto sin_term{sin_cache[trig_idx]};
+  const auto cos_term{cos_cache[trig_idx]};
+  const auto weight{inv_det[i * matrix_row_stride + j]};
+
+  const auto gradient_factor{
+    weight * (
+      -sin_term + type * (sin_term + cos_term)
+    )
+  };
+  const auto laplacian_factor{
+    weight * (
+      -cos_term + type * (cos_term - sin_term)
+    )
+  };
+
+#if defined(__CUDA_ARCH__)
+  atomicAdd(gradient_x, gradient_factor * k_x);
+  atomicAdd(gradient_y, gradient_factor * k_y);
+  atomicAdd(gradient_z, gradient_factor * k_z);
+  atomicAdd(laplacian, laplacian_factor * k_mag);
+#else
+  *gradient_x += gradient_factor * k_x;
+  *gradient_y += gradient_factor * k_y;
+  *gradient_z += gradient_factor * k_z;
+  *laplacian += laplacian_factor * k_mag;
+#endif
+}
+
+CUDA_CALLABLE
+inline void accumulate_derivatives(
+  std::size_t i,
+  xpu::soa_view<real_t, idx(Derivatives::NUM)> derivatives
+) {
+  const auto gradient_x{derivatives[idx(Derivatives::GRAD_X)][i]};
+  const auto gradient_y{derivatives[idx(Derivatives::GRAD_Y)][i]};
+  const auto gradient_z{derivatives[idx(Derivatives::GRAD_Z)][i]};
+  const auto gradient_magnitude{
+    gradient_x * gradient_x +
+    gradient_y * gradient_y +
+    gradient_z * gradient_z
+  };
+
+  derivatives[idx(Derivatives::LAP)][i] -= gradient_magnitude;
 }
 
 CUDA_CALLABLE
@@ -37,11 +178,28 @@ inline void k_update_inverse(
   const auto idx{j * row_stride + i};
   const auto factor{inv_d_col[i] * inv_ratio};
 
-  if (i == particle) {
+  if (j == particle) {
     inv_det[idx] = factor;
   } else {
     inv_det[idx] -= factor * solution_arr[j];
   }
+}
+
+CUDA_CALLABLE
+inline void k_compute_sk(
+  std::size_t i, std::size_t j,
+  std::size_t row_stride,
+  const real_t* RESTRICT new_row,
+  const real_t* RESTRICT inv_det,
+  real_t* RESTRICT solution
+) {
+  const auto product{new_row[i] * inv_det[j * row_stride + i]};
+
+#if defined(__CUDA_ARCH__)
+  atomicAdd(solution, product);
+#else
+  *solution += product;
+#endif
 }
 
 } // namespace stencil::slater
@@ -55,13 +213,14 @@ namespace {
 #if defined(XPU_CUDA)
 __global__
 void cudaUpdateTrigRow(
+  std::size_t num_unique_k,
   std::size_t offset, std::size_t particle,
   xpu::soa_view<real_t, idx(Axis::NUM)> particle_pos,
   xpu::soa_view<real_t, idx(Axis::NUM)> k_vector,
   real_t* RESTRICT sin_cache, real_t* RESTRICT cos_cache
 ) {
   const auto [i]{xpu::global_index<1>()};
-  if (i >= k_vector.count()) { return; }
+  if (i >= num_unique_k) { return; }
 
   stencil::slater::update_trig_cache(
     i, offset, particle,
@@ -69,25 +228,214 @@ void cudaUpdateTrigRow(
     sin_cache, cos_cache
   );
 }
+
+__global__
+void cudaBuildTrigCache(
+  std::size_t num_unique_k,
+  std::size_t trig_row_stride,
+  xpu::soa_view<const real_t, idx(Axis::NUM)> particle_pos,
+  xpu::soa_view<const real_t, idx(Axis::NUM)> k_vector,
+  real_t* RESTRICT sin_cache,
+  real_t* RESTRICT cos_cache
+) {
+  const auto [i, j]{xpu::global_index<2>()};
+  if (i >= num_unique_k || j >= particle_pos.count()) { return; }
+
+  stencil::slater::update_trig_cache(
+    i, j * trig_row_stride, j,
+    particle_pos, k_vector,
+    sin_cache, cos_cache
+  );
+}
+
+__global__
+void cudaBuildRow(
+  std::size_t num_orbitals, std::size_t particle,
+  std::size_t trig_row_stride,
+  const real_t* RESTRICT sin_cache,
+  const real_t* RESTRICT cos_cache,
+  const std::size_t* RESTRICT orbital_k_index,
+  const std::uint8_t* RESTRICT orbital_type,
+  real_t* RESTRICT new_row
+) {
+  const auto [i]{xpu::global_index<1>()};
+  if (i >= num_orbitals) { return; }
+
+  stencil::slater::build_row(
+    i, particle, trig_row_stride,
+    sin_cache, cos_cache,
+    orbital_k_index, orbital_type,
+    new_row
+  );
+}
+
+__global__
+void cudaBuildDeterminant(
+  std::size_t num_orbitals,
+  std::size_t trig_row_stride,
+  std::size_t matrix_row_stride,
+  const real_t* RESTRICT sin_cache,
+  const real_t* RESTRICT cos_cache,
+  const std::size_t* RESTRICT orbital_k_index,
+  const std::uint8_t* RESTRICT orbital_type,
+  real_t* RESTRICT determinant
+) {
+  const auto [i, j]{xpu::global_index<2>()};
+  if (i >= num_orbitals || j >= num_orbitals) { return; }
+
+  stencil::slater::build_row(
+    i, j, trig_row_stride,
+    sin_cache, cos_cache,
+    orbital_k_index, orbital_type,
+    &determinant[j * matrix_row_stride]
+  );
+}
+
+__global__
+void cudaComputeLogAbsDet(
+  std::size_t num_orbitals,
+  std::size_t matrix_row_stride,
+  const real_t* RESTRICT lower_upper,
+  real_t* RESTRICT log_abs_det
+) {
+  const auto [i]{xpu::global_index<1>()};
+  if (i >= num_orbitals) { return; }
+
+  stencil::slater::compute_log_abs_det(
+    i, matrix_row_stride,
+    lower_upper,
+    log_abs_det
+  );
+}
+
+__global__
+void cudaBuildIdentity(
+  std::size_t matrix_size,
+  std::size_t matrix_row_stride,
+  real_t* RESTRICT matrix
+) {
+  const auto [i]{xpu::global_index<1>()};
+  if (i >= matrix_size) { return; }
+
+  stencil::slater::build_identity(
+    i, matrix_row_stride,
+    matrix
+  );
+}
+
+__global__
+void cudaDeterminantRatio(
+  std::size_t num_orbitals, std::size_t particle,
+  std::size_t matrix_row_stride,
+  const real_t* RESTRICT new_row,
+  const real_t* RESTRICT inv_det,
+  real_t* RESTRICT ratio
+) {
+  const auto [i]{xpu::global_index<1>()};
+  if (i >= num_orbitals) { return; }
+
+  stencil::slater::determinant_ratio(
+    i, particle, matrix_row_stride,
+    new_row, inv_det,
+    ratio
+  );
+}
+
+__global__
+void cudaAddDerivatives(
+  std::size_t num_orbitals,
+  std::size_t matrix_row_stride,
+  std::size_t trig_row_stride,
+  xpu::soa_view<const real_t, idx(Axis::NUM)> k_vector,
+  const std::size_t* RESTRICT orbital_k_index,
+  const std::uint8_t* RESTRICT orbital_type,
+  const real_t* RESTRICT inv_det,
+  const real_t* RESTRICT sin_cache,
+  const real_t* RESTRICT cos_cache,
+  xpu::soa_view<real_t, idx(Derivatives::NUM)> derivatives
+) {
+  const auto [i, j]{xpu::global_index<2>()};
+  if (i >= num_orbitals || j >= num_orbitals) { return; }
+
+  stencil::slater::add_derivatives(
+    i, j,
+    matrix_row_stride, trig_row_stride,
+    k_vector,
+    orbital_k_index, orbital_type,
+    inv_det, sin_cache, cos_cache,
+    &derivatives[idx(Derivatives::GRAD_X)][i],
+    &derivatives[idx(Derivatives::GRAD_Y)][i],
+    &derivatives[idx(Derivatives::GRAD_Z)][i],
+    &derivatives[idx(Derivatives::LAP)][i]
+  );
+}
+
+__global__
+void cudaAccumulateDerivatives(
+  xpu::soa_view<real_t, idx(Derivatives::NUM)> derivatives
+) {
+  const auto [i]{xpu::global_index<1>()};
+  if (i >= derivatives.count()) { return; }
+
+  stencil::slater::accumulate_derivatives(i, derivatives);
+}
+
+__global__
+void kUpdateInverse(
+  std::size_t num_orbitals, std::size_t particle,
+  std::size_t row_stride, real_t inv_ratio,
+  const real_t* RESTRICT inv_d_col,
+  const real_t* RESTRICT solution_arr,
+  real_t* RESTRICT inv_det
+) {
+  const auto [i,j]{xpu::global_index<2>()};
+  if (i >= num_orbitals || j >= num_orbitals) { return; }
+
+  stencil::slater::k_update_inverse(
+    i, j,
+    particle, row_stride, inv_ratio,
+    inv_d_col, solution_arr, inv_det
+  );
+}
+
+__global__
+void kComputeSK(
+  std::size_t num_orbitals, std::size_t particle,
+  std::size_t row_stride,
+  const real_t* RESTRICT new_row,
+  const real_t* RESTRICT inv_det,
+  real_t* RESTRICT solution_arr
+) {
+  const auto [i, j]{xpu::global_index<2>()};
+  if (i >= num_orbitals || j >= num_orbitals) { return; }
+  if (j == particle) { return; }
+
+  stencil::slater::k_compute_sk(
+    i, j, row_stride,
+    new_row, inv_det,
+    &solution_arr[j]
+  );
+}
 #endif
 
 } // namespace
 
 inline void update_trig_cache(
+  std::size_t num_unique_k,
   std::size_t offset, std::size_t particle,
   xpu::soa_view<real_t, idx(Axis::NUM)> particle_pos,
   xpu::soa_view<real_t, idx(Axis::NUM)> k_vector,
   real_t* RESTRICT sin_cache, real_t* RESTRICT cos_cache
 ) {
-  const auto num_k{k_vector.count()};
 #if defined(XPU_CUDA)
   dim3 updateTrigRowThreads{256u};
   dim3 updateTrigRowBlocks{
-    xpu::block_per_dim(num_k, updateTrigRowThreads.x)
+    xpu::block_per_dim(num_unique_k, updateTrigRowThreads.x)
   };
   cudaUpdateTrigRow<<<
     updateTrigRowBlocks, updateTrigRowThreads
   >>>(
+    num_unique_k,
     offset, particle,
     particle_pos, k_vector,
     sin_cache, cos_cache
@@ -96,12 +444,303 @@ inline void update_trig_cache(
   xpu::cu_check(cudaDeviceSynchronize());
 #else
   #pragma omp simd
-  for (auto i = 0uz; i < num_k; ++i) {
+  for (auto i = 0uz; i < num_unique_k; ++i) {
     stencil::slater::update_trig_cache(
       i, offset, particle,
       particle_pos, k_vector,
       sin_cache, cos_cache
     );
+  }
+#endif
+}
+
+inline void build_trig_cache(
+  std::size_t num_unique_k,
+  std::size_t trig_row_stride,
+  xpu::soa_view<const real_t, idx(Axis::NUM)> particle_pos,
+  xpu::soa_view<const real_t, idx(Axis::NUM)> k_vector,
+  real_t* RESTRICT sin_cache,
+  real_t* RESTRICT cos_cache
+) {
+#if defined(XPU_CUDA)
+  dim3 buildTrigCacheThreads{16u, 16u};
+  dim3 buildTrigCacheBlocks(
+    xpu::block_per_dim(num_unique_k, buildTrigCacheThreads.x),
+    xpu::block_per_dim(particle_pos.count(), buildTrigCacheThreads.y)
+  );
+  cudaBuildTrigCache<<<
+    buildTrigCacheBlocks, buildTrigCacheThreads
+  >>>(
+    num_unique_k, trig_row_stride,
+    particle_pos, k_vector,
+    sin_cache, cos_cache
+  );
+  xpu::cu_check(cudaGetLastError());
+#else
+  for (auto j = 0uz; j < particle_pos.count(); ++j) {
+    const auto offset{j * trig_row_stride};
+
+    #pragma omp simd
+    for (auto i = 0uz; i < num_unique_k; ++i) {
+      stencil::slater::update_trig_cache(
+        i, offset, j,
+        particle_pos, k_vector,
+        sin_cache, cos_cache
+      );
+    }
+  }
+#endif
+}
+
+inline void build_row(
+  std::size_t num_orbitals, std::size_t particle,
+  std::size_t trig_row_stride,
+  const real_t* RESTRICT sin_cache,
+  const real_t* RESTRICT cos_cache,
+  const std::size_t* RESTRICT orbital_k_index,
+  const std::uint8_t* RESTRICT orbital_type,
+  real_t* RESTRICT new_row
+) {
+#if defined(XPU_CUDA)
+  dim3 buildRowThreads{256u};
+  dim3 buildRowBlocks{
+    xpu::block_per_dim(num_orbitals, buildRowThreads.x)
+  };
+  cudaBuildRow<<<
+    buildRowBlocks, buildRowThreads
+  >>>(
+    num_orbitals, particle, trig_row_stride,
+    sin_cache, cos_cache,
+    orbital_k_index, orbital_type,
+    new_row
+  );
+  xpu::cu_check(cudaGetLastError());
+#else
+  #pragma omp simd
+  for (auto i = 0uz; i < num_orbitals; ++i) {
+    stencil::slater::build_row(
+      i, particle, trig_row_stride,
+      sin_cache, cos_cache,
+      orbital_k_index, orbital_type,
+      new_row
+    );
+  }
+#endif
+}
+
+inline void build_determinant(
+  std::size_t num_orbitals,
+  std::size_t trig_row_stride,
+  std::size_t matrix_row_stride,
+  const real_t* RESTRICT sin_cache,
+  const real_t* RESTRICT cos_cache,
+  const std::size_t* RESTRICT orbital_k_index,
+  const std::uint8_t* RESTRICT orbital_type,
+  real_t* RESTRICT determinant
+) {
+#if defined(XPU_CUDA)
+  dim3 buildDeterminantThreads{16u, 16u};
+  dim3 buildDeterminantBlocks(
+    xpu::block_per_dim(num_orbitals, buildDeterminantThreads.x),
+    xpu::block_per_dim(num_orbitals, buildDeterminantThreads.y)
+  );
+  cudaBuildDeterminant<<<
+    buildDeterminantBlocks, buildDeterminantThreads
+  >>>(
+    num_orbitals,
+    trig_row_stride, matrix_row_stride,
+    sin_cache, cos_cache,
+    orbital_k_index, orbital_type,
+    determinant
+  );
+  xpu::cu_check(cudaGetLastError());
+#else
+  for (auto j = 0uz; j < num_orbitals; ++j) {
+    #pragma omp simd
+    for (auto i = 0uz; i < num_orbitals; ++i) {
+      stencil::slater::build_row(
+        i, j, trig_row_stride,
+        sin_cache, cos_cache,
+        orbital_k_index, orbital_type,
+        &determinant[j * matrix_row_stride]
+      );
+    }
+  }
+#endif
+}
+
+inline real_t compute_log_abs_det(
+  std::size_t num_orbitals,
+  std::size_t matrix_row_stride,
+  const real_t* RESTRICT lower_upper,
+  real_t* RESTRICT log_abs_det_scratch
+) {
+#if defined(XPU_CUDA)
+  xpu::zero_n(log_abs_det_scratch, 1uz);
+
+  dim3 computeLogAbsDetThreads{256u};
+  dim3 computeLogAbsDetBlocks{
+    xpu::block_per_dim(num_orbitals, computeLogAbsDetThreads.x)
+  };
+  cudaComputeLogAbsDet<<<
+    computeLogAbsDetBlocks, computeLogAbsDetThreads
+  >>>(
+    num_orbitals, matrix_row_stride,
+    lower_upper,
+    log_abs_det_scratch
+  );
+  xpu::cu_check(cudaGetLastError());
+
+  auto log_abs_det{0.0_r};
+  xpu::copy_n(&log_abs_det, log_abs_det_scratch, 1uz);
+  return log_abs_det;
+#else
+  static_cast<void>(log_abs_det_scratch);
+
+  auto log_abs_det{0.0_r};
+
+  #pragma omp simd reduction(+ : log_abs_det)
+  for (auto i = 0uz; i < num_orbitals; ++i) {
+    stencil::slater::compute_log_abs_det(
+      i, matrix_row_stride,
+      lower_upper,
+      &log_abs_det
+    );
+  }
+
+  return log_abs_det;
+#endif
+}
+
+inline void build_identity(
+  std::size_t matrix_size,
+  std::size_t matrix_row_stride,
+  real_t* RESTRICT matrix
+) {
+#if defined(XPU_CUDA)
+  dim3 buildIdentityThreads{256u};
+  dim3 buildIdentityBlocks{
+    xpu::block_per_dim(matrix_size, buildIdentityThreads.x)
+  };
+  cudaBuildIdentity<<<
+    buildIdentityBlocks, buildIdentityThreads
+  >>>(
+    matrix_size, matrix_row_stride,
+    matrix
+  );
+  xpu::cu_check(cudaGetLastError());
+#else
+  #pragma omp simd
+  for (auto i = 0uz; i < matrix_size; ++i) {
+    stencil::slater::build_identity(
+      i, matrix_row_stride,
+      matrix
+    );
+  }
+#endif
+}
+
+inline real_t determinant_ratio(
+  std::size_t num_orbitals, std::size_t particle,
+  std::size_t matrix_row_stride,
+  const real_t* RESTRICT new_row,
+  const real_t* RESTRICT inv_det
+) {
+#if defined(XPU_CUDA)
+  xpu::buffer<real_t> ratio{1uz};
+
+  dim3 determinantRatioThreads{256u};
+  dim3 determinantRatioBlocks{
+    xpu::block_per_dim(num_orbitals, determinantRatioThreads.x)
+  };
+  cudaDeterminantRatio<<<
+    determinantRatioBlocks, determinantRatioThreads
+  >>>(
+    num_orbitals, particle, matrix_row_stride,
+    new_row, inv_det,
+    ratio.data()
+  );
+  xpu::cu_check(cudaGetLastError());
+
+  auto ratio_host{0.0_r};
+  xpu::copy_n(&ratio_host, ratio.data(), 1uz);
+  return ratio_host;
+#else
+  auto ratio{0.0_r};
+
+  #pragma omp simd reduction(+ : ratio)
+  for (auto i = 0uz; i < num_orbitals; ++i) {
+    stencil::slater::determinant_ratio(
+      i, particle, matrix_row_stride,
+      new_row, inv_det,
+      &ratio
+    );
+  }
+
+  return ratio;
+#endif
+}
+
+inline void add_derivatives(
+  std::size_t num_orbitals,
+  std::size_t matrix_row_stride,
+  std::size_t trig_row_stride,
+  xpu::soa_view<const real_t, idx(Axis::NUM)> k_vector,
+  const std::size_t* RESTRICT orbital_k_index,
+  const std::uint8_t* RESTRICT orbital_type,
+  const real_t* RESTRICT inv_det,
+  const real_t* RESTRICT sin_cache,
+  const real_t* RESTRICT cos_cache,
+  xpu::soa_view<real_t, idx(Derivatives::NUM)> derivatives
+) {
+#if defined(XPU_CUDA)
+  dim3 addDerivativesThreads{16u, 16u};
+  dim3 addDerivativesBlocks(
+    xpu::block_per_dim(num_orbitals, addDerivativesThreads.x),
+    xpu::block_per_dim(num_orbitals, addDerivativesThreads.y)
+  );
+  cudaAddDerivatives<<<
+    addDerivativesBlocks, addDerivativesThreads
+  >>>(
+    num_orbitals,
+    matrix_row_stride, trig_row_stride,
+    k_vector,
+    orbital_k_index, orbital_type,
+    inv_det, sin_cache, cos_cache,
+    derivatives
+  );
+  xpu::cu_check(cudaGetLastError());
+
+  dim3 accumulateDerivativesThreads{256u};
+  dim3 accumulateDerivativesBlocks{
+    xpu::block_per_dim(num_orbitals, accumulateDerivativesThreads.x)
+  };
+  cudaAccumulateDerivatives<<<
+    accumulateDerivativesBlocks, accumulateDerivativesThreads
+  >>>(
+    derivatives
+  );
+  xpu::cu_check(cudaGetLastError());
+#else
+  for (auto i = 0uz; i < num_orbitals; ++i) {
+    auto& gradient_x{derivatives[idx(Derivatives::GRAD_X)][i]};
+    auto& gradient_y{derivatives[idx(Derivatives::GRAD_Y)][i]};
+    auto& gradient_z{derivatives[idx(Derivatives::GRAD_Z)][i]};
+    auto& laplacian{derivatives[idx(Derivatives::LAP)][i]};
+
+    #pragma omp simd reduction(+ : gradient_x, gradient_y, gradient_z, laplacian)
+    for (auto j = 0uz; j < num_orbitals; ++j) {
+      stencil::slater::add_derivatives(
+        i, j,
+        matrix_row_stride, trig_row_stride,
+        k_vector,
+        orbital_k_index, orbital_type,
+        inv_det, sin_cache, cos_cache,
+        &gradient_x, &gradient_y, &gradient_z, &laplacian
+      );
+    }
+
+    stencil::slater::accumulate_derivatives(i, derivatives);
   }
 #endif
 }
@@ -122,12 +761,14 @@ inline void k_update_inverse(
   kUpdateInverse<<<
     kUpdateInverseBlocks, kUpdateInverseThreads
   >>>(
-    N, S, particle, inv_d_col, s_k_array, inv_ratio, inv_det
+    num_orbitals, particle, row_stride, inv_ratio,
+    inv_d_col, solution_arr, inv_det
   );
+  xpu::cu_check(cudaGetLastError());
 #else
-#endif
-  for (auto i = 0uz; i < num_orbitals; ++i) {
-    for(auto j = 0uz; j < num_orbitals; ++j) {
+  for (auto j = 0uz; j < num_orbitals; ++j) {
+    #pragma omp simd
+    for (auto i = 0uz; i < num_orbitals; ++i) {
       stencil::slater::k_update_inverse(
         i, j,
         particle, row_stride, inv_ratio,
@@ -135,6 +776,44 @@ inline void k_update_inverse(
       );
     }
   }
+#endif
+}
+
+inline void k_compute_sk(
+  std::size_t num_orbitals, std::size_t particle,
+  std::size_t row_stride,
+  const real_t* RESTRICT new_row,
+  const real_t* RESTRICT inv_det,
+  real_t* RESTRICT solution_arr
+) {
+#if defined(XPU_CUDA)
+  dim3 kComputeSKThreads{16u, 16u};
+  dim3 kComputeSKBlocks(
+    xpu::block_per_dim(num_orbitals, kComputeSKThreads.x),
+    xpu::block_per_dim(num_orbitals, kComputeSKThreads.y)
+  );
+  kComputeSK<<<
+    kComputeSKBlocks, kComputeSKThreads
+  >>>(
+    num_orbitals, particle, row_stride,
+    new_row, inv_det, solution_arr
+  );
+  xpu::cu_check(cudaGetLastError());
+#else
+  for (auto j = 0uz; j < num_orbitals; ++j) {
+    if (j == particle) { continue; }
+
+    auto& solution{solution_arr[j]};
+    #pragma omp simd reduction(+ : solution)
+    for (auto i = 0uz; i < num_orbitals; ++i) {
+      stencil::slater::k_compute_sk(
+        i, j, row_stride,
+        new_row, inv_det,
+        &solution
+      );
+    }
+  }
+#endif
 }
 
 } // namespace kernel::slater

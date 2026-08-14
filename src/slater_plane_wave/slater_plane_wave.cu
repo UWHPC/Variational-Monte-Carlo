@@ -2,11 +2,127 @@
 #include "slater_plane_wave.hpp"
 #include "slater_plane_wave_kernels.hpp"
 #include "particles/particles.hpp"
+#include "utilities/matrix.hpp"
 #include <xpu/soa.hpp>
 
 #include <cmath>
 #include <cstddef>
 #include <cstring>
+#include <vector>
+
+namespace {
+
+struct nVectorCandidate {
+  int n_x;
+  int n_y;
+  int n_z;
+  int magnitude_squared;
+};
+
+} // namespace
+
+void SlaterPlaneWave::initialize(const Particles& particles) {
+  const auto num_orbitals{this->num_orbitals()};
+  const auto n_max{
+    static_cast<int>(xpu::ceil(xpu::cbrt(static_cast<real_t>(num_orbitals)))) + 2
+  };
+  const auto side{static_cast<std::size_t>(2 * n_max + 1)};
+
+  std::vector<nVectorCandidate> candidates{};
+  candidates.reserve(side * side * side);
+
+  for (auto n_x = -n_max; n_x <= n_max; ++n_x) {
+    for (auto n_y = -n_max; n_y <= n_max; ++n_y) {
+      for (auto n_z = -n_max; n_z <= n_max; ++n_z) {
+        if (!is_canonical(n_x, n_y, n_z)) { continue; }
+
+        const auto magnitude_squared{
+          n_x * n_x +
+          n_y * n_y +
+          n_z * n_z
+        };
+        candidates.emplace_back(
+          n_x, n_y, n_z,
+          magnitude_squared
+        );
+      }
+    }
+  }
+
+  std::sort(
+    candidates.begin(),
+    candidates.end(),
+    [](const nVectorCandidate& a, const nVectorCandidate& b) {
+      return
+        std::tie(a.magnitude_squared, a.n_x, a.n_y, a.n_z) <
+        std::tie(b.magnitude_squared, b.n_x, b.n_y, b.n_z);
+    }
+  );
+
+  std::vector<int> n_x(num_orbitals);
+  std::vector<int> n_y(num_orbitals);
+  std::vector<int> n_z(num_orbitals);
+  std::vector<real_t> k_x(num_orbitals);
+  std::vector<real_t> k_y(num_orbitals);
+  std::vector<real_t> k_z(num_orbitals);
+  std::vector<std::size_t> orbital_k_index(num_orbitals);
+  std::vector<std::uint8_t> orbital_type(num_orbitals);
+
+  const auto two_pi_inv_L{
+    2.0_r * std::numbers::pi_v<real_t> / this->box_length()
+  };
+
+  auto orbital{0uz};
+  auto k_idx{0uz};
+
+  for (const auto& candidate : candidates) {
+    if (orbital >= num_orbitals) { break; }
+
+    n_x[k_idx] = candidate.n_x;
+    n_y[k_idx] = candidate.n_y;
+    n_z[k_idx] = candidate.n_z;
+
+    k_x[k_idx] = two_pi_inv_L * static_cast<real_t>(candidate.n_x);
+    k_y[k_idx] = two_pi_inv_L * static_cast<real_t>(candidate.n_y);
+    k_z[k_idx] = two_pi_inv_L * static_cast<real_t>(candidate.n_z);
+
+    orbital_k_index[orbital] = k_idx;
+    orbital_type[orbital] = 0u;
+    ++orbital;
+
+    if (candidate.magnitude_squared != 0 && orbital < num_orbitals) {
+      orbital_k_index[orbital] = k_idx;
+      orbital_type[orbital] = 1u;
+      ++orbital;
+    }
+
+    ++k_idx;
+  }
+
+  num_unique_k_ = k_idx;
+  trig_row_stride_ = xpu::handle_pad<real_t>(this->num_unique_k());
+
+  auto n_vector{this->n_vector()};
+  auto k_vector{this->k_vector()};
+
+  xpu::copy_n(n_vector[idx(Axis::X)], n_x.data(), this->num_unique_k());
+  xpu::copy_n(n_vector[idx(Axis::Y)], n_y.data(), this->num_unique_k());
+  xpu::copy_n(n_vector[idx(Axis::Z)], n_z.data(), this->num_unique_k());
+
+  xpu::copy_n(k_vector[idx(Axis::X)], k_x.data(), this->num_unique_k());
+  xpu::copy_n(k_vector[idx(Axis::Y)], k_y.data(), this->num_unique_k());
+  xpu::copy_n(k_vector[idx(Axis::Z)], k_z.data(), this->num_unique_k());
+
+  xpu::copy_n(this->orbital_k_index(), orbital_k_index.data(), num_orbitals);
+  xpu::copy_n(this->orbital_type(), orbital_type.data(), num_orbitals);
+
+  trig_cache_ = xpu::soa<real_t, NUM_TRIG_ARRAYS>(
+    particles.count() * this->trig_row_stride()
+  );
+  trig_scratch_ = xpu::soa<real_t, NUM_SCRATCH_TRIG>(
+    this->num_unique_k()
+  );
+}
 
 SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, real_t box_lengthL)
   : num_orbitals_{particles.count()}
@@ -22,7 +138,7 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, real_t box_lengthL)
   , matrices_{matrix_row_stride_ * particles.count()}
 {
   this->initialize(particles);
-#ifdef XPU_CUDA
+#if defined(XPU_CUDA)
   this->init_cuda_scratch();
 #endif
 };
@@ -58,142 +174,75 @@ void SlaterPlaneWave::update_trig_cache(
   this->save_trig_row(particle);
 
   kernel::slater::update_trig_cache(
+    this->num_unique_k(),
     row_offset, particle,
     particles.pos(), this->k_vector(),
     this->sin_cache(), this->cos_cache()
   );
 }
 
-#ifdef XPU_CUDA
-namespace {
-
-__global__
-void kComputeSK(
-  std::size_t N,
-  std::size_t S,
-  std::size_t particle,
-  const real_t* RESTRICT new_row,
-  const real_t* RESTRICT inv_det,
-  real_t* RESTRICT s_k_array
-) {
-  const std::size_t m{blockIdx.x * blockDim.x + threadIdx.x};
-  const std::size_t k{blockIdx.y * blockDim.y + threadIdx.y};
-
-  if (m >= N || k >= N) return;
-  if (k == particle) return;
-
-  const real_t product{new_row[m] * inv_det[k * S + m]};
-  atomicAdd(&s_k_array[k], product);
-}
-
-__global__
-void kUpdateInverse(
-  std::size_t num_orbitals, std::size_t particle,
-  std::size_t row_stride, real_t inv_ratio,
-  const real_t* RESTRICT inv_d_col,
-  const real_t* RESTRICT solution_arr,
-  real_t* RESTRICT inv_det
-) {
-  const std::size_t j{blockIdx.x * blockDim.x + threadIdx.x};
-  const std::size_t k{blockIdx.y * blockDim.y + threadIdx.y};
-
-  if (j >= N || k >= N) return;
-
-  const std::size_t idx{k * S + j};
-
-  if (k == particle) {
-    inv_det[idx] = inv_d_col[j] * inv_ratio;
-  } else {
-    const real_t factor{s_k_array[k] * inv_ratio};
-    inv_det[idx] -= inv_d_col[j] * factor;
-  }
-}
-
-}
-
-#endif
-
 void SlaterPlaneWave::accept_move(
   std::size_t particle,
   const real_t* new_row,
   real_t ratio
 ) noexcept {
-  #ifdef XPU_CUDA
-  const std::size_t N{num_orbitals()};
-  const std::size_t S{matrix_row_stride()};
-  const real_t inv_ratio{1.0_r / ratio};
+  const auto inv_ratio{1.0_r / ratio};
+  if (!std::isfinite(inv_ratio)) { return; }
 
-  if (!std::isfinite(inv_ratio)) return;
-
-  real_t* RESTRICT inv_det{inv_determinant()};
-  real_t* RESTRICT det_matrix{determinant()};
-  real_t* RESTRICT inv_d_col{this->inv_d_col()};
-  real_t* RESTRICT s_k_array{this->solution()};
-
-  const std::size_t p_offset{particle * S};
-
-  xpu::cu_check(cudaMemcpyAsync(inv_d_col, &inv_det[p_offset], N * sizeof(real_t), cudaMemcpyDeviceToDevice));
-
-  xpu::cu_check(cudaMemsetAsync(s_k_array, 0, N * sizeof(real_t)));
-
-  dim3 threads(16, 16);
-  dim3 blocks(xpu::block_per_dim(N, threads.x), xpu::block_per_dim(N, threads.y));
-
-  kComputeSK<<<blocks, threads>>>(
-    N, S, particle, new_row, inv_det, s_k_array
+  const auto particle_offset{this->matrix_row_stride() * particle};
+  xpu::copy_n(
+    this->inv_d_col(),
+    &this->inv_determinant()[particle_offset],
+    this->num_orbitals()
   );
-  xpu::cu_check(cudaGetLastError());
+  xpu::zero_n(this->solution(), this->num_orbitals());
 
-  kUpdateInverse<<<blocks, threads>>>(
-    N, S, particle, inv_d_col, s_k_array, inv_ratio, inv_det
+  kernel::slater::k_compute_sk(
+    this->num_orbitals(), particle, this->matrix_row_stride(),
+    new_row, this->inv_determinant(), this->solution()
   );
-  xpu::cu_check(cudaGetLastError());
-  xpu::cu_check(cudaMemcpyAsync(&det_matrix[p_offset], new_row, N * sizeof(real_t), cudaMemcpyDeviceToDevice));
-  xpu::cu_check(cudaDeviceSynchronize());
-  return;
-  #else
-  const std::size_t N{num_orbitals()};
-  const std::size_t S{matrix_row_stride()};
-  const real_t inv_ratio{1.0_r / ratio};
 
-  if (!std::isfinite(inv_ratio)) {
-    return;
-  }
+  kernel::slater::k_update_inverse(
+    this->num_orbitals(), particle, this->matrix_row_stride(),
+    inv_ratio, this->inv_d_col(), this->solution(), this->inv_determinant()
+  );
 
-  real_t* RESTRICT inv_det{inv_determinant()};
-  real_t* RESTRICT det_matrix{determinant()};
-  real_t* RESTRICT inv_d_col{this->inv_d_col()};
-  const std::size_t p_offset{particle * S}; 
+  xpu::copy_n(
+    &this->determinant()[particle_offset],
+    new_row,
+    this->num_orbitals()
+  );
+}
 
-  // Cache particle row column j for inv_D before changing
-  std::memcpy(inv_d_col, &inv_det[p_offset], N * sizeof(real_t));
+real_t* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
+  kernel::slater::build_row(
+    this->num_orbitals(), particle, this->trig_row_stride(),
+    this->sin_cache(), this->cos_cache(),
+    this->orbital_k_index(), this->orbital_type(),
+    this->new_row()
+  );
 
-  // Follows Sherman-Morrison update (branchless)
-  for (std::size_t k = 0; k < N; ++k) {
-    if (k == particle)
-      continue;
+  return this->new_row();
+}
 
-    const std::size_t k_offset{k * S};
-    real_t s_k{};
+real_t SlaterPlaneWave::determinant_ratio(
+  std::size_t particle,
+  const real_t* new_row
+) const noexcept {
+  return kernel::slater::determinant_ratio(
+    this->num_orbitals(), particle, this->matrix_row_stride(),
+    new_row, this->inv_determinant()
+  );
+}
 
-    #pragma omp simd reduction(+ : s_k)
-    for (std::size_t m = 0; m < N; ++m) {
-      s_k += new_row[m] * inv_det[k_offset + m];
-    }
-
-    const real_t factor{s_k * inv_ratio};
-
-    #pragma omp simd
-    for (std::size_t j = 0; j < N; ++j) {
-      inv_det[k_offset + j] -= inv_d_col[j] * factor;
-    }
-  }
-
-  #pragma omp simd
-  for (std::size_t j = 0; j < N; ++j) {
-    inv_det[p_offset + j] = inv_d_col[j] * inv_ratio;
-  }
-
-  std::memcpy(&det_matrix[p_offset], new_row, N * sizeof(real_t));
-  #endif
+void SlaterPlaneWave::add_derivatives(
+  xpu::soa_view<real_t, idx(Derivatives::NUM)> derivatives
+) const noexcept {
+  kernel::slater::add_derivatives(
+    this->num_orbitals(), this->matrix_row_stride(), this->trig_row_stride(),
+    this->k_vector(),
+    this->orbital_k_index(), this->orbital_type(),
+    this->inv_determinant(), this->sin_cache(), this->cos_cache(),
+    derivatives
+  );
 }
