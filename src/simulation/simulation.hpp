@@ -46,9 +46,7 @@ private:
   struct StepResult {
     bool accepted;
     std::size_t moved_particle;
-    real_t old_x;
-    real_t old_y;
-    real_t old_z;
+    xpu::array<real_t, idx(Axis::NUM)> old_pos;
   };
 
   [[nodiscard]] const xpu::soa<real_t, 3>& positions_snapshot();

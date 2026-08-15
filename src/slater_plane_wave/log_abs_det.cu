@@ -138,7 +138,7 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
   kernel::slater::build_trig_cache(
     this->num_unique_k(),
     this->trig_row_stride(),
-    particles.pos(), k_vector(),
+    particles.pos(), std::as_const(*this).k_vector(),
     this->sin_cache(), this->cos_cache()
   );
 

@@ -2,6 +2,7 @@
 
 #include "../utilities/components.hpp"
 #include "../particles/particles.hpp"
+#include <xpu/buffer.hpp>
 #include <xpu/soa.hpp>
 #include <xpu/math.hpp>
 #include <cstddef>
@@ -27,14 +28,17 @@ private:
     G_WEIGHTS,
     S_REAL,
     S_IMAG,
-    D_REAL_TEMP,
-    D_IMAG_TEMP,
     NUM_ARRAYS
   };
   xpu::soa<real_t, idx(ArrayIndex::NUM_ARRAYS)> data_;
+  mutable xpu::buffer<real_t> reduction_scratch_;
 
 public:
-  explicit EnergyTracker(real_t box_length, real_t num_particles);
+  explicit EnergyTracker(real_t box_length, std::size_t num_particles);
+
+  [[nodiscard]] std::size_t num_g_vectors() const noexcept {
+    return num_g_vectors_;
+  }
 
   void initialize_reciprocal_energy() noexcept;
   void initialize_real_energy(const Particles& particles) noexcept;
@@ -42,19 +46,13 @@ public:
   void initialize_structure_factors(const Particles& particles) noexcept;
 
   void update_structure_factors(
-    real_t old_x,
-    real_t old_y,
-    real_t old_z,
-    real_t new_x,
-    real_t new_y,
-    real_t new_z
+    xpu::array<real_t, idx(Axis::NUM)> old_pos,
+    xpu::array<real_t, idx(Axis::NUM)> new_pos
   ) noexcept;
 
   void update_real_energy(
-    std::size_t moved_idx,
-    real_t old_x,
-    real_t old_y,
-    real_t old_z,
+    std::size_t moved,
+    xpu::array<real_t, idx(Axis::NUM)> old_pos,
     const Particles& particles
   ) noexcept;
 
@@ -82,11 +80,9 @@ private:
   [[nodiscard]] real_t*       sum_imag()       noexcept { return data_[idx(ArrayIndex::S_IMAG)]; }
   [[nodiscard]] real_t const* sum_imag() const noexcept { return data_[idx(ArrayIndex::S_IMAG)]; }
 
-  [[nodiscard]] real_t*       d_real_temp()       noexcept { return data_[idx(ArrayIndex::D_REAL_TEMP)]; }
-  [[nodiscard]] real_t const* d_real_temp() const noexcept { return data_[idx(ArrayIndex::D_REAL_TEMP)]; }
-
-  [[nodiscard]] real_t*       d_imag_temp()       noexcept { return data_[idx(ArrayIndex::D_IMAG_TEMP)]; }
-  [[nodiscard]] real_t const* d_imag_temp() const noexcept { return data_[idx(ArrayIndex::D_IMAG_TEMP)]; }
+  [[nodiscard]] real_t* reduction_scratch() const noexcept {
+    return reduction_scratch_.data();
+  }
 
   real_t kinetic_energy(const Particles& particles) const noexcept;
   inline real_t potential_energy() const noexcept {

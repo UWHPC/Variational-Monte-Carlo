@@ -15,7 +15,7 @@ constexpr real_t INCREMENTAL_REBUILD_TOLERANCE{5e-6_r};
 TEST_CASE("EnergyTracker total energy changes by expected kinetic contribution", "[energy]") {
   constexpr std::size_t n{3U};
   constexpr real_t L{8.0_r};
-  const EnergyTracker tracker{L, static_cast<real_t>(n)};
+  const EnergyTracker tracker{L, n};
 
   Particles reference{n};
   reference.pos().x_[0] = 0.3_r;
@@ -64,7 +64,7 @@ TEST_CASE("EnergyTracker total energy changes by expected kinetic contribution",
 TEST_CASE("EnergyTracker is invariant under box-periodic particle translations", "[energy]") {
   constexpr std::size_t n{3U};
   constexpr real_t L{7.5_r};
-  const EnergyTracker tracker{L, static_cast<real_t>(n)};
+  const EnergyTracker tracker{L, n};
 
   Particles particles{n};
   particles.pos().x_[0] = 1.1_r;
@@ -109,7 +109,7 @@ TEST_CASE("EnergyTracker is invariant under box-periodic particle translations",
 TEST_CASE("EnergyTracker handles degenerate positions and permutation symmetry", "[energy]") {
   constexpr std::size_t n{2U};
   constexpr real_t L{6.0_r};
-  const EnergyTracker tracker{L, static_cast<real_t>(n)};
+  const EnergyTracker tracker{L, n};
 
   Particles particles{n};
   particles.pos().x_[0] = 2.0_r;
@@ -169,7 +169,7 @@ TEST_CASE("EnergyTracker incremental reciprocal and real-energy updates match fu
   initial.pos().y_[2] = 0.9_r;
   initial.pos().z_[2] = 4.8_r;
 
-  EnergyTracker incremental{L, static_cast<real_t>(n)};
+  EnergyTracker incremental{L, n};
   incremental.initialize_structure_factors(initial);
   incremental.initialize_reciprocal_energy();
   incremental.initialize_real_energy(initial);
@@ -177,23 +177,29 @@ TEST_CASE("EnergyTracker incremental reciprocal and real-energy updates match fu
   Particles moved_particles{n};
   copy_positions(initial, moved_particles);
 
-  const real_t old_x{moved_particles.pos().x_[moved]};
-  const real_t old_y{moved_particles.pos().y_[moved]};
-  const real_t old_z{moved_particles.pos().z_[moved]};
+  auto pos{moved_particles.pos()};
+  const xpu::array<real_t, idx(Axis::NUM)> old_pos{
+    pos[idx(Axis::X)][moved],
+    pos[idx(Axis::Y)][moved],
+    pos[idx(Axis::Z)][moved]
+  };
 
-  moved_particles.pos().x_[moved] = old_x + 0.21_r;
-  moved_particles.pos().y_[moved] = old_y - 0.17_r;
-  moved_particles.pos().z_[moved] = old_z + 0.33_r;
+  pos[idx(Axis::X)][moved] = old_pos[idx(Axis::X)] + 0.21_r;
+  pos[idx(Axis::Y)][moved] = old_pos[idx(Axis::Y)] - 0.17_r;
+  pos[idx(Axis::Z)][moved] = old_pos[idx(Axis::Z)] + 0.33_r;
+
+  const xpu::array<real_t, idx(Axis::NUM)> new_pos{
+    pos[idx(Axis::X)][moved],
+    pos[idx(Axis::Y)][moved],
+    pos[idx(Axis::Z)][moved]
+  };
 
   incremental.update_structure_factors(
-    old_x, old_y, old_z,
-    moved_particles.pos().x_[moved],
-    moved_particles.pos().y_[moved],
-    moved_particles.pos().z_[moved]
+    old_pos, new_pos
   );
-  incremental.update_real_energy(moved, old_x, old_y, old_z, moved_particles);
+  incremental.update_real_energy(moved, old_pos, moved_particles);
 
-  EnergyTracker rebuilt{L, static_cast<real_t>(n)};
+  EnergyTracker rebuilt{L, n};
   rebuilt.initialize_structure_factors(moved_particles);
   rebuilt.initialize_reciprocal_energy();
   rebuilt.initialize_real_energy(moved_particles);
@@ -202,6 +208,6 @@ TEST_CASE("EnergyTracker incremental reciprocal and real-energy updates match fu
   const real_t rebuilt_total{rebuilt.eval_total_energy(moved_particles)};
 
   INFO("Incremental Ewald updates should agree with a full reinitialization after one move.");
-  CAPTURE(moved, old_x, old_y, old_z, incremental_total, rebuilt_total);
+  CAPTURE(moved, old_pos, incremental_total, rebuilt_total);
   require_near(incremental_total, rebuilt_total, INCREMENTAL_REBUILD_TOLERANCE);
 }

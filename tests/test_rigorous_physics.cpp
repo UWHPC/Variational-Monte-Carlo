@@ -587,7 +587,7 @@ TEST_CASE("EnergyTracker matches an exact Ewald reference on many random small c
       particles.pos().z_[i] = dist(rng);
     }
 
-    EnergyTracker tracker{box_length, static_cast<real_t>(n)};
+    EnergyTracker tracker{box_length, n};
     tracker.initialize_structure_factors(particles);
     tracker.initialize_reciprocal_energy();
     tracker.initialize_real_energy(particles);
@@ -621,7 +621,7 @@ TEST_CASE("EnergyTracker remains close to the exact Ewald reference across many 
   particles.pos().y_[2] = 0.85_r;
   particles.pos().z_[2] = 4.45_r;
 
-  EnergyTracker tracker{box_length, static_cast<real_t>(n)};
+  EnergyTracker tracker{box_length, n};
   tracker.initialize_structure_factors(particles);
   tracker.initialize_reciprocal_energy();
   tracker.initialize_real_energy(particles);
@@ -629,23 +629,37 @@ TEST_CASE("EnergyTracker remains close to the exact Ewald reference across many 
   for (std::size_t step = 0; step < steps; ++step) {
     const std::size_t moved{step % n};
 
-    const real_t old_x{particles.pos().x_[moved]};
-    const real_t old_y{particles.pos().y_[moved]};
-    const real_t old_z{particles.pos().z_[moved]};
+    auto pos{particles.pos()};
+    const xpu::array<real_t, idx(Axis::NUM)> old_pos{
+      pos[idx(Axis::X)][moved],
+      pos[idx(Axis::Y)][moved],
+      pos[idx(Axis::Z)][moved]
+    };
 
     const real_t dx{0.017_r * static_cast<real_t>((step % 4U) + 1U)};
     const real_t dy{-0.012_r * static_cast<real_t>((step % 5U) + 1U)};
     const real_t dz{0.010_r * static_cast<real_t>((step % 3U) + 1U)};
 
-    particles.pos().x_[moved] = wrap_coordinate(old_x + dx, box_length);
-    particles.pos().y_[moved] = wrap_coordinate(old_y + dy, box_length);
-    particles.pos().z_[moved] = wrap_coordinate(old_z + dz, box_length);
+    pos[idx(Axis::X)][moved] = wrap_coordinate(
+      old_pos[idx(Axis::X)] + dx, box_length
+    );
+    pos[idx(Axis::Y)][moved] = wrap_coordinate(
+      old_pos[idx(Axis::Y)] + dy, box_length
+    );
+    pos[idx(Axis::Z)][moved] = wrap_coordinate(
+      old_pos[idx(Axis::Z)] + dz, box_length
+    );
+
+    const xpu::array<real_t, idx(Axis::NUM)> new_pos{
+      pos[idx(Axis::X)][moved],
+      pos[idx(Axis::Y)][moved],
+      pos[idx(Axis::Z)][moved]
+    };
 
     tracker.update_structure_factors(
-      old_x, old_y, old_z,
-      particles.pos().x_[moved], particles.pos().y_[moved], particles.pos().z_[moved]
+      old_pos, new_pos
     );
-    tracker.update_real_energy(moved, old_x, old_y, old_z, particles);
+    tracker.update_real_energy(moved, old_pos, particles);
 
     const real_t tracker_total{tracker.eval_total_energy(particles)};
     const real_t exact_total{exact_total_potential(particles, box_length)};

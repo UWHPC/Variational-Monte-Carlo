@@ -14,7 +14,7 @@ Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_write
 , particles_{config_.num_particles}
 , wave_function_{particles_, config_.box_length, config_.jastrow_a, config_.jastrow_b}
 , blocking_analysis_{config_.block_size}
-, energy_tracker_{config_.box_length, static_cast<real_t>(config_.num_particles)}
+, energy_tracker_{config_.box_length, config_.num_particles}
 , output_writer_{std::move(output_writer)}
 , proposed_{}
 , accepted_{}
@@ -73,9 +73,9 @@ Simulation::StepResult Simulation::metropolis_step() {
   const real_t L{config_.box_length};
   const real_t inv_L{1.0_r / L};
 
-  const real_t old_x{p_x[rand]};
-  const real_t old_y{p_y[rand]};
-  const real_t old_z{p_z[rand]};
+  const xpu::array<real_t, idx(Axis::NUM)> old_pos{
+    p_x[rand], p_y[rand], p_z[rand]
+  };
 
   p_x[rand] += rand_proposal();
   p_y[rand] += rand_proposal();
@@ -96,7 +96,7 @@ Simulation::StepResult Simulation::metropolis_step() {
   const real_t delta_jastrow{
     wave_function_.jastrow_pade().delta_value(
       rand,
-      {old_x, old_y, old_z},
+      old_pos,
       particles_.pos()
     )
   };
@@ -112,21 +112,24 @@ Simulation::StepResult Simulation::metropolis_step() {
     log_psi_current_ += xpu::log(xpu::abs(slater_ratio)) + delta_jastrow;
     slater.accept_move(rand, new_row, slater_ratio);
 
-    energy_tracker_.update_structure_factors(
-      old_x, old_y, old_z,
+    const xpu::array<real_t, idx(Axis::NUM)> new_pos{
       p_x[rand], p_y[rand], p_z[rand]
-    );
-    energy_tracker_.update_real_energy(rand, old_x, old_y, old_z, particles_);
+    };
 
-    return StepResult{true, rand, old_x, old_y, old_z};
+    energy_tracker_.update_structure_factors(
+      old_pos, new_pos
+    );
+    energy_tracker_.update_real_energy(rand, old_pos, particles_);
+
+    return StepResult{true, rand, old_pos};
   }
 
   slater.restore_trig_row(rand);
-  p_x[rand] = old_x;
-  p_y[rand] = old_y;
-  p_z[rand] = old_z;
+  p_x[rand] = old_pos[idx(Axis::X)];
+  p_y[rand] = old_pos[idx(Axis::Y)];
+  p_z[rand] = old_pos[idx(Axis::Z)];
 
-  return StepResult{false, rand, old_x, old_y, old_z};
+  return StepResult{false, rand, old_pos};
 }
 
 void Simulation::warmup() {
@@ -189,7 +192,7 @@ Simulation::MeasurementSummary Simulation::measure() {
 
     wavefunction.evaluate_derivatives(
       particles, result.accepted, result.moved_particle,
-      result.old_x, result.old_y, result.old_z
+      result.old_pos
     );
 
     const real_t E_local{energy_tracker.eval_total_energy(particles)};

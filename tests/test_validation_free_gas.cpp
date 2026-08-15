@@ -156,7 +156,7 @@ TEST_CASE("Free gas: EnergyTracker kinetic term matches manual computation", "[v
 
   Particles particles{N};
   WaveFunction wf{particles, L, 0.0_r, 1.0_r};
-  EnergyTracker tracker{L, static_cast<real_t>(N)};
+  EnergyTracker tracker{L, N};
 
   std::mt19937_64 rng{65537};
   std::uniform_real_distribution<real_t> uniform{0.0_r, L};
