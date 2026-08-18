@@ -74,12 +74,13 @@ endif()
 include(FetchContent)
 
 set(XPU_ENABLE_CUDA ${VMC_CUDA} CACHE BOOL "" FORCE)
+set(XPU_ENABLE_LINALG ON CACHE BOOL "" FORCE)
 set(XPU_ARCH_NATIVE OFF CACHE BOOL "" FORCE)
 
 fetchcontent_declare(
   xpu
   GIT_REPOSITORY https://github.com/UWHPC/xpu.git
-  GIT_TAG 9952209
+  GIT_TAG aa950a6
 )
 fetchcontent_makeavailable(xpu)
 
@@ -126,7 +127,6 @@ endif()
 set(VMC_CUDA_SOURCES
   src/jastrow_pade/jastrow_pade.cu
   src/wavefunction/wavefunction.cu
-  src/slater_plane_wave/log_abs_det.cu
   src/slater_plane_wave/slater_plane_wave.cu
   src/simulation/simulation.cu
   src/energy_tracking/energy_tracking.cu
@@ -151,7 +151,10 @@ add_library(vmc_lib STATIC
 
 target_include_directories(vmc_lib PUBLIC src)
 
-target_link_libraries(vmc_lib PUBLIC xpu::xpu)
+target_link_libraries(vmc_lib PUBLIC
+  xpu::xpu
+  xpu::linalg
+)
 
 if(NOT VMC_CUDA AND VMC_CUDA_EXTENSION_SOURCES)
   set_source_files_properties(
@@ -193,16 +196,8 @@ set(VMC_COMPILE_OPTIONS
 target_compile_options(vmc_lib PRIVATE ${VMC_COMPILE_OPTIONS})
 
 if(VMC_CUDA)
-  find_package(CUDAToolkit REQUIRED)
-
   set_target_properties(vmc_lib PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
-  )
-
-  target_link_libraries(vmc_lib PUBLIC
-    CUDA::cudart
-    CUDA::cusolver
-    CUDA::cublas
   )
 endif()
 

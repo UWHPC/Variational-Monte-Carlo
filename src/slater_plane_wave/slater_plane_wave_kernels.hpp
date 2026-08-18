@@ -63,18 +63,6 @@ inline void compute_log_abs_det(
 }
 
 CUDA_CALLABLE
-inline void build_identity(
-  std::size_t i,
-  std::size_t matrix_row_stride,
-  real_t* RESTRICT matrix
-) {
-  const auto row{i / matrix_row_stride};
-  const auto column{i - row * matrix_row_stride};
-
-  matrix[i] = (row == column) ? 1.0_r : 0.0_r;
-}
-
-CUDA_CALLABLE
 inline void determinant_ratio(
   std::size_t i, std::size_t particle,
   std::size_t matrix_row_stride,
@@ -305,21 +293,6 @@ void cudaComputeLogAbsDet(
     i, matrix_row_stride,
     lower_upper,
     log_abs_det
-  );
-}
-
-__global__
-void cudaBuildIdentity(
-  std::size_t matrix_size,
-  std::size_t matrix_row_stride,
-  real_t* RESTRICT matrix
-) {
-  const auto [i]{xpu::global_index<1>()};
-  if (i >= matrix_size) { return; }
-
-  stencil::slater::build_identity(
-    i, matrix_row_stride,
-    matrix
   );
 }
 
@@ -609,34 +582,6 @@ inline real_t compute_log_abs_det(
   }
 
   return log_abs_det;
-#endif
-}
-
-inline void build_identity(
-  std::size_t matrix_size,
-  std::size_t matrix_row_stride,
-  real_t* RESTRICT matrix
-) {
-#if defined(XPU_CUDA)
-  dim3 buildIdentityThreads{256u};
-  dim3 buildIdentityBlocks{
-    xpu::block_per_dim(matrix_size, buildIdentityThreads.x)
-  };
-  cudaBuildIdentity<<<
-    buildIdentityBlocks, buildIdentityThreads
-  >>>(
-    matrix_size, matrix_row_stride,
-    matrix
-  );
-  xpu::cu_check(cudaGetLastError());
-#else
-  #pragma omp simd
-  for (auto i = 0uz; i < matrix_size; ++i) {
-    stencil::slater::build_identity(
-      i, matrix_row_stride,
-      matrix
-    );
-  }
 #endif
 }
 

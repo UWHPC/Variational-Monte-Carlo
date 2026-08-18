@@ -1,4 +1,0 @@
-CompileFlags:
-  CompilationDatabase: @COMPILE_DB@
-  Add:
-@PROJECT_FLAGS@

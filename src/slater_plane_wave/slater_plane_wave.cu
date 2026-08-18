@@ -136,11 +136,10 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, real_t box_lengthL)
   , trig_cache_{0uz}
   , trig_scratch_{0uz}
   , matrices_{matrix_row_stride_ * particles.count()}
+  , reduction_scratch_{1uz}
+  , lu_factorization_{particles.count(), matrix_row_stride_}
 {
   this->initialize(particles);
-#if defined(XPU_CUDA)
-  this->init_cuda_scratch();
-#endif
 };
 
 void SlaterPlaneWave::restore_trig_row(std::size_t particle) {
@@ -245,4 +244,60 @@ void SlaterPlaneWave::add_derivatives(
     this->inv_determinant(), this->sin_cache(), this->cos_cache(),
     derivatives
   );
+}
+
+real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
+  kernel::slater::build_trig_cache(
+    this->num_unique_k(),
+    this->trig_row_stride(),
+    particles.pos(), std::as_const(*this).k_vector(),
+    this->sin_cache(), this->cos_cache()
+  );
+
+  kernel::slater::build_determinant(
+    this->num_orbitals(),
+    this->trig_row_stride(), this->matrix_row_stride(),
+    this->sin_cache(), this->cos_cache(),
+    this->orbital_k_index(), this->orbital_type(),
+    this->determinant()
+  );
+
+  xpu::copy_n(
+    this->lower_upper(),
+    this->determinant(),
+    this->matrix_size()
+  );
+
+  const auto factorization_status{
+    lu_factorization_.factorize(
+      this->lower_upper()
+    )
+  };
+  if (factorization_status == xpu::linalg::status::singular) {
+    return -std::numeric_limits<real_t>::infinity();
+  }
+
+  const auto log_abs_det{
+    kernel::slater::compute_log_abs_det(
+      this->num_orbitals(),
+      this->matrix_row_stride(),
+      this->lower_upper(),
+      this->reduction_scratch()
+    )
+  };
+  if (!std::isfinite(log_abs_det)) {
+    return -std::numeric_limits<real_t>::infinity();
+  }
+
+  lu_factorization_.invert(
+    this->lower_upper(),
+    this->inv_determinant()
+  );
+  xpu::linalg::transpose_square(
+    this->inv_determinant(),
+    this->num_orbitals(),
+    this->matrix_row_stride()
+  );
+
+  return log_abs_det;
 }

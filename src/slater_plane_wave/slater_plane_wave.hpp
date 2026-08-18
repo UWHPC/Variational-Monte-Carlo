@@ -2,6 +2,7 @@
 
 #include "../particles/particles.hpp"
 #include <xpu/buffer.hpp>
+#include <xpu/linear_algebra.hpp>
 #include <xpu/soa.hpp>
 #include "../utilities/macros.hpp"
 #include <xpu/math.hpp>
@@ -9,17 +10,6 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
-
-#ifdef XPU_CUDA
-  #include <cusolverDn.h>
-
-struct CudaScratch {
-  cusolverDnHandle_t handle{};
-  xpu::unique_ptr<real_t> work{};
-  xpu::unique_ptr<int> info{};
-  xpu::unique_ptr<real_t> log_abs_det{};
-};
-#endif
 
 class SlaterPlaneWave {
 private:
@@ -36,14 +26,13 @@ private:
   enum OrbType : std::size_t { O, NUM_ORB_TYPE };
   xpu::soa<std::uint8_t, NUM_ORB_TYPE> orbital_type_;
 
-  enum PivotIndex : std::size_t { N_X, N_Y, N_Z, PIVOT, NUM_INT_VECTORS };
+  enum IntVectorIndex : std::size_t { N_X, N_Y, N_Z, NUM_INT_VECTORS };
   xpu::soa<int, NUM_INT_VECTORS> int_vec_;
 
   enum VectorIndex : std::size_t {
     K_X,
     K_Y,
     K_Z,
-    RHS,
     SOLUTION,
     NEW_ROW,
     INV_D_COL,
@@ -60,15 +49,12 @@ private:
   enum MatrixIndex : std::size_t { D, INV_D, LU, NUM_MATRIX };
   xpu::soa<real_t, NUM_MATRIX> matrices_;
 
-#ifdef XPU_CUDA
-  CudaScratch cuda_scratch_;
-#endif
+  xpu::buffer<real_t> reduction_scratch_;
+  xpu::linalg::lu_factorization<real_t> lu_factorization_;
 
 public:
   explicit SlaterPlaneWave(const Particles& particles, real_t box_length);
   void initialize(const Particles& particles);
-
-  ~SlaterPlaneWave();
 
   SlaterPlaneWave(const SlaterPlaneWave&) = delete;
   SlaterPlaneWave& operator=(const SlaterPlaneWave&) = delete;
@@ -98,9 +84,6 @@ public:
   [[nodiscard]] real_t*       lower_upper()       noexcept { return matrices_[LU]; }
   [[nodiscard]] real_t const* lower_upper() const noexcept { return matrices_[LU]; }
 
-  [[nodiscard]] int*       pivot()       noexcept { return int_vec_[PIVOT]; }
-  [[nodiscard]] int const* pivot() const noexcept { return int_vec_[PIVOT]; }
-
   [[nodiscard]] CUDA_CALLABLE
   xpu::soa_view<int, idx(Axis::NUM)> n_vector() {
     return int_vec_.view<idx(Axis::NUM), N_X>();
@@ -123,9 +106,6 @@ public:
 
   [[nodiscard]] real_t*       solution()       noexcept { return fp_vec_[SOLUTION]; }
   [[nodiscard]] real_t const* solution() const noexcept { return fp_vec_[SOLUTION]; }
-
-  [[nodiscard]] real_t*       rhs()       noexcept { return fp_vec_[RHS]; }
-  [[nodiscard]] real_t const* rhs() const noexcept { return fp_vec_[RHS]; }
 
   [[nodiscard]] real_t*       sin_cache()       noexcept { return trig_cache_[SIN_CACHE]; }
   [[nodiscard]] real_t const* sin_cache() const noexcept { return trig_cache_[SIN_CACHE]; }
@@ -153,10 +133,8 @@ public:
 
 private:
   void save_trig_row(std::size_t particle);
-#ifdef XPU_CUDA
-  void init_cuda_scratch();
-#endif
 
   [[nodiscard]] real_t* new_row() noexcept { return fp_vec_[NEW_ROW]; }
   [[nodiscard]] real_t* inv_d_col() noexcept { return fp_vec_[INV_D_COL]; }
+  [[nodiscard]] real_t* reduction_scratch() noexcept { return reduction_scratch_.data(); }
 };

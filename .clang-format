@@ -1,9 +1,0 @@
-BasedOnStyle: LLVM
-Standard: Latest
-ColumnLimit: 100
-IndentWidth: 2
-UseTab: Never
-PointerAlignment: Left
-AlignConsecutiveMacros: true
-SortIncludes: true
-AccessModifierOffset: -2
