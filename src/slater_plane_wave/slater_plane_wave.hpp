@@ -53,6 +53,28 @@ private:
   xpu::linalg::lu_factorization<real_t> lu_factorization_;
 
 public:
+  struct View {
+    std::size_t num_orbitals;
+    std::size_t num_unique_k;
+    std::size_t trig_row_stride;
+    std::size_t matrix_row_stride;
+
+    xpu::soa_view<real_t, idx(Axis::NUM)> k_vector;
+    const std::size_t* orbital_k_index;
+    const std::uint8_t* orbital_type;
+
+    real_t* determinant;
+    real_t* inv_determinant;
+    real_t* solution;
+    real_t* new_row;
+    real_t* inv_d_col;
+
+    real_t* sin_cache;
+    real_t* cos_cache;
+    real_t* sin_saved;
+    real_t* cos_saved;
+  };
+
   explicit SlaterPlaneWave(const Particles& particles, real_t box_length);
   void initialize(const Particles& particles);
 
@@ -130,6 +152,28 @@ public:
   void add_derivatives(
     xpu::soa_view<real_t, idx(Derivatives::NUM)> derivatives
   ) const noexcept;
+
+  [[nodiscard]] CUDA_CALLABLE
+  View view() noexcept {
+    return {
+      this->num_orbitals(),
+      this->num_unique_k(),
+      this->trig_row_stride(),
+      this->matrix_row_stride(),
+      this->k_vector(),
+      this->orbital_k_index(),
+      this->orbital_type(),
+      this->determinant(),
+      this->inv_determinant(),
+      this->solution(),
+      this->new_row(),
+      this->inv_d_col(),
+      this->sin_cache(),
+      this->cos_cache(),
+      trig_scratch_[SIN_SAVED],
+      trig_scratch_[COS_SAVED]
+    };
+  }
 
 private:
   void save_trig_row(std::size_t particle);

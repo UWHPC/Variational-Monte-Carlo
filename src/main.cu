@@ -35,8 +35,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
               << "Jastrow b: " << master_config.jastrow_b << " (optimized)\n"
               << std::endl;
 
-    std::mt19937_64 master_rng{master_config.master_seed};
-    std::uniform_int_distribution<uint64_t> seed_dist;
     std::vector<std::future<Simulation::MeasurementSummary>> futures;
 
     std::ofstream bin_out{"output/vmc.bin", std::ios::binary | std::ios::trunc};
@@ -48,18 +46,17 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
 
     for (std::size_t thread{}; thread < num_threads; ++thread) {
       Config thread_config{master_config};
-      thread_config.master_seed = seed_dist(master_rng);
       thread_config.is_master_thread = (thread == 0);
 
       if (thread == 0 && bin_out) {
-        futures.push_back(std::async(std::launch::async, [thread_config, &bin_out]() {
+        futures.push_back(std::async(std::launch::async, [thread_config, thread, &bin_out]() {
           auto writer{std::make_unique<BinOutputWriter>(bin_out)};
-          Simulation sim{thread_config, std::move(writer)};
+          Simulation sim{thread_config, std::move(writer), thread};
           return sim.run();
         }));
       } else {
-        futures.push_back(std::async(std::launch::async, [thread_config]() {
-          Simulation sim{thread_config};
+        futures.push_back(std::async(std::launch::async, [thread_config, thread]() {
+          Simulation sim{thread_config, nullptr, thread};
           return sim.run();
         }));
       }

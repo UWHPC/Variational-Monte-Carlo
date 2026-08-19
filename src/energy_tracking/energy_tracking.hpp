@@ -34,6 +34,15 @@ private:
   mutable xpu::buffer<real_t> reduction_scratch_;
 
 public:
+  struct View {
+    std::size_t num_g_vectors;
+    real_t ewald_alpha;
+    xpu::soa_view<real_t, idx(Axis::NUM)> g_vector;
+    const real_t* g_weights;
+    real_t* sum_real;
+    real_t* sum_imag;
+  };
+
   explicit EnergyTracker(real_t box_length, std::size_t num_particles);
 
   [[nodiscard]] std::size_t num_g_vectors() const noexcept {
@@ -58,6 +67,26 @@ public:
 
   real_t eval_total_energy(const Particles& particles) const noexcept {
     return kinetic_energy(particles) + potential_energy();
+  }
+
+  [[nodiscard]] CUDA_CALLABLE
+  View view() noexcept {
+    return {
+      this->num_g_vectors(),
+      ewald_alpha_,
+      this->g_vector(),
+      this->g_weights(),
+      this->sum_real(),
+      this->sum_imag()
+    };
+  }
+
+  void accept_move(
+    real_t real_energy_delta,
+    real_t reciprocal_energy
+  ) noexcept {
+    V_real_ += real_energy_delta;
+    V_recip_ = reciprocal_energy;
   }
 
 private:

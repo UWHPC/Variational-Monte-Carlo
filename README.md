@@ -2,63 +2,50 @@
 
 ## Prerequisites
 
-- CMake 3.20+
-- A C++23 compiler
-  - Windows: Visual Studio 2022 with "Desktop development with C++"
-  - Linux: GCC 13+ or Clang 16+
-  - macOS: AppleClang that supports C++23 features you use, or Homebrew LLVM
+- Linux or WSL2
+- CMake 3.25+
+- Ninja
+- GCC 15
 - Git
-- clang-format
-- clang-tidy
+- CUDA 13.3 for CUDA builds
 
-## Build
+## Run
 
-The easiest way to build is to execute: \
-`./scripts/build.sh` or `./scripts/build.ps1`
+Build and run an optimized CPU executable:
 
-Script parameters:
-- `./scripts/build.sh [BUILD_TYPE]` (default: `Release`)
-- `./scripts/build.ps1 [-BuildType <BUILD_TYPE>]` (default: `Release`)
+`./scripts/run.sh`
 
-Alternatively, a manual build involves: \
-`cmake -S . -B build -DBUILD_TESTING=OFF` \
-`cmake --build build --target vmc`
+Available options:
 
-## Profiling Mode
+- `--cuda` enables CUDA.
+- `--fp32` uses single precision.
+- `-ffast-math` enables unsafe floating-point optimizations.
 
-Use a profiler-friendly build (optimized with debug symbols) for external profilers.
+Options can be combined, for example:
 
-Build:
-`./scripts/profile.sh` or `./scripts/profile.ps1`
+`./scripts/run.sh --cuda --fp32 -ffast-math`
 
-Script parameters:
-- `./scripts/profile.sh [BUILD_DIR]` (default: `build-prof`)
-- `./scripts/profile.ps1 [-BuildDir <BUILD_DIR>]` (default: `build-prof`)
+## Debug
 
-Alternatively, manually:
-`cmake -S . -B build-prof -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo`
-`cmake --build build-prof --target vmc`
+Build and run with debug instrumentation:
 
-Run under your profiler using `./build-prof/vmc`.
+`./scripts/debug.sh`
+
+`debug.sh` accepts the same options as `run.sh`.
 
 ## Run Tests
 
-The easiest way to run tests is to execute: \
-`./scripts/test.sh` or `./scripts/test.ps1`
+Build and run the test suite:
 
-Script parameters:
-- `./scripts/test.sh [BUILD_TYPE]` (default: `Debug`)
-- `./scripts/test.ps1 [-BuildType <BUILD_TYPE>]` (default: `Debug`)
+`./scripts/test.sh`
 
-Alternatively, manually testing involves: \
-`cmake -S . -B build-tests -DBUILD_TESTING=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON` \
-`cmake --build build-tests --target vmc_tests` \
-`ctest --test-dir build-tests`
+`test.sh` accepts the same options as `run.sh`.
 
 ## LSP / clangd
 
-This repo includes a `.clangd` file that points clangd to the
-`build-tests` compilation database so test files can resolve Catch2 headers.
+This repository uses separate CPU and CUDA compilation databases so clangd can
+parse both regular C++ and CUDA translation units deterministically.
 
-Generate it once with:
-`cmake -S . -B build-tests -DBUILD_TESTING=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`
+Generate them with:
+
+`./scripts/configure-clangd.sh`

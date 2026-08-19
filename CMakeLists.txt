@@ -63,12 +63,7 @@ endif()
 
 # --- Floating point precision ---
 option(FP_64 "Use double precision (real_t = double) instead of single precision (real_t = float)" ON)
-option(VMC_FAST_MATH "Fast approximate math intrinsics in device code (inert: pending an xpu fast-math tier); forces single precision (FP_64=OFF)" OFF)
-
-if(VMC_FAST_MATH AND FP_64)
-  message(STATUS "VMC_FAST_MATH is ON: forcing single precision (FP_64=OFF).")
-  set(FP_64 OFF)
-endif()
+option(VMC_FAST_MATH "Enable unsafe floating-point optimizations (-ffast-math/--use_fast_math)" OFF)
 
 # --- Dependencies ---
 include(FetchContent)
@@ -80,7 +75,7 @@ set(XPU_ARCH_NATIVE OFF CACHE BOOL "" FORCE)
 fetchcontent_declare(
   xpu
   GIT_REPOSITORY https://github.com/UWHPC/xpu.git
-  GIT_TAG aa950a6
+  GIT_TAG 132146e
 )
 fetchcontent_makeavailable(xpu)
 
@@ -172,10 +167,6 @@ if(FP_64)
   target_compile_definitions(vmc_lib PUBLIC FP_64)
 endif()
 
-if(VMC_FAST_MATH)
-  target_compile_definitions(vmc_lib PUBLIC VMC_FAST_MATH)
-endif()
-
 if(OpenMP_CXX_FOUND)
   target_link_libraries(vmc_lib PUBLIC OpenMP::OpenMP_CXX)
 elseif(VMC_HAS_FOPENMP_SIMD)
@@ -192,6 +183,14 @@ set(VMC_COMPILE_OPTIONS
   $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<BOOL:${VMC_CUDA}>,$<CONFIG:Release>>:${VMC_CUDA_RELEASE_OPTIONS}>
   $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<BOOL:${VMC_CUDA}>,$<CONFIG:Debug>>:${VMC_CUDA_DEBUG_OPTIONS}>
 )
+
+if(VMC_FAST_MATH)
+  list(APPEND VMC_COMPILE_OPTIONS
+    $<$<COMPILE_LANGUAGE:CXX>:-ffast-math>
+    $<$<COMPILE_LANGUAGE:CUDA>:--use_fast_math>
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-ffast-math>
+  )
+endif()
 
 target_compile_options(vmc_lib PRIVATE ${VMC_COMPILE_OPTIONS})
 

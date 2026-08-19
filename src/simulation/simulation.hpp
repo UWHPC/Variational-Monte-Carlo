@@ -6,11 +6,15 @@
 #include "../output_writer/output_writer.hpp"
 #include "../particles/particles.hpp"
 #include "../wavefunction/wavefunction.hpp"
-#include "../utilities/random.hpp"
-#include <xpu/soa.hpp>
+#include "simulation_types.hpp"
+#include <xpu/buffer.hpp>
+#include <xpu/random.hpp>
 
+#include <array>
+#include <cstdint>
 #include <memory>
 #include <optional>
+#include <vector>
 
 class Simulation {
 private:
@@ -26,14 +30,7 @@ private:
   std::size_t accepted_;
   real_t log_psi_current_;
 
-  xpu::soa<real_t, 3> positions_;
-
-
-  WalkerRNG walker_rng_;
-
-  CUDA_CALLABLE [[nodiscard]] real_t rand_uniform() { return walker_rng_.rand_uniform(); }
-  CUDA_CALLABLE [[nodiscard]] real_t rand_proposal() { return walker_rng_.rand_proposal(); }
-  CUDA_CALLABLE [[nodiscard]] std::size_t rand_particle() { return walker_rng_.rand_particle(); }
+  std::array<std::vector<real_t>, idx(Axis::NUM)> positions_;
 
   [[nodiscard]] real_t acceptance_rate() const {
     if (proposed_ == 0uz) {
@@ -43,13 +40,14 @@ private:
     }
   }
 
-  struct StepResult {
-    bool accepted;
-    std::size_t moved_particle;
-    xpu::array<real_t, idx(Axis::NUM)> old_pos;
-  };
+#if defined(XPU_CUDA)
+  xpu::buffer<xpu::random::generator> walker_rng_;
+  xpu::buffer<simulation::StepResult> step_result_;
+#else
+  xpu::random::generator walker_rng_;
+#endif
 
-  [[nodiscard]] const xpu::soa<real_t, 3>& positions_snapshot();
+  [[nodiscard]] const std::array<std::vector<real_t>, idx(Axis::NUM)>& positions_snapshot();
 
 public:
   struct MeasurementSummary {
@@ -58,12 +56,16 @@ public:
     real_t acceptance_rate;
   };
 
-  explicit Simulation(Config cfg, std::unique_ptr<OutputWriter> output_writer = nullptr);
+  explicit Simulation(
+    Config cfg,
+    std::unique_ptr<OutputWriter> output_writer = nullptr,
+    std::uint64_t walker_id = 0
+  );
   MeasurementSummary run();
 
 private:
   void initialize_positions();
-  CUDA_CALLABLE StepResult metropolis_step();
+  simulation::StepResult metropolis_step();
   void warmup();
   MeasurementSummary measure();
 };

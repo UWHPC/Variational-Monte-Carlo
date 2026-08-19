@@ -1,5 +1,6 @@
 #include <xpu/xpu.hpp>
 #include "simulation.hpp"
+#include "simulation_kernels.hpp"
 
 #include <cmath>
 #include <iostream>
@@ -9,7 +10,11 @@
 #include <string>
 #include <utility>
 
-Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_writer)
+Simulation::Simulation(
+  Config config,
+  std::unique_ptr<OutputWriter> output_writer,
+  std::uint64_t walker_id
+)
 : config_{std::move(config)}
 , particles_{config_.num_particles}
 , wave_function_{particles_, config_.box_length, config_.jastrow_a, config_.jastrow_b}
@@ -19,41 +24,68 @@ Simulation::Simulation(Config config, std::unique_ptr<OutputWriter> output_write
 , proposed_{}
 , accepted_{}
 , log_psi_current_{}
-, positions_{particles_.count()}
+, positions_{
+    std::vector<real_t>(particles_.count()),
+    std::vector<real_t>(particles_.count()),
+    std::vector<real_t>(particles_.count())
+  }
+#if defined(XPU_CUDA)
+, walker_rng_{1uz}
+, step_result_{1uz}
+#else
 , walker_rng_{}
+#endif
 {
-  walker_rng_.init(config_, 0);
+#if defined(XPU_CUDA)
+  kernel::simulation::seed_generator(
+    walker_rng_.data(),
+    config_.master_seed,
+    walker_id
+  );
+#else
+  walker_rng_.seed(
+    config_.master_seed,
+    walker_id
+  );
+#endif
 }
 
-  const xpu::soa<real_t, 3>& Simulation::positions_snapshot() {
+const std::array<std::vector<real_t>, idx(Axis::NUM)>& Simulation::positions_snapshot() {
   const std::size_t N{particles_.count()};
   auto [p_x, p_y, p_z]{particles_.pos().pointers()};
 
-  for (std::size_t i{}; i < N; ++i) {
-    positions_[0][i] = p_x[i];
-    positions_[1][i] = p_y[i];
-    positions_[2][i] = p_z[i];
-  }
+  xpu::copy_n(positions_[idx(Axis::X)].data(), p_x, N);
+  xpu::copy_n(positions_[idx(Axis::Y)].data(), p_y, N);
+  xpu::copy_n(positions_[idx(Axis::Z)].data(), p_z, N);
+
   return positions_;
 }
 
 void Simulation::initialize_positions() {
-  const std::size_t N{particles_.count()};
   const real_t length{config_.box_length};
-  auto [p_x, p_y, p_z]{particles_.pos().pointers()};
 
   constexpr std::size_t MAX_INIT_ATTEMPTS{100};
 
   for (std::size_t attempt = 0; attempt < MAX_INIT_ATTEMPTS; ++attempt) {
+#if defined(XPU_CUDA)
+    kernel::simulation::initialize_positions(
+      walker_rng_.data(),
+      length,
+      particles_.pos()
+    );
+#else
+    const std::size_t N{particles_.count()};
+    auto [p_x, p_y, p_z]{particles_.pos().pointers()};
+
     for (std::size_t i = 0; i < N; i++) {
-      p_x[i] = rand_uniform() * length;
-      p_y[i] = rand_uniform() * length;
-      p_z[i] = rand_uniform() * length;
+      p_x[i] = walker_rng_.uniform<real_t>() * length;
+      p_y[i] = walker_rng_.uniform<real_t>() * length;
+      p_z[i] = walker_rng_.uniform<real_t>() * length;
     }
+#endif
 
     log_psi_current_ = wave_function_.evaluate_log_psi(particles_);
-    if (std::isfinite(log_psi_current_))
-      break;
+    if (std::isfinite(log_psi_current_)) { break; }
 
     if (attempt == MAX_INIT_ATTEMPTS - 1) {
       throw std::runtime_error("Failed to find non-singular initial configuration");
@@ -65,71 +97,119 @@ void Simulation::initialize_positions() {
   energy_tracker_.initialize_real_energy(particles_);
 }
 
-CUDA_CALLABLE
-Simulation::StepResult Simulation::metropolis_step() {
+simulation::StepResult Simulation::metropolis_step() {
+#if defined(XPU_CUDA)
+  auto& slater{wave_function_.slater_plane_wave()};
+  const auto& jastrow{wave_function_.jastrow_pade()};
+
+  const simulation::StepResult result{
+    kernel::simulation::metropolis_step(
+      walker_rng_.data(),
+      config_.step_size,
+      config_.box_length,
+      jastrow.a(),
+      jastrow.b(),
+      particles_.pos(),
+      slater.view(),
+      energy_tracker_.view(),
+      step_result_.data()
+    )
+  };
+#else
   auto [p_x, p_y, p_z]{particles_.pos().pointers()};
 
-  const std::size_t rand{rand_particle()};
+  const auto random{
+    stencil::simulation::generate_random_proposal(
+      walker_rng_,
+      particles_.count(),
+      config_.step_size
+    )
+  };
+
+  const std::size_t moved{random.particle};
   const real_t L{config_.box_length};
   const real_t inv_L{1.0_r / L};
 
   const xpu::array<real_t, idx(Axis::NUM)> old_pos{
-    p_x[rand], p_y[rand], p_z[rand]
+    p_x[moved], p_y[moved], p_z[moved]
   };
 
-  p_x[rand] += rand_proposal();
-  p_y[rand] += rand_proposal();
-  p_z[rand] += rand_proposal();
+  p_x[moved] += random.displacement[idx(Axis::X)];
+  p_y[moved] += random.displacement[idx(Axis::Y)];
+  p_z[moved] += random.displacement[idx(Axis::Z)];
 
   // Branchless wrapping for [0, L)
-  p_x[rand] -= L * xpu::floor(p_x[rand] * inv_L);
-  p_y[rand] -= L * xpu::floor(p_y[rand] * inv_L);
-  p_z[rand] -= L * xpu::floor(p_z[rand] * inv_L);
+  p_x[moved] -= L * xpu::floor(p_x[moved] * inv_L);
+  p_y[moved] -= L * xpu::floor(p_y[moved] * inv_L);
+  p_z[moved] -= L * xpu::floor(p_z[moved] * inv_L);
 
   auto& slater{wave_function_.slater_plane_wave()};
 
-  slater.update_trig_cache(rand, particles_);
+  slater.update_trig_cache(moved, particles_);
 
-  const real_t* new_row{slater.build_row(rand)};
-  const real_t slater_ratio{slater.determinant_ratio(rand, new_row)};
+  const real_t* new_row{slater.build_row(moved)};
+  const real_t slater_ratio{slater.determinant_ratio(moved, new_row)};
 
   const real_t delta_jastrow{
     wave_function_.jastrow_pade().delta_value(
-      rand,
+      moved,
       old_pos,
       particles_.pos()
     )
   };
   const real_t log_ratio_sq{2.0_r * xpu::log(xpu::abs(slater_ratio)) + 2.0_r * delta_jastrow};
 
-  const real_t u{xpu::max(rand_uniform(), std::numeric_limits<real_t>::min())};
+  const real_t u{xpu::max(random.acceptance, std::numeric_limits<real_t>::min())};
   const real_t log_u{xpu::log(u)};
   const real_t min_term{xpu::min(0.0_r, log_ratio_sq)};
 
   const bool accepted{log_u < min_term};
 
+  const xpu::array<real_t, idx(Axis::NUM)> new_pos{
+    p_x[moved], p_y[moved], p_z[moved]
+  };
+
+  const simulation::StepResult result{
+    accepted,
+    moved,
+    old_pos,
+    new_pos,
+    xpu::log(xpu::abs(slater_ratio)) + delta_jastrow,
+    0.0_r,
+    0.0_r
+  };
+
   if (accepted) {
-    log_psi_current_ += xpu::log(xpu::abs(slater_ratio)) + delta_jastrow;
-    slater.accept_move(rand, new_row, slater_ratio);
+    slater.accept_move(moved, new_row, slater_ratio);
+  } else {
+    slater.restore_trig_row(moved);
+    p_x[moved] = old_pos[idx(Axis::X)];
+    p_y[moved] = old_pos[idx(Axis::Y)];
+    p_z[moved] = old_pos[idx(Axis::Z)];
+  }
+#endif
 
-    const xpu::array<real_t, idx(Axis::NUM)> new_pos{
-      p_x[rand], p_y[rand], p_z[rand]
-    };
+  if (result.accepted) {
+    log_psi_current_ += result.log_psi_delta;
 
-    energy_tracker_.update_structure_factors(
-      old_pos, new_pos
+#if defined(XPU_CUDA)
+    energy_tracker_.accept_move(
+      result.real_energy_delta,
+      result.reciprocal_energy
     );
-    energy_tracker_.update_real_energy(rand, old_pos, particles_);
-
-    return StepResult{true, rand, old_pos};
+#else
+    energy_tracker_.update_structure_factors(
+      result.old_pos, result.new_pos
+    );
+    energy_tracker_.update_real_energy(
+      result.moved_particle,
+      result.old_pos,
+      particles_
+    );
+#endif
   }
 
-  slater.restore_trig_row(rand);
-  p_x[rand] = old_pos[idx(Axis::X)];
-  p_y[rand] = old_pos[idx(Axis::Y)];
-  p_z[rand] = old_pos[idx(Axis::Z)];
-
-  return StepResult{false, rand, old_pos};
+  return result;
 }
 
 void Simulation::warmup() {
@@ -161,8 +241,6 @@ void Simulation::warmup() {
         step_size = MAX_STEP;
       }
 
-      walker_rng_.change_step_size(step_size);
-
       window_accepted = 0;
       window_proposed = 0;
     }
@@ -185,7 +263,7 @@ Simulation::MeasurementSummary Simulation::measure() {
 
   for (std::size_t i = 0; i < measure_steps; ++i) {
     ++proposed_;
-    const StepResult result{metropolis_step()};
+    const simulation::StepResult result{metropolis_step()};
     if (result.accepted) {
       ++accepted_;
     }

@@ -38,10 +38,10 @@ if [ "$CUDA" -eq 1 ]; then
     exit 1
   fi
 
-  BUILD_DIR="build-test-cuda"
+  BUILD_DIR="build-release-cuda"
   CUDA_FLAG="ON"
 else
-  BUILD_DIR="build-test"
+  BUILD_DIR="build-release"
   CUDA_FLAG="OFF"
 fi
 
@@ -53,8 +53,8 @@ CMAKE_ARGS=(
   -DVMC_ENABLE_CUDA="$CUDA_FLAG"
   -DFP_64="$FP64_FLAG"
   -DVMC_FAST_MATH="$FAST_MATH_FLAG"
-  -DBUILD_TESTING=ON
-  -DCMAKE_BUILD_TYPE=Debug
+  -DBUILD_TESTING=OFF
+  -DCMAKE_BUILD_TYPE=Release
 )
 
 if [ "$CUDA" -eq 1 ]; then
@@ -65,5 +65,7 @@ if [ "$CUDA" -eq 1 ]; then
 fi
 
 cmake "${CMAKE_ARGS[@]}"
-cmake --build "$REPO_ROOT/$BUILD_DIR" --target vmc_tests
-ctest --test-dir "$REPO_ROOT/$BUILD_DIR" --output-on-failure
+cmake --build "$REPO_ROOT/$BUILD_DIR" --target vmc
+
+cd "$REPO_ROOT"
+exec "./$BUILD_DIR/vmc"
