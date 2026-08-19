@@ -10,8 +10,8 @@ namespace wavefunction {
 CUDA_CALLABLE
 inline void derivative_sum(
   std::size_t i,
-  xpu::soa_view<real_t, idx(Derivatives::NUM)> log_derivatives,
-  xpu::soa_view<real_t, idx(Derivatives::NUM)> jastrow_derivatives
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> log_derivatives,
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> jastrow_derivatives
 ) {
   for (auto d{idx(Derivatives::GRAD_X)}; d < idx(Derivatives::NUM); ++d) {
     log_derivatives[d][i] += jastrow_derivatives[d][i];
@@ -29,8 +29,8 @@ namespace {
 #if defined(XPU_CUDA)
 __global__
 void cudaDerivativeSums(
-  xpu::soa_view<real_t, idx(Derivatives::NUM)> log_derivatives,
-  xpu::soa_view<real_t, idx(Derivatives::NUM)> jastrow_derivatives
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> log_derivatives,
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> jastrow_derivatives
 ) {
   const auto [i]{xpu::global_index<1>()};
   if (i >= log_derivatives.stride()) { return; }
@@ -42,8 +42,8 @@ void cudaDerivativeSums(
 } // namespace
 
 inline void derivative_sums(
-  xpu::soa_view<real_t, idx(Derivatives::NUM)> log_derivatives,
-  xpu::soa_view<real_t, idx(Derivatives::NUM)> jastrow_derivatives
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> log_derivatives,
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> jastrow_derivatives
 ) {
 #if defined(XPU_CUDA)
   dim3 derivativeSumsThreads{256};

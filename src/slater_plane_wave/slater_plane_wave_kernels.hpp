@@ -14,7 +14,7 @@ inline void update_trig_cache(
   std::size_t i, std::size_t offset, std::size_t particle,
   xpu::soa_view<PositionType, idx(Axis::NUM)> particle_pos,
   xpu::soa_view<KVectorType, idx(Axis::NUM)> k_vector,
-  real_t* RESTRICT sin_cache, real_t* RESTRICT cos_cache
+  fp_t* RESTRICT sin_cache, fp_t* RESTRICT cos_cache
 ) {
   const auto dot{
     k_vector[idx(Axis::X)][i] * particle_pos[idx(Axis::X)][particle] +
@@ -30,16 +30,16 @@ CUDA_CALLABLE
 inline void build_row(
   std::size_t i, std::size_t particle,
   std::size_t trig_row_stride,
-  const real_t* RESTRICT sin_cache,
-  const real_t* RESTRICT cos_cache,
+  const fp_t* RESTRICT sin_cache,
+  const fp_t* RESTRICT cos_cache,
   const std::size_t* RESTRICT orbital_k_index,
   const std::uint8_t* RESTRICT orbital_type,
-  real_t* RESTRICT new_row
+  fp_t* RESTRICT new_row
 ) {
   const auto trig_idx{
     particle * trig_row_stride + orbital_k_index[i]
   };
-  const auto type{static_cast<real_t>(orbital_type[i])};
+  const auto type{static_cast<fp_t>(orbital_type[i])};
   const auto sin_term{sin_cache[trig_idx]};
   const auto cos_term{cos_cache[trig_idx]};
 
@@ -49,8 +49,8 @@ inline void build_row(
 CUDA_CALLABLE
 inline void compute_log_abs_det(
   std::size_t i, std::size_t matrix_row_stride,
-  const real_t* RESTRICT lower_upper,
-  real_t* RESTRICT log_abs_det
+  const fp_t* RESTRICT lower_upper,
+  fp_t* RESTRICT log_abs_det
 ) {
   const auto diagonal{lower_upper[i * matrix_row_stride + i]};
   const auto contribution{xpu::log(xpu::abs(diagonal))};
@@ -66,9 +66,9 @@ CUDA_CALLABLE
 inline void determinant_ratio(
   std::size_t i, std::size_t particle,
   std::size_t matrix_row_stride,
-  const real_t* RESTRICT new_row,
-  const real_t* RESTRICT inv_det,
-  real_t* RESTRICT ratio
+  const fp_t* RESTRICT new_row,
+  const fp_t* RESTRICT inv_det,
+  fp_t* RESTRICT ratio
 ) {
   const auto product{
     new_row[i] * inv_det[particle * matrix_row_stride + i]
@@ -86,16 +86,16 @@ inline void add_derivatives(
   std::size_t i, std::size_t j,
   std::size_t matrix_row_stride,
   std::size_t trig_row_stride,
-  xpu::soa_view<const real_t, idx(Axis::NUM)> k_vector,
+  xpu::soa_view<const fp_t, idx(Axis::NUM)> k_vector,
   const std::size_t* RESTRICT orbital_k_index,
   const std::uint8_t* RESTRICT orbital_type,
-  const real_t* RESTRICT inv_det,
-  const real_t* RESTRICT sin_cache,
-  const real_t* RESTRICT cos_cache,
-  real_t* RESTRICT gradient_x,
-  real_t* RESTRICT gradient_y,
-  real_t* RESTRICT gradient_z,
-  real_t* RESTRICT laplacian
+  const fp_t* RESTRICT inv_det,
+  const fp_t* RESTRICT sin_cache,
+  const fp_t* RESTRICT cos_cache,
+  fp_t* RESTRICT gradient_x,
+  fp_t* RESTRICT gradient_y,
+  fp_t* RESTRICT gradient_z,
+  fp_t* RESTRICT laplacian
 ) {
   const auto k_idx{orbital_k_index[j]};
   const auto k_x{k_vector[idx(Axis::X)][k_idx]};
@@ -107,7 +107,7 @@ inline void add_derivatives(
     k_z * k_z
   };
 
-  const auto type{static_cast<real_t>(orbital_type[j])};
+  const auto type{static_cast<fp_t>(orbital_type[j])};
   const auto trig_idx{i * trig_row_stride + k_idx};
   const auto sin_term{sin_cache[trig_idx]};
   const auto cos_term{cos_cache[trig_idx]};
@@ -140,7 +140,7 @@ inline void add_derivatives(
 CUDA_CALLABLE
 inline void accumulate_derivatives(
   std::size_t i,
-  xpu::soa_view<real_t, idx(Derivatives::NUM)> derivatives
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
 ) {
   const auto gradient_x{derivatives[idx(Derivatives::GRAD_X)][i]};
   const auto gradient_y{derivatives[idx(Derivatives::GRAD_Y)][i]};
@@ -158,10 +158,10 @@ CUDA_CALLABLE
 inline void k_update_inverse(
   std::size_t i, std::size_t j,
   std::size_t particle,
-  std::size_t row_stride, real_t inv_ratio,
-  const real_t* RESTRICT inv_d_col,
-  const real_t* RESTRICT solution_arr,
-  real_t* RESTRICT inv_det
+  std::size_t row_stride, fp_t inv_ratio,
+  const fp_t* RESTRICT inv_d_col,
+  const fp_t* RESTRICT solution_arr,
+  fp_t* RESTRICT inv_det
 ) {
   const auto idx{j * row_stride + i};
   const auto factor{inv_d_col[i] * inv_ratio};
@@ -177,9 +177,9 @@ CUDA_CALLABLE
 inline void k_compute_sk(
   std::size_t i, std::size_t j,
   std::size_t row_stride,
-  const real_t* RESTRICT new_row,
-  const real_t* RESTRICT inv_det,
-  real_t* RESTRICT solution
+  const fp_t* RESTRICT new_row,
+  const fp_t* RESTRICT inv_det,
+  fp_t* RESTRICT solution
 ) {
   const auto product{new_row[i] * inv_det[j * row_stride + i]};
 
@@ -203,9 +203,9 @@ __global__
 void cudaUpdateTrigRow(
   std::size_t num_unique_k,
   std::size_t offset, std::size_t particle,
-  xpu::soa_view<real_t, idx(Axis::NUM)> particle_pos,
-  xpu::soa_view<real_t, idx(Axis::NUM)> k_vector,
-  real_t* RESTRICT sin_cache, real_t* RESTRICT cos_cache
+  xpu::soa_view<fp_t, idx(Axis::NUM)> particle_pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> k_vector,
+  fp_t* RESTRICT sin_cache, fp_t* RESTRICT cos_cache
 ) {
   const auto [i]{xpu::global_index<1>()};
   if (i >= num_unique_k) { return; }
@@ -221,10 +221,10 @@ __global__
 void cudaBuildTrigCache(
   std::size_t num_unique_k,
   std::size_t trig_row_stride,
-  xpu::soa_view<const real_t, idx(Axis::NUM)> particle_pos,
-  xpu::soa_view<const real_t, idx(Axis::NUM)> k_vector,
-  real_t* RESTRICT sin_cache,
-  real_t* RESTRICT cos_cache
+  xpu::soa_view<const fp_t, idx(Axis::NUM)> particle_pos,
+  xpu::soa_view<const fp_t, idx(Axis::NUM)> k_vector,
+  fp_t* RESTRICT sin_cache,
+  fp_t* RESTRICT cos_cache
 ) {
   const auto [i, j]{xpu::global_index<2>()};
   if (i >= num_unique_k || j >= particle_pos.count()) { return; }
@@ -240,11 +240,11 @@ __global__
 void cudaBuildRow(
   std::size_t num_orbitals, std::size_t particle,
   std::size_t trig_row_stride,
-  const real_t* RESTRICT sin_cache,
-  const real_t* RESTRICT cos_cache,
+  const fp_t* RESTRICT sin_cache,
+  const fp_t* RESTRICT cos_cache,
   const std::size_t* RESTRICT orbital_k_index,
   const std::uint8_t* RESTRICT orbital_type,
-  real_t* RESTRICT new_row
+  fp_t* RESTRICT new_row
 ) {
   const auto [i]{xpu::global_index<1>()};
   if (i >= num_orbitals) { return; }
@@ -262,11 +262,11 @@ void cudaBuildDeterminant(
   std::size_t num_orbitals,
   std::size_t trig_row_stride,
   std::size_t matrix_row_stride,
-  const real_t* RESTRICT sin_cache,
-  const real_t* RESTRICT cos_cache,
+  const fp_t* RESTRICT sin_cache,
+  const fp_t* RESTRICT cos_cache,
   const std::size_t* RESTRICT orbital_k_index,
   const std::uint8_t* RESTRICT orbital_type,
-  real_t* RESTRICT determinant
+  fp_t* RESTRICT determinant
 ) {
   const auto [i, j]{xpu::global_index<2>()};
   if (i >= num_orbitals || j >= num_orbitals) { return; }
@@ -283,8 +283,8 @@ __global__
 void cudaComputeLogAbsDet(
   std::size_t num_orbitals,
   std::size_t matrix_row_stride,
-  const real_t* RESTRICT lower_upper,
-  real_t* RESTRICT log_abs_det
+  const fp_t* RESTRICT lower_upper,
+  fp_t* RESTRICT log_abs_det
 ) {
   const auto [i]{xpu::global_index<1>()};
   if (i >= num_orbitals) { return; }
@@ -300,9 +300,9 @@ __global__
 void cudaDeterminantRatio(
   std::size_t num_orbitals, std::size_t particle,
   std::size_t matrix_row_stride,
-  const real_t* RESTRICT new_row,
-  const real_t* RESTRICT inv_det,
-  real_t* RESTRICT ratio
+  const fp_t* RESTRICT new_row,
+  const fp_t* RESTRICT inv_det,
+  fp_t* RESTRICT ratio
 ) {
   const auto [i]{xpu::global_index<1>()};
   if (i >= num_orbitals) { return; }
@@ -319,13 +319,13 @@ void cudaAddDerivatives(
   std::size_t num_orbitals,
   std::size_t matrix_row_stride,
   std::size_t trig_row_stride,
-  xpu::soa_view<const real_t, idx(Axis::NUM)> k_vector,
+  xpu::soa_view<const fp_t, idx(Axis::NUM)> k_vector,
   const std::size_t* RESTRICT orbital_k_index,
   const std::uint8_t* RESTRICT orbital_type,
-  const real_t* RESTRICT inv_det,
-  const real_t* RESTRICT sin_cache,
-  const real_t* RESTRICT cos_cache,
-  xpu::soa_view<real_t, idx(Derivatives::NUM)> derivatives
+  const fp_t* RESTRICT inv_det,
+  const fp_t* RESTRICT sin_cache,
+  const fp_t* RESTRICT cos_cache,
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
 ) {
   const auto [i, j]{xpu::global_index<2>()};
   if (i >= num_orbitals || j >= num_orbitals) { return; }
@@ -345,7 +345,7 @@ void cudaAddDerivatives(
 
 __global__
 void cudaAccumulateDerivatives(
-  xpu::soa_view<real_t, idx(Derivatives::NUM)> derivatives
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
 ) {
   const auto [i]{xpu::global_index<1>()};
   if (i >= derivatives.count()) { return; }
@@ -356,10 +356,10 @@ void cudaAccumulateDerivatives(
 __global__
 void kUpdateInverse(
   std::size_t num_orbitals, std::size_t particle,
-  std::size_t row_stride, real_t inv_ratio,
-  const real_t* RESTRICT inv_d_col,
-  const real_t* RESTRICT solution_arr,
-  real_t* RESTRICT inv_det
+  std::size_t row_stride, fp_t inv_ratio,
+  const fp_t* RESTRICT inv_d_col,
+  const fp_t* RESTRICT solution_arr,
+  fp_t* RESTRICT inv_det
 ) {
   const auto [i,j]{xpu::global_index<2>()};
   if (i >= num_orbitals || j >= num_orbitals) { return; }
@@ -375,9 +375,9 @@ __global__
 void kComputeSK(
   std::size_t num_orbitals, std::size_t particle,
   std::size_t row_stride,
-  const real_t* RESTRICT new_row,
-  const real_t* RESTRICT inv_det,
-  real_t* RESTRICT solution_arr
+  const fp_t* RESTRICT new_row,
+  const fp_t* RESTRICT inv_det,
+  fp_t* RESTRICT solution_arr
 ) {
   const auto [i, j]{xpu::global_index<2>()};
   if (i >= num_orbitals || j >= num_orbitals) { return; }
@@ -396,9 +396,9 @@ void kComputeSK(
 inline void update_trig_cache(
   std::size_t num_unique_k,
   std::size_t offset, std::size_t particle,
-  xpu::soa_view<real_t, idx(Axis::NUM)> particle_pos,
-  xpu::soa_view<real_t, idx(Axis::NUM)> k_vector,
-  real_t* RESTRICT sin_cache, real_t* RESTRICT cos_cache
+  xpu::soa_view<fp_t, idx(Axis::NUM)> particle_pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> k_vector,
+  fp_t* RESTRICT sin_cache, fp_t* RESTRICT cos_cache
 ) {
 #if defined(XPU_CUDA)
   dim3 updateTrigRowThreads{256u};
@@ -430,10 +430,10 @@ inline void update_trig_cache(
 inline void build_trig_cache(
   std::size_t num_unique_k,
   std::size_t trig_row_stride,
-  xpu::soa_view<const real_t, idx(Axis::NUM)> particle_pos,
-  xpu::soa_view<const real_t, idx(Axis::NUM)> k_vector,
-  real_t* RESTRICT sin_cache,
-  real_t* RESTRICT cos_cache
+  xpu::soa_view<const fp_t, idx(Axis::NUM)> particle_pos,
+  xpu::soa_view<const fp_t, idx(Axis::NUM)> k_vector,
+  fp_t* RESTRICT sin_cache,
+  fp_t* RESTRICT cos_cache
 ) {
 #if defined(XPU_CUDA)
   dim3 buildTrigCacheThreads{16u, 16u};
@@ -468,11 +468,11 @@ inline void build_trig_cache(
 inline void build_row(
   std::size_t num_orbitals, std::size_t particle,
   std::size_t trig_row_stride,
-  const real_t* RESTRICT sin_cache,
-  const real_t* RESTRICT cos_cache,
+  const fp_t* RESTRICT sin_cache,
+  const fp_t* RESTRICT cos_cache,
   const std::size_t* RESTRICT orbital_k_index,
   const std::uint8_t* RESTRICT orbital_type,
-  real_t* RESTRICT new_row
+  fp_t* RESTRICT new_row
 ) {
 #if defined(XPU_CUDA)
   dim3 buildRowThreads{256u};
@@ -505,11 +505,11 @@ inline void build_determinant(
   std::size_t num_orbitals,
   std::size_t trig_row_stride,
   std::size_t matrix_row_stride,
-  const real_t* RESTRICT sin_cache,
-  const real_t* RESTRICT cos_cache,
+  const fp_t* RESTRICT sin_cache,
+  const fp_t* RESTRICT cos_cache,
   const std::size_t* RESTRICT orbital_k_index,
   const std::uint8_t* RESTRICT orbital_type,
-  real_t* RESTRICT determinant
+  fp_t* RESTRICT determinant
 ) {
 #if defined(XPU_CUDA)
   dim3 buildDeterminantThreads{16u, 16u};
@@ -542,11 +542,11 @@ inline void build_determinant(
 #endif
 }
 
-inline real_t compute_log_abs_det(
+inline fp_t compute_log_abs_det(
   std::size_t num_orbitals,
   std::size_t matrix_row_stride,
-  const real_t* RESTRICT lower_upper,
-  real_t* RESTRICT log_abs_det_scratch
+  const fp_t* RESTRICT lower_upper,
+  fp_t* RESTRICT log_abs_det_scratch
 ) {
 #if defined(XPU_CUDA)
   xpu::zero_n(log_abs_det_scratch, 1uz);
@@ -564,13 +564,13 @@ inline real_t compute_log_abs_det(
   );
   xpu::cu_check(cudaGetLastError());
 
-  auto log_abs_det{0.0_r};
+  auto log_abs_det{0.0_fp};
   xpu::copy_n(&log_abs_det, log_abs_det_scratch, 1uz);
   return log_abs_det;
 #else
   static_cast<void>(log_abs_det_scratch);
 
-  auto log_abs_det{0.0_r};
+  auto log_abs_det{0.0_fp};
 
   #pragma omp simd reduction(+ : log_abs_det)
   for (auto i = 0uz; i < num_orbitals; ++i) {
@@ -585,14 +585,14 @@ inline real_t compute_log_abs_det(
 #endif
 }
 
-inline real_t determinant_ratio(
+inline fp_t determinant_ratio(
   std::size_t num_orbitals, std::size_t particle,
   std::size_t matrix_row_stride,
-  const real_t* RESTRICT new_row,
-  const real_t* RESTRICT inv_det
+  const fp_t* RESTRICT new_row,
+  const fp_t* RESTRICT inv_det
 ) {
 #if defined(XPU_CUDA)
-  xpu::buffer<real_t> ratio{1uz};
+  xpu::buffer<fp_t> ratio{1uz};
 
   dim3 determinantRatioThreads{256u};
   dim3 determinantRatioBlocks{
@@ -607,11 +607,11 @@ inline real_t determinant_ratio(
   );
   xpu::cu_check(cudaGetLastError());
 
-  auto ratio_host{0.0_r};
+  auto ratio_host{0.0_fp};
   xpu::copy_n(&ratio_host, ratio.data(), 1uz);
   return ratio_host;
 #else
-  auto ratio{0.0_r};
+  auto ratio{0.0_fp};
 
   #pragma omp simd reduction(+ : ratio)
   for (auto i = 0uz; i < num_orbitals; ++i) {
@@ -630,13 +630,13 @@ inline void add_derivatives(
   std::size_t num_orbitals,
   std::size_t matrix_row_stride,
   std::size_t trig_row_stride,
-  xpu::soa_view<const real_t, idx(Axis::NUM)> k_vector,
+  xpu::soa_view<const fp_t, idx(Axis::NUM)> k_vector,
   const std::size_t* RESTRICT orbital_k_index,
   const std::uint8_t* RESTRICT orbital_type,
-  const real_t* RESTRICT inv_det,
-  const real_t* RESTRICT sin_cache,
-  const real_t* RESTRICT cos_cache,
-  xpu::soa_view<real_t, idx(Derivatives::NUM)> derivatives
+  const fp_t* RESTRICT inv_det,
+  const fp_t* RESTRICT sin_cache,
+  const fp_t* RESTRICT cos_cache,
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
 ) {
 #if defined(XPU_CUDA)
   dim3 addDerivativesThreads{16u, 16u};
@@ -692,10 +692,10 @@ inline void add_derivatives(
 
 inline void k_update_inverse(
   std::size_t num_orbitals, std::size_t particle,
-  std::size_t row_stride, real_t inv_ratio,
-  const real_t* RESTRICT inv_d_col,
-  const real_t* RESTRICT solution_arr,
-  real_t* RESTRICT inv_det
+  std::size_t row_stride, fp_t inv_ratio,
+  const fp_t* RESTRICT inv_d_col,
+  const fp_t* RESTRICT solution_arr,
+  fp_t* RESTRICT inv_det
 ) {
 #if defined(XPU_CUDA)
   dim3 kUpdateInverseThreads{16u, 16u};
@@ -727,9 +727,9 @@ inline void k_update_inverse(
 inline void k_compute_sk(
   std::size_t num_orbitals, std::size_t particle,
   std::size_t row_stride,
-  const real_t* RESTRICT new_row,
-  const real_t* RESTRICT inv_det,
-  real_t* RESTRICT solution_arr
+  const fp_t* RESTRICT new_row,
+  const fp_t* RESTRICT inv_det,
+  fp_t* RESTRICT solution_arr
 ) {
 #if defined(XPU_CUDA)
   dim3 kComputeSKThreads{16u, 16u};

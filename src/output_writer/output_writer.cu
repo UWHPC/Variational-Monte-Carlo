@@ -28,7 +28,7 @@ BinOutputWriter::BinOutputWriter(std::ostream& out)
 
 void BinOutputWriter::write_init(const InitData& data) {
   const uint64_t np{static_cast<uint64_t>(data.num_particles)};
-  const real_t bl{data.box_length};
+  const fp_t bl{data.box_length};
   const uint64_t ms{static_cast<uint64_t>(data.measure_steps)};
   out_.write(reinterpret_cast<const char*>(&np), sizeof(np));
   out_.write(reinterpret_cast<const char*>(&bl), sizeof(bl));
@@ -37,14 +37,14 @@ void BinOutputWriter::write_init(const InitData& data) {
 }
 
 void BinOutputWriter::write_frame(const FrameData& data) {
-  const real_t se{data.standard_error.value_or(0.0_r)};
-  out_.write(reinterpret_cast<const char*>(&data.local_energy), sizeof(real_t));
-  out_.write(reinterpret_cast<const char*>(&data.mean_energy), sizeof(real_t));
-  out_.write(reinterpret_cast<const char*>(&se), sizeof(real_t));
-  out_.write(reinterpret_cast<const char*>(&data.acceptance_rate), sizeof(real_t));
+  const fp_t se{data.standard_error.value_or(0.0_fp)};
+  out_.write(reinterpret_cast<const char*>(&data.local_energy), sizeof(fp_t));
+  out_.write(reinterpret_cast<const char*>(&data.mean_energy), sizeof(fp_t));
+  out_.write(reinterpret_cast<const char*>(&se), sizeof(fp_t));
+  out_.write(reinterpret_cast<const char*>(&data.acceptance_rate), sizeof(fp_t));
   out_.write(
     reinterpret_cast<const char*>(data.positions.data()),
-    static_cast<std::streamsize>(data.positions.size() * sizeof(real_t))
+    static_cast<std::streamsize>(data.positions.size() * sizeof(fp_t))
   );
 }
 

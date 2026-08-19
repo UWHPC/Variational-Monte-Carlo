@@ -19,14 +19,14 @@ private:
     DERIVATIVES,
     NUM_ARRAYS = enum_index(ArrayIndex::DERIVATIVES, Derivatives::NUM)
   };
-  xpu::soa<real_t, idx(ArrayIndex::NUM_ARRAYS)> deriv_;
+  xpu::soa<fp_t, idx(ArrayIndex::NUM_ARRAYS)> deriv_;
 
 public:
   explicit WaveFunction(
     const Particles& particles,
-    real_t box_length,
-    real_t a = 0.25_r,
-    real_t b = 1.0_r
+    fp_t box_length,
+    fp_t a = 0.25_fp,
+    fp_t b = 1.0_fp
   )
     : jastrow_pade_{box_length, a, b}
     , slater_plane_wave_{particles, box_length}
@@ -42,12 +42,12 @@ public:
   [[nodiscard]] const SlaterPlaneWave& slater_plane_wave() const noexcept { return slater_plane_wave_; }
 
   [[nodiscard]] CUDA_CALLABLE
-  xpu::soa_view<real_t, idx(Derivatives::NUM)> j_derivatives() {
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> j_derivatives() {
     return deriv_.view<idx(Derivatives::NUM), idx(ArrayIndex::DERIVATIVES)>();
   }
 
   [[nodiscard]] CUDA_CALLABLE
-  xpu::soa_view<const real_t, idx(Derivatives::NUM)> j_derivatives() const {
+  xpu::soa_view<const fp_t, idx(Derivatives::NUM)> j_derivatives() const {
     return deriv_.view<idx(Derivatives::NUM), idx(ArrayIndex::DERIVATIVES)>();
   }
 
@@ -62,10 +62,10 @@ public:
     Particles& particles,
     bool move_accepted,
     std::size_t moved,
-    xpu::array<real_t, idx(Axis::NUM)> old_pos
+    xpu::array<fp_t, idx(Axis::NUM)> old_pos
   ) noexcept;
 
-  real_t evaluate_log_psi(Particles& particles) {
+  fp_t evaluate_log_psi(Particles& particles) {
     return this->slater_plane_wave().log_abs_det(particles) + this->jastrow_pade().value(particles.pos());
   }
 };

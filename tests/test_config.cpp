@@ -28,7 +28,7 @@ TEST_CASE("Config default constructor produces expected defaults and derived val
   REQUIRE(cfg.num_particles == 7U);
   REQUIRE(cfg.warmup_sweeps == 100U);
   REQUIRE(cfg.measure_sweeps == 100U);
-  REQUIRE(cfg.box_length == 10.0_r);
+  REQUIRE(cfg.box_length == 10.0_fp);
   REQUIRE(cfg.block_size == 100U);
   REQUIRE(cfg.master_seed == 42U);
   REQUIRE(cfg.is_master_thread == false);
@@ -36,7 +36,7 @@ TEST_CASE("Config default constructor produces expected defaults and derived val
   // Derived fields:
   REQUIRE(cfg.warmup_steps == 7U * 100U);
   REQUIRE(cfg.measure_steps == 7U * 100U);
-  require_near(cfg.step_size, 1.0_r); // 10.0 / 10.0
+  require_near(cfg.step_size, 1.0_fp); // 10.0 / 10.0
 }
 
 TEST_CASE("Config::from_file parses all recognized keys", "[config]") {
@@ -52,14 +52,14 @@ TEST_CASE("Config::from_file parses all recognized keys", "[config]") {
   REQUIRE(cfg.num_particles == 19U);
   REQUIRE(cfg.warmup_sweeps == 200U);
   REQUIRE(cfg.measure_sweeps == 500U);
-  require_near(cfg.box_length, 8.5_r);
+  require_near(cfg.box_length, 8.5_fp);
   REQUIRE(cfg.block_size == 50U);
   REQUIRE(cfg.master_seed == 99999U);
 
   // Derived:
   REQUIRE(cfg.warmup_steps == 19U * 200U);
   REQUIRE(cfg.measure_steps == 19U * 500U);
-  require_near(cfg.step_size, 8.5_r / 10.0_r);
+  require_near(cfg.step_size, 8.5_fp / 10.0_fp);
 }
 
 TEST_CASE("Config::from_file ignores comments and blank lines", "[config]") {
@@ -70,7 +70,7 @@ TEST_CASE("Config::from_file ignores comments and blank lines", "[config]") {
                                        "Box_Length = 12.0\n")};
 
   REQUIRE(cfg.num_particles == 33U);
-  require_near(cfg.box_length, 12.0_r);
+  require_near(cfg.box_length, 12.0_fp);
   // Other fields remain at defaults:
   REQUIRE(cfg.warmup_sweeps == 100U);
 }
@@ -80,7 +80,7 @@ TEST_CASE("Config::from_file handles whitespace around keys and values", "[confi
                                        "  Box_Length  =  7.5  \n")};
 
   REQUIRE(cfg.num_particles == 27U);
-  require_near(cfg.box_length, 7.5_r);
+  require_near(cfg.box_length, 7.5_fp);
 }
 
 TEST_CASE("Config::from_file warns on unknown keys and preserves known values", "[config]") {
@@ -112,7 +112,7 @@ TEST_CASE("Config::from_file skips lines without an equals sign", "[config]") {
                                        "Box_Length = 5.0\n")};
 
   REQUIRE(cfg.num_particles == 19U);
-  require_near(cfg.box_length, 5.0_r);
+  require_near(cfg.box_length, 5.0_fp);
 }
 
 TEST_CASE("Config derived fields recompute correctly for various particle counts", "[config]") {
@@ -124,7 +124,7 @@ TEST_CASE("Config derived fields recompute correctly for various particle counts
 
     REQUIRE(cfg.warmup_steps == 1U * 50U);
     REQUIRE(cfg.measure_steps == 1U * 200U);
-    require_near(cfg.step_size, 2.0_r);
+    require_near(cfg.step_size, 2.0_fp);
   }
   {
     const Config cfg{parse_config_string("Num_Particles = 100\n"
@@ -134,7 +134,7 @@ TEST_CASE("Config derived fields recompute correctly for various particle counts
 
     REQUIRE(cfg.warmup_steps == 100U * 10U);
     REQUIRE(cfg.measure_steps == 100U * 30U);
-    require_near(cfg.step_size, 0.5_r);
+    require_near(cfg.step_size, 0.5_fp);
   }
 }
 
@@ -145,7 +145,7 @@ TEST_CASE("Config::from_file handles empty config file gracefully", "[config]") 
   REQUIRE(cfg.num_particles == 7U);
   REQUIRE(cfg.warmup_sweeps == 100U);
   REQUIRE(cfg.measure_sweeps == 100U);
-  require_near(cfg.box_length, 10.0_r);
+  require_near(cfg.box_length, 10.0_fp);
   REQUIRE(cfg.block_size == 100U);
   REQUIRE(cfg.master_seed == 42U);
 }
@@ -158,7 +158,7 @@ TEST_CASE("Config::from_file partial override leaves other fields at defaults", 
   REQUIRE(cfg.num_particles == 7U);
   REQUIRE(cfg.warmup_sweeps == 100U);
   REQUIRE(cfg.measure_sweeps == 100U);
-  require_near(cfg.box_length, 10.0_r);
+  require_near(cfg.box_length, 10.0_fp);
   REQUIRE(cfg.master_seed == 42U);
 }
 

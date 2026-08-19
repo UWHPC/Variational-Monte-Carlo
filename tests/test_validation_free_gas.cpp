@@ -9,26 +9,26 @@
 
 namespace {
 #ifdef FP_64
-constexpr real_t FREE_GAS_PRECISION_SCALE{1.0_r};
+constexpr fp_t FREE_GAS_PRECISION_SCALE{1.0_fp};
 #else
-constexpr real_t FREE_GAS_PRECISION_SCALE{1e6_r};
+constexpr fp_t FREE_GAS_PRECISION_SCALE{1e6_fp};
 #endif
 } // namespace
 
 // N=1: only k=0 orbital, T_exact = 0, uniform wavefunction
 TEST_CASE("Free gas N=1: kinetic energy is exactly zero", "[validation]") {
   constexpr std::size_t N{1U};
-  constexpr real_t L{5.0_r};
+  constexpr fp_t L{5.0_fp};
 
   Particles particles{N};
   SlaterPlaneWave slater{particles, L};
-  const real_t T_EXACT{exact_kinetic_energy(slater)};
-  require_near(T_EXACT, 0.0_r);
+  const fp_t T_EXACT{exact_kinetic_energy(slater)};
+  require_near(T_EXACT, 0.0_fp);
 
-  WaveFunction wf{particles, L, 0.0_r, 1.0_r}; // a = 0 -> Jastrow off
+  WaveFunction wf{particles, L, 0.0_fp, 1.0_fp}; // a = 0 -> Jastrow off
 
   std::mt19937_64 rng{42};
-  std::uniform_real_distribution<real_t> uniform{0.0_r, L};
+  std::uniform_real_distribution<fp_t> uniform{0.0_fp, L};
 
   for (int sample = 0; sample < 5; ++sample) {
     particles.pos().x_[0] = uniform(rng);
@@ -38,9 +38,9 @@ TEST_CASE("Free gas N=1: kinetic energy is exactly zero", "[validation]") {
     wf.evaluate_log_psi(particles);
     wf.evaluate_derivatives(particles);
 
-    const real_t T_local{local_kinetic_energy(particles)};
+    const fp_t T_local{local_kinetic_energy(particles)};
 
-    require_near(T_local, 0.0_r);
+    require_near(T_local, 0.0_fp);
   }
 }
 
@@ -48,20 +48,20 @@ TEST_CASE("Free gas N=1: kinetic energy is exactly zero", "[validation]") {
 TEST_CASE("Free gas N=7: local kinetic energy matches exact value at every sample",
           "[validation]") {
   constexpr std::size_t N{7U};
-  constexpr real_t L{6.0_r};
+  constexpr fp_t L{6.0_fp};
 
   Particles particles{N};
   SlaterPlaneWave slater{particles, L};
-  const real_t T_EXACT{exact_kinetic_energy(slater)};
+  const fp_t T_EXACT{exact_kinetic_energy(slater)};
 
-  const real_t TWO_PI_OVER_L{2.0_r * std::numbers::pi_v<real_t> / L};
-  const real_t T_ANALYTICAL{3.0_r * TWO_PI_OVER_L * TWO_PI_OVER_L};
+  const fp_t TWO_PI_OVER_L{2.0_fp * std::numbers::pi_v<fp_t> / L};
+  const fp_t T_ANALYTICAL{3.0_fp * TWO_PI_OVER_L * TWO_PI_OVER_L};
   require_near(T_EXACT, T_ANALYTICAL);
 
-  WaveFunction wf{particles, L, 0.0_r, 1.0_r};
+  WaveFunction wf{particles, L, 0.0_fp, 1.0_fp};
 
   std::mt19937_64 rng{314159};
-  std::uniform_real_distribution<real_t> uniform{0.0_r, L};
+  std::uniform_real_distribution<fp_t> uniform{0.0_fp, L};
 
   for (int sample = 0; sample < 10; ++sample) {
     for (std::size_t i = 0; i < N; ++i) {
@@ -73,9 +73,9 @@ TEST_CASE("Free gas N=7: local kinetic energy matches exact value at every sampl
     wf.evaluate_log_psi(particles);
     wf.evaluate_derivatives(particles);
 
-    const real_t T_local{local_kinetic_energy(particles)};
+    const fp_t T_local{local_kinetic_energy(particles)};
 
-    require_near(T_local, T_EXACT, 1e-8_r * FREE_GAS_PRECISION_SCALE);
+    require_near(T_local, T_EXACT, 1e-8_fp * FREE_GAS_PRECISION_SCALE);
   }
 }
 
@@ -83,20 +83,20 @@ TEST_CASE("Free gas N=7: local kinetic energy matches exact value at every sampl
 TEST_CASE("Free gas N=19: local kinetic energy matches exact value at every sample",
           "[validation]") {
   constexpr std::size_t N{19U};
-  constexpr real_t L{7.0_r};
+  constexpr fp_t L{7.0_fp};
 
   Particles particles{N};
   SlaterPlaneWave slater{particles, L};
-  const real_t T_EXACT{exact_kinetic_energy(slater)};
+  const fp_t T_EXACT{exact_kinetic_energy(slater)};
 
-  const real_t K_SQ{(2.0_r * std::numbers::pi_v<real_t> / L) * (2.0_r * std::numbers::pi_v<real_t> / L)};
-  const real_t T_ANALYTICAL{15.0_r * K_SQ};
+  const fp_t K_SQ{(2.0_fp * std::numbers::pi_v<fp_t> / L) * (2.0_fp * std::numbers::pi_v<fp_t> / L)};
+  const fp_t T_ANALYTICAL{15.0_fp * K_SQ};
   require_near(T_EXACT, T_ANALYTICAL);
 
-  WaveFunction wf{particles, L, 0.0_r, 1.0_r};
+  WaveFunction wf{particles, L, 0.0_fp, 1.0_fp};
 
   std::mt19937_64 rng{271828};
-  std::uniform_real_distribution<real_t> uniform{0.0_r, L};
+  std::uniform_real_distribution<fp_t> uniform{0.0_fp, L};
 
   for (int sample = 0; sample < 10; ++sample) {
     for (std::size_t i = 0; i < N; ++i) {
@@ -108,9 +108,9 @@ TEST_CASE("Free gas N=19: local kinetic energy matches exact value at every samp
     wf.evaluate_log_psi(particles);
     wf.evaluate_derivatives(particles);
 
-    const real_t T_local{local_kinetic_energy(particles)};
+    const fp_t T_local{local_kinetic_energy(particles)};
 
-    require_near(T_local, T_EXACT, 1e-7_r * FREE_GAS_PRECISION_SCALE);
+    require_near(T_local, T_EXACT, 1e-7_fp * FREE_GAS_PRECISION_SCALE);
   }
 }
 
@@ -118,16 +118,16 @@ TEST_CASE("Free gas N=19: local kinetic energy matches exact value at every samp
 TEST_CASE("Free gas zero-variance: local kinetic energy is configuration-independent",
           "[validation]") {
   constexpr std::size_t N{7U};
-  constexpr real_t L{5.5_r};
+  constexpr fp_t L{5.5_fp};
 
   Particles particles{N};
-  WaveFunction wf{particles, L, 0.0_r, 1.0_r};
+  WaveFunction wf{particles, L, 0.0_fp, 1.0_fp};
 
   std::mt19937_64 rng{999};
-  std::uniform_real_distribution<real_t> uniform{0.0_r, L};
+  std::uniform_real_distribution<fp_t> uniform{0.0_fp, L};
 
   constexpr int NUM_SAMPLES{50};
-  real_t first_T{};
+  fp_t first_T{};
 
   for (int sample = 0; sample < NUM_SAMPLES; ++sample) {
     for (std::size_t i = 0; i < N; ++i) {
@@ -139,12 +139,12 @@ TEST_CASE("Free gas zero-variance: local kinetic energy is configuration-indepen
     wf.evaluate_log_psi(particles);
     wf.evaluate_derivatives(particles);
 
-    const real_t T_local{local_kinetic_energy(particles)};
+    const fp_t T_local{local_kinetic_energy(particles)};
 
     if (sample == 0) {
       first_T = T_local;
     } else {
-      require_near(T_local, first_T, 1e-8_r * FREE_GAS_PRECISION_SCALE);
+      require_near(T_local, first_T, 1e-8_fp * FREE_GAS_PRECISION_SCALE);
     }
   }
 }
@@ -152,14 +152,14 @@ TEST_CASE("Free gas zero-variance: local kinetic energy is configuration-indepen
 // EnergyTracker kinetic term should match local_kinetic_energy with Jastrow off
 TEST_CASE("Free gas: EnergyTracker kinetic term matches manual computation", "[validation]") {
   constexpr std::size_t N{7U};
-  constexpr real_t L{6.0_r};
+  constexpr fp_t L{6.0_fp};
 
   Particles particles{N};
-  WaveFunction wf{particles, L, 0.0_r, 1.0_r};
+  WaveFunction wf{particles, L, 0.0_fp, 1.0_fp};
   EnergyTracker tracker{L, N};
 
   std::mt19937_64 rng{65537};
-  std::uniform_real_distribution<real_t> uniform{0.0_r, L};
+  std::uniform_real_distribution<fp_t> uniform{0.0_fp, L};
 
   for (std::size_t i = 0; i < N; ++i) {
     particles.pos().x_[i] = uniform(rng);
@@ -172,16 +172,16 @@ TEST_CASE("Free gas: EnergyTracker kinetic term matches manual computation", "[v
 
   tracker.initialize_structure_factors(particles);
 
-  const real_t T_manual{local_kinetic_energy(particles)};
+  const fp_t T_manual{local_kinetic_energy(particles)};
   const SlaterPlaneWave& slater{wf.slater_plane_wave()};
-  const real_t T_EXACT{exact_kinetic_energy(slater)};
+  const fp_t T_EXACT{exact_kinetic_energy(slater)};
 
-  require_near(T_manual, T_EXACT, 1e-8_r * FREE_GAS_PRECISION_SCALE);
+  require_near(T_manual, T_EXACT, 1e-8_fp * FREE_GAS_PRECISION_SCALE);
 }
 
 // Verify closed-shell orbital counts: N = 1, 7, 19, 27
 TEST_CASE("Shell filling produces correct closed-shell orbital counts", "[validation]") {
-  constexpr real_t L{10.0_r};
+  constexpr fp_t L{10.0_fp};
 
   SECTION("N = 1") {
     Particles p{1U};
@@ -215,15 +215,15 @@ TEST_CASE("Shell filling produces correct closed-shell orbital counts", "[valida
 // N=16 partial shell: zero-variance property still holds
 TEST_CASE("Free gas partial shell N=16: zero-variance property still holds", "[validation]") {
   constexpr std::size_t N{16U};
-  constexpr real_t L{6.5_r};
+  constexpr fp_t L{6.5_fp};
 
   Particles particles{N};
-  WaveFunction wf{particles, L, 0.0_r, 1.0_r};
+  WaveFunction wf{particles, L, 0.0_fp, 1.0_fp};
   const SlaterPlaneWave& slater{wf.slater_plane_wave()};
-  const real_t T_EXACT{exact_kinetic_energy(slater)};
+  const fp_t T_EXACT{exact_kinetic_energy(slater)};
 
   std::mt19937_64 rng{1337};
-  std::uniform_real_distribution<real_t> uniform{0.0_r, L};
+  std::uniform_real_distribution<fp_t> uniform{0.0_fp, L};
 
   constexpr int NUM_SAMPLES{20};
 
@@ -237,8 +237,8 @@ TEST_CASE("Free gas partial shell N=16: zero-variance property still holds", "[v
     wf.evaluate_log_psi(particles);
     wf.evaluate_derivatives(particles);
 
-    const real_t T_local{local_kinetic_energy(particles)};
+    const fp_t T_local{local_kinetic_energy(particles)};
 
-    require_near(T_local, T_EXACT, 1e-7_r * FREE_GAS_PRECISION_SCALE);
+    require_near(T_local, T_EXACT, 1e-7_fp * FREE_GAS_PRECISION_SCALE);
   }
 }

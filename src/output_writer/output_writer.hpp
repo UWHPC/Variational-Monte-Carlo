@@ -14,10 +14,10 @@ struct InitData {
   std::string run_id;
 
   std::size_t num_particles;
-  real_t box_length;
+  fp_t box_length;
   std::size_t warmup_steps;
   std::size_t measure_steps;
-  real_t step_size;
+  fp_t step_size;
   uint64_t seed;
   std::size_t block_size;
 };
@@ -26,19 +26,19 @@ struct FrameData {
   std::size_t step;
   std::size_t accepted;
   std::size_t proposed;
-  real_t acceptance_rate;
-  real_t local_energy;
-  real_t mean_energy;
-  std::optional<real_t> standard_error;
-  std::vector<real_t> positions; // size = 3 * num_particles
+  fp_t acceptance_rate;
+  fp_t local_energy;
+  fp_t mean_energy;
+  std::optional<fp_t> standard_error;
+  std::vector<fp_t> positions; // size = 3 * num_particles
 };
 
 struct DoneData {
   std::size_t total_accepted;
   std::size_t total_proposed;
-  real_t final_acceptance_rate;
-  real_t final_mean_energy;
-  std::optional<real_t> final_standard_error;
+  fp_t final_acceptance_rate;
+  fp_t final_mean_energy;
+  std::optional<fp_t> final_standard_error;
 };
 
 enum class OutputFormat { CSV, BIN };

@@ -62,9 +62,9 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
       }
     }
 
-    real_t global_energy_sum{};
-    real_t global_variance_sum{};
-    real_t global_acceptance_sum{};
+    fp_t global_energy_sum{};
+    fp_t global_variance_sum{};
+    fp_t global_acceptance_sum{};
     std::size_t threads_with_se{};
 
     for (auto& f : futures) {
@@ -80,15 +80,15 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     auto end{std::chrono::steady_clock::now()};
     std::chrono::duration<double> elapsed{end - start};
 
-    const real_t inv_num_threads{1.0_r / static_cast<real_t>(num_threads)};
-    const real_t final_mean{global_energy_sum * inv_num_threads};
-    const real_t final_acceptance_rate{global_acceptance_sum * inv_num_threads * 100.0_r};
+    const fp_t inv_num_threads{1.0_fp / static_cast<fp_t>(num_threads)};
+    const fp_t final_mean{global_energy_sum * inv_num_threads};
+    const fp_t final_acceptance_rate{global_acceptance_sum * inv_num_threads * 100.0_fp};
 
     std::cout << "<--- Final Measurements --->" << std::endl
               << "Final Aggregated Energy: " << std::setprecision(6) << final_mean;
 
     if (threads_with_se > 0U) {
-      const real_t final_se{xpu::sqrt(global_variance_sum) * inv_num_threads};
+      const fp_t final_se{xpu::sqrt(global_variance_sum) * inv_num_threads};
       std::cout << " +/- " << final_se;
     } else {
       std::cout << " +/- N/A (insufficient blocks)";

@@ -18,7 +18,7 @@ private:
   std::size_t trig_row_stride_;
   std::size_t matrix_row_stride_;
   std::size_t matrix_size_;
-  real_t box_length_;
+  fp_t box_length_;
 
   enum OrbKIndex : std::size_t { K, NUM_ORB_K };
   xpu::soa<std::size_t, NUM_ORB_K> orbital_k_index_;
@@ -38,19 +38,19 @@ private:
     INV_D_COL,
     NUM_DOUBLE_VECTORS
   };
-  xpu::soa<real_t, NUM_DOUBLE_VECTORS> fp_vec_;
+  xpu::soa<fp_t, NUM_DOUBLE_VECTORS> fp_vec_;
 
   enum TrigIndex : std::size_t { SIN_CACHE, COS_CACHE, NUM_TRIG_ARRAYS };
-  xpu::soa<real_t, NUM_TRIG_ARRAYS> trig_cache_;
+  xpu::soa<fp_t, NUM_TRIG_ARRAYS> trig_cache_;
 
   enum ScratchTrigIndex : std::size_t { SIN_SAVED, COS_SAVED, NUM_SCRATCH_TRIG };
-  xpu::soa<real_t, NUM_SCRATCH_TRIG> trig_scratch_;
+  xpu::soa<fp_t, NUM_SCRATCH_TRIG> trig_scratch_;
 
   enum MatrixIndex : std::size_t { D, INV_D, LU, NUM_MATRIX };
-  xpu::soa<real_t, NUM_MATRIX> matrices_;
+  xpu::soa<fp_t, NUM_MATRIX> matrices_;
 
-  xpu::buffer<real_t> reduction_scratch_;
-  xpu::linalg::lu_factorization<real_t> lu_factorization_;
+  xpu::buffer<fp_t> reduction_scratch_;
+  xpu::linalg::lu_factorization<fp_t> lu_factorization_;
 
 public:
   struct View {
@@ -59,23 +59,23 @@ public:
     std::size_t trig_row_stride;
     std::size_t matrix_row_stride;
 
-    xpu::soa_view<real_t, idx(Axis::NUM)> k_vector;
+    xpu::soa_view<fp_t, idx(Axis::NUM)> k_vector;
     const std::size_t* orbital_k_index;
     const std::uint8_t* orbital_type;
 
-    real_t* determinant;
-    real_t* inv_determinant;
-    real_t* solution;
-    real_t* new_row;
-    real_t* inv_d_col;
+    fp_t* determinant;
+    fp_t* inv_determinant;
+    fp_t* solution;
+    fp_t* new_row;
+    fp_t* inv_d_col;
 
-    real_t* sin_cache;
-    real_t* cos_cache;
-    real_t* sin_saved;
-    real_t* cos_saved;
+    fp_t* sin_cache;
+    fp_t* cos_cache;
+    fp_t* sin_saved;
+    fp_t* cos_saved;
   };
 
-  explicit SlaterPlaneWave(const Particles& particles, real_t box_length);
+  explicit SlaterPlaneWave(const Particles& particles, fp_t box_length);
   void initialize(const Particles& particles);
 
   SlaterPlaneWave(const SlaterPlaneWave&) = delete;
@@ -89,7 +89,7 @@ public:
   [[nodiscard]] std::size_t trig_row_stride() const noexcept { return trig_row_stride_; }
   [[nodiscard]] std::size_t matrix_row_stride() const noexcept { return matrix_row_stride_; }
   [[nodiscard]] std::size_t matrix_size() const noexcept { return matrix_size_; }
-  [[nodiscard]] real_t box_length() const noexcept { return box_length_; }
+  [[nodiscard]] fp_t box_length() const noexcept { return box_length_; }
 
   [[nodiscard]]       std::size_t* orbital_k_index()       noexcept { return orbital_k_index_[K]; }
   [[nodiscard]] const std::size_t* orbital_k_index() const noexcept { return orbital_k_index_[K]; }
@@ -97,14 +97,14 @@ public:
   [[nodiscard]]       std::uint8_t* orbital_type()       noexcept { return orbital_type_[O]; }
   [[nodiscard]] const std::uint8_t* orbital_type() const noexcept { return orbital_type_[O]; }
 
-  [[nodiscard]] real_t*       determinant()       noexcept { return matrices_[D]; }
-  [[nodiscard]] real_t const* determinant() const noexcept { return matrices_[D]; }
+  [[nodiscard]] fp_t*       determinant()       noexcept { return matrices_[D]; }
+  [[nodiscard]] fp_t const* determinant() const noexcept { return matrices_[D]; }
 
-  [[nodiscard]] real_t*       inv_determinant()       noexcept { return matrices_[INV_D]; }
-  [[nodiscard]] real_t const* inv_determinant() const noexcept { return matrices_[INV_D]; }
+  [[nodiscard]] fp_t*       inv_determinant()       noexcept { return matrices_[INV_D]; }
+  [[nodiscard]] fp_t const* inv_determinant() const noexcept { return matrices_[INV_D]; }
 
-  [[nodiscard]] real_t*       lower_upper()       noexcept { return matrices_[LU]; }
-  [[nodiscard]] real_t const* lower_upper() const noexcept { return matrices_[LU]; }
+  [[nodiscard]] fp_t*       lower_upper()       noexcept { return matrices_[LU]; }
+  [[nodiscard]] fp_t const* lower_upper() const noexcept { return matrices_[LU]; }
 
   [[nodiscard]] CUDA_CALLABLE
   xpu::soa_view<int, idx(Axis::NUM)> n_vector() {
@@ -117,40 +117,40 @@ public:
   }
 
   [[nodiscard]] CUDA_CALLABLE
-  xpu::soa_view<real_t, idx(Axis::NUM)> k_vector() {
+  xpu::soa_view<fp_t, idx(Axis::NUM)> k_vector() {
     return fp_vec_.view<idx(Axis::NUM), K_X>();
   }
 
   [[nodiscard]] CUDA_CALLABLE
-  xpu::soa_view<const real_t, idx(Axis::NUM)> k_vector() const {
+  xpu::soa_view<const fp_t, idx(Axis::NUM)> k_vector() const {
     return fp_vec_.view<idx(Axis::NUM), K_X>();
   }
 
-  [[nodiscard]] real_t*       solution()       noexcept { return fp_vec_[SOLUTION]; }
-  [[nodiscard]] real_t const* solution() const noexcept { return fp_vec_[SOLUTION]; }
+  [[nodiscard]] fp_t*       solution()       noexcept { return fp_vec_[SOLUTION]; }
+  [[nodiscard]] fp_t const* solution() const noexcept { return fp_vec_[SOLUTION]; }
 
-  [[nodiscard]] real_t*       sin_cache()       noexcept { return trig_cache_[SIN_CACHE]; }
-  [[nodiscard]] real_t const* sin_cache() const noexcept { return trig_cache_[SIN_CACHE]; }
+  [[nodiscard]] fp_t*       sin_cache()       noexcept { return trig_cache_[SIN_CACHE]; }
+  [[nodiscard]] fp_t const* sin_cache() const noexcept { return trig_cache_[SIN_CACHE]; }
 
-  [[nodiscard]] real_t*       cos_cache()       noexcept { return trig_cache_[COS_CACHE]; }
-  [[nodiscard]] real_t const* cos_cache() const noexcept { return trig_cache_[COS_CACHE]; }
+  [[nodiscard]] fp_t*       cos_cache()       noexcept { return trig_cache_[COS_CACHE]; }
+  [[nodiscard]] fp_t const* cos_cache() const noexcept { return trig_cache_[COS_CACHE]; }
 
   void restore_trig_row(std::size_t particle);
   void update_trig_cache(std::size_t particle, Particles& particles);
 
-  real_t log_abs_det(const Particles& particles);
+  fp_t log_abs_det(const Particles& particles);
 
-  real_t* build_row(std::size_t particle) noexcept;
+  fp_t* build_row(std::size_t particle) noexcept;
 
-  [[nodiscard]] real_t determinant_ratio(
+  [[nodiscard]] fp_t determinant_ratio(
     std::size_t particle,
-    const real_t* new_row
+    const fp_t* new_row
   ) const noexcept;
 
-  void accept_move(std::size_t particle, const real_t* new_row, real_t ratio) noexcept;
+  void accept_move(std::size_t particle, const fp_t* new_row, fp_t ratio) noexcept;
 
   void add_derivatives(
-    xpu::soa_view<real_t, idx(Derivatives::NUM)> derivatives
+    xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
   ) const noexcept;
 
   [[nodiscard]] CUDA_CALLABLE
@@ -178,7 +178,7 @@ public:
 private:
   void save_trig_row(std::size_t particle);
 
-  [[nodiscard]] real_t* new_row() noexcept { return fp_vec_[NEW_ROW]; }
-  [[nodiscard]] real_t* inv_d_col() noexcept { return fp_vec_[INV_D_COL]; }
-  [[nodiscard]] real_t* reduction_scratch() noexcept { return reduction_scratch_.data(); }
+  [[nodiscard]] fp_t* new_row() noexcept { return fp_vec_[NEW_ROW]; }
+  [[nodiscard]] fp_t* inv_d_col() noexcept { return fp_vec_[INV_D_COL]; }
+  [[nodiscard]] fp_t* reduction_scratch() noexcept { return reduction_scratch_.data(); }
 };

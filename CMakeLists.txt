@@ -62,7 +62,7 @@ if(VMC_ENABLE_CUDA)
 endif()
 
 # --- Floating point precision ---
-option(FP_64 "Use double precision (real_t = double) instead of single precision (real_t = float)" ON)
+option(FP_64 "Use double precision (double) instead of single precision (float)" ON)
 option(VMC_FAST_MATH "Enable unsafe floating-point optimizations (-ffast-math/--use_fast_math)" OFF)
 
 # --- Dependencies ---

@@ -24,7 +24,7 @@ struct nVectorCandidate {
 void SlaterPlaneWave::initialize(const Particles& particles) {
   const auto num_orbitals{this->num_orbitals()};
   const auto n_max{
-    static_cast<int>(xpu::ceil(xpu::cbrt(static_cast<real_t>(num_orbitals)))) + 2
+    static_cast<int>(xpu::ceil(xpu::cbrt(static_cast<fp_t>(num_orbitals)))) + 2
   };
   const auto side{static_cast<std::size_t>(2 * n_max + 1)};
 
@@ -62,14 +62,14 @@ void SlaterPlaneWave::initialize(const Particles& particles) {
   std::vector<int> n_x(num_orbitals);
   std::vector<int> n_y(num_orbitals);
   std::vector<int> n_z(num_orbitals);
-  std::vector<real_t> k_x(num_orbitals);
-  std::vector<real_t> k_y(num_orbitals);
-  std::vector<real_t> k_z(num_orbitals);
+  std::vector<fp_t> k_x(num_orbitals);
+  std::vector<fp_t> k_y(num_orbitals);
+  std::vector<fp_t> k_z(num_orbitals);
   std::vector<std::size_t> orbital_k_index(num_orbitals);
   std::vector<std::uint8_t> orbital_type(num_orbitals);
 
   const auto two_pi_inv_L{
-    2.0_r * std::numbers::pi_v<real_t> / this->box_length()
+    2.0_fp * std::numbers::pi_v<fp_t> / this->box_length()
   };
 
   auto orbital{0uz};
@@ -82,9 +82,9 @@ void SlaterPlaneWave::initialize(const Particles& particles) {
     n_y[k_idx] = candidate.n_y;
     n_z[k_idx] = candidate.n_z;
 
-    k_x[k_idx] = two_pi_inv_L * static_cast<real_t>(candidate.n_x);
-    k_y[k_idx] = two_pi_inv_L * static_cast<real_t>(candidate.n_y);
-    k_z[k_idx] = two_pi_inv_L * static_cast<real_t>(candidate.n_z);
+    k_x[k_idx] = two_pi_inv_L * static_cast<fp_t>(candidate.n_x);
+    k_y[k_idx] = two_pi_inv_L * static_cast<fp_t>(candidate.n_y);
+    k_z[k_idx] = two_pi_inv_L * static_cast<fp_t>(candidate.n_z);
 
     orbital_k_index[orbital] = k_idx;
     orbital_type[orbital] = 0u;
@@ -100,7 +100,7 @@ void SlaterPlaneWave::initialize(const Particles& particles) {
   }
 
   num_unique_k_ = k_idx;
-  trig_row_stride_ = xpu::handle_pad<real_t>(this->num_unique_k());
+  trig_row_stride_ = xpu::handle_pad<fp_t>(this->num_unique_k());
 
   auto n_vector{this->n_vector()};
   auto k_vector{this->k_vector()};
@@ -116,17 +116,17 @@ void SlaterPlaneWave::initialize(const Particles& particles) {
   xpu::copy_n(this->orbital_k_index(), orbital_k_index.data(), num_orbitals);
   xpu::copy_n(this->orbital_type(), orbital_type.data(), num_orbitals);
 
-  trig_cache_ = xpu::soa<real_t, NUM_TRIG_ARRAYS>(
+  trig_cache_ = xpu::soa<fp_t, NUM_TRIG_ARRAYS>(
     particles.count() * this->trig_row_stride()
   );
-  trig_scratch_ = xpu::soa<real_t, NUM_SCRATCH_TRIG>(
+  trig_scratch_ = xpu::soa<fp_t, NUM_SCRATCH_TRIG>(
     this->num_unique_k()
   );
 }
 
-SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, real_t box_lengthL)
+SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, fp_t box_lengthL)
   : num_orbitals_{particles.count()}
-  , matrix_row_stride_{xpu::handle_pad<real_t>(particles.count())}
+  , matrix_row_stride_{xpu::handle_pad<fp_t>(particles.count())}
   , matrix_size_{matrix_row_stride_ * particles.count()}
   , box_length_{box_lengthL}
   , orbital_k_index_(particles.count())
@@ -182,10 +182,10 @@ void SlaterPlaneWave::update_trig_cache(
 
 void SlaterPlaneWave::accept_move(
   std::size_t particle,
-  const real_t* new_row,
-  real_t ratio
+  const fp_t* new_row,
+  fp_t ratio
 ) noexcept {
-  const auto inv_ratio{1.0_r / ratio};
+  const auto inv_ratio{1.0_fp / ratio};
   if (!std::isfinite(inv_ratio)) { return; }
 
   const auto particle_offset{this->matrix_row_stride() * particle};
@@ -213,7 +213,7 @@ void SlaterPlaneWave::accept_move(
   );
 }
 
-real_t* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
+fp_t* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
   kernel::slater::build_row(
     this->num_orbitals(), particle, this->trig_row_stride(),
     this->sin_cache(), this->cos_cache(),
@@ -224,9 +224,9 @@ real_t* SlaterPlaneWave::build_row(std::size_t particle) noexcept {
   return this->new_row();
 }
 
-real_t SlaterPlaneWave::determinant_ratio(
+fp_t SlaterPlaneWave::determinant_ratio(
   std::size_t particle,
-  const real_t* new_row
+  const fp_t* new_row
 ) const noexcept {
   return kernel::slater::determinant_ratio(
     this->num_orbitals(), particle, this->matrix_row_stride(),
@@ -235,7 +235,7 @@ real_t SlaterPlaneWave::determinant_ratio(
 }
 
 void SlaterPlaneWave::add_derivatives(
-  xpu::soa_view<real_t, idx(Derivatives::NUM)> derivatives
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
 ) const noexcept {
   kernel::slater::add_derivatives(
     this->num_orbitals(), this->matrix_row_stride(), this->trig_row_stride(),
@@ -246,7 +246,7 @@ void SlaterPlaneWave::add_derivatives(
   );
 }
 
-real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
+fp_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
   kernel::slater::build_trig_cache(
     this->num_unique_k(),
     this->trig_row_stride(),
@@ -274,7 +274,7 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
     )
   };
   if (factorization_status == xpu::linalg::status::singular) {
-    return -std::numeric_limits<real_t>::infinity();
+    return -std::numeric_limits<fp_t>::infinity();
   }
 
   const auto log_abs_det{
@@ -286,7 +286,7 @@ real_t SlaterPlaneWave::log_abs_det(const Particles& particles) {
     )
   };
   if (!std::isfinite(log_abs_det)) {
-    return -std::numeric_limits<real_t>::infinity();
+    return -std::numeric_limits<fp_t>::infinity();
   }
 
   lu_factorization_.invert(

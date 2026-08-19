@@ -10,13 +10,13 @@ namespace energy {
 namespace {
 
 CUDA_CALLABLE
-inline real_t evaluate_pair_energy(
+inline fp_t evaluate_pair_energy(
   std::size_t other,
-  real_t L, real_t half_L, real_t alpha,
-  const xpu::array<real_t, idx(Axis::NUM)>& particle_pos,
-  xpu::soa_view<const real_t, idx(Axis::NUM)> pos
+  fp_t L, fp_t half_L, fp_t alpha,
+  const xpu::array<fp_t, idx(Axis::NUM)>& particle_pos,
+  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos
 ) noexcept {
-  xpu::array<real_t, idx(Axis::NUM)> displacement{};
+  xpu::array<fp_t, idx(Axis::NUM)> displacement{};
 
   for (auto axis{idx(Axis::X)}; axis < idx(Axis::NUM); ++axis) {
     auto delta{particle_pos[axis] - pos[axis][other]};
@@ -34,7 +34,7 @@ inline real_t evaluate_pair_energy(
     )
   };
   const auto inverse_distance{
-    (distance < 1e-12_r) ? 1.0_r : 1.0_r / distance
+    (distance < 1e-12_fp) ? 1.0_fp : 1.0_fp / distance
   };
 
   return xpu::erfc(alpha * distance) * inverse_distance;
@@ -45,10 +45,10 @@ inline real_t evaluate_pair_energy(
 CUDA_CALLABLE
 inline void initialize_reciprocal_energy(
   std::size_t i,
-  const real_t* RESTRICT g_weights,
-  const real_t* RESTRICT sum_real,
-  const real_t* RESTRICT sum_imag,
-  real_t* RESTRICT reciprocal_sum
+  const fp_t* RESTRICT g_weights,
+  const fp_t* RESTRICT sum_real,
+  const fp_t* RESTRICT sum_imag,
+  fp_t* RESTRICT reciprocal_sum
 ) noexcept {
   const auto contribution{
     g_weights[i] * (
@@ -67,10 +67,10 @@ inline void initialize_reciprocal_energy(
 CUDA_CALLABLE
 inline void initialize_real_energy(
   std::size_t other,
-  real_t L, real_t half_L, real_t alpha,
-  const xpu::array<real_t, idx(Axis::NUM)>& particle_pos,
-  xpu::soa_view<const real_t, idx(Axis::NUM)> pos,
-  real_t* RESTRICT real_sum
+  fp_t L, fp_t half_L, fp_t alpha,
+  const xpu::array<fp_t, idx(Axis::NUM)>& particle_pos,
+  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos,
+  fp_t* RESTRICT real_sum
 ) noexcept {
   const auto pair_energy{
     evaluate_pair_energy(
@@ -90,11 +90,11 @@ inline void initialize_real_energy(
 CUDA_CALLABLE
 inline void update_real_energy(
   std::size_t other, std::size_t moved,
-  real_t L, real_t half_L, real_t alpha,
-  const xpu::array<real_t, idx(Axis::NUM)>& old_pos,
-  const xpu::array<real_t, idx(Axis::NUM)>& new_pos,
-  xpu::soa_view<const real_t, idx(Axis::NUM)> pos,
-  real_t* RESTRICT delta
+  fp_t L, fp_t half_L, fp_t alpha,
+  const xpu::array<fp_t, idx(Axis::NUM)>& old_pos,
+  const xpu::array<fp_t, idx(Axis::NUM)>& new_pos,
+  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos,
+  fp_t* RESTRICT delta
 ) noexcept {
   if (other == moved) { return; }
 
@@ -123,8 +123,8 @@ inline void update_real_energy(
 CUDA_CALLABLE
 inline void kinetic_energy(
   std::size_t i,
-  xpu::soa_view<const real_t, idx(Derivatives::NUM)> derivatives,
-  real_t* RESTRICT kinetic_sum
+  xpu::soa_view<const fp_t, idx(Derivatives::NUM)> derivatives,
+  fp_t* RESTRICT kinetic_sum
 ) noexcept {
   const auto gradient_x{derivatives[idx(Derivatives::GRAD_X)][i]};
   const auto gradient_y{derivatives[idx(Derivatives::GRAD_Y)][i]};
@@ -148,10 +148,10 @@ inline void kinetic_energy(
 CUDA_CALLABLE
 inline void initialize_structure_factors(
   std::size_t g, std::size_t particle,
-  xpu::soa_view<real_t, idx(Axis::NUM)> g_vector,
-  xpu::soa_view<const real_t, idx(Axis::NUM)> pos,
-  real_t* RESTRICT sum_real,
-  real_t* RESTRICT sum_imag
+  xpu::soa_view<fp_t, idx(Axis::NUM)> g_vector,
+  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos,
+  fp_t* RESTRICT sum_real,
+  fp_t* RESTRICT sum_imag
 ) noexcept {
   const auto g_dot_r{
     g_vector[idx(Axis::X)][g] * pos[idx(Axis::X)][particle] +
@@ -159,8 +159,8 @@ inline void initialize_structure_factors(
     g_vector[idx(Axis::Z)][g] * pos[idx(Axis::Z)][particle]
   };
 
-  auto sin_term{0.0_r};
-  auto cos_term{0.0_r};
+  auto sin_term{0.0_fp};
+  auto cos_term{0.0_fp};
   xpu::sincos(g_dot_r, &sin_term, &cos_term);
 
 #if defined(__CUDA_ARCH__)
@@ -175,11 +175,11 @@ inline void initialize_structure_factors(
 CUDA_CALLABLE
 inline void update_structure_factors(
   std::size_t i,
-  const xpu::array<real_t, idx(Axis::NUM)>& old_pos,
-  const xpu::array<real_t, idx(Axis::NUM)>& new_pos,
-  xpu::soa_view<real_t, idx(Axis::NUM)> g_vector,
-  real_t* RESTRICT sum_real,
-  real_t* RESTRICT sum_imag
+  const xpu::array<fp_t, idx(Axis::NUM)>& old_pos,
+  const xpu::array<fp_t, idx(Axis::NUM)>& new_pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> g_vector,
+  fp_t* RESTRICT sum_real,
+  fp_t* RESTRICT sum_imag
 ) noexcept {
   const auto old_dot{
     g_vector[idx(Axis::X)][i] * old_pos[idx(Axis::X)] +
@@ -192,10 +192,10 @@ inline void update_structure_factors(
     g_vector[idx(Axis::Z)][i] * new_pos[idx(Axis::Z)]
   };
 
-  auto old_sin{0.0_r};
-  auto old_cos{0.0_r};
-  auto new_sin{0.0_r};
-  auto new_cos{0.0_r};
+  auto old_sin{0.0_fp};
+  auto old_cos{0.0_fp};
+  auto new_sin{0.0_fp};
+  auto new_cos{0.0_fp};
 
   xpu::sincos(old_dot, &old_sin, &old_cos);
   xpu::sincos(new_dot, &new_sin, &new_cos);
@@ -216,10 +216,10 @@ namespace {
 __global__
 void cudaInitializeReciprocalEnergy(
   std::size_t num_g_vectors,
-  const real_t* RESTRICT g_weights,
-  const real_t* RESTRICT sum_real,
-  const real_t* RESTRICT sum_imag,
-  real_t* RESTRICT reciprocal_sum
+  const fp_t* RESTRICT g_weights,
+  const fp_t* RESTRICT sum_real,
+  const fp_t* RESTRICT sum_imag,
+  fp_t* RESTRICT reciprocal_sum
 ) {
   const auto [i]{xpu::global_index<1>()};
   if (i >= num_g_vectors) { return; }
@@ -233,15 +233,15 @@ void cudaInitializeReciprocalEnergy(
 
 __global__
 void cudaInitializeRealEnergy(
-  real_t L, real_t half_L, real_t alpha,
-  xpu::soa_view<const real_t, idx(Axis::NUM)> pos,
-  real_t* RESTRICT real_sum
+  fp_t L, fp_t half_L, fp_t alpha,
+  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos,
+  fp_t* RESTRICT real_sum
 ) {
   const auto [i, j]{xpu::global_index<2>()};
   if (i >= pos.count() || j >= pos.count()) { return; }
   if (i >= j) { return; }
 
-  xpu::array<real_t, idx(Axis::NUM)> particle_pos{
+  xpu::array<fp_t, idx(Axis::NUM)> particle_pos{
     pos[idx(Axis::X)][i],
     pos[idx(Axis::Y)][i],
     pos[idx(Axis::Z)][i]
@@ -258,15 +258,15 @@ void cudaInitializeRealEnergy(
 __global__
 void cudaUpdateRealEnergy(
   std::size_t moved,
-  real_t L, real_t half_L, real_t alpha,
-  xpu::array<real_t, idx(Axis::NUM)> old_pos,
-  xpu::soa_view<const real_t, idx(Axis::NUM)> pos,
-  real_t* RESTRICT delta
+  fp_t L, fp_t half_L, fp_t alpha,
+  xpu::array<fp_t, idx(Axis::NUM)> old_pos,
+  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos,
+  fp_t* RESTRICT delta
 ) {
   const auto [i]{xpu::global_index<1>()};
   if (i >= pos.count()) { return; }
 
-  xpu::array<real_t, idx(Axis::NUM)> new_pos{
+  xpu::array<fp_t, idx(Axis::NUM)> new_pos{
     pos[idx(Axis::X)][moved],
     pos[idx(Axis::Y)][moved],
     pos[idx(Axis::Z)][moved]
@@ -282,8 +282,8 @@ void cudaUpdateRealEnergy(
 
 __global__
 void cudaKineticEnergy(
-  xpu::soa_view<const real_t, idx(Derivatives::NUM)> derivatives,
-  real_t* RESTRICT kinetic_sum
+  xpu::soa_view<const fp_t, idx(Derivatives::NUM)> derivatives,
+  fp_t* RESTRICT kinetic_sum
 ) {
   const auto [i]{xpu::global_index<1>()};
   if (i >= derivatives.count()) { return; }
@@ -297,10 +297,10 @@ void cudaKineticEnergy(
 
 __global__
 void cudaInitializeStructureFactors(
-  xpu::soa_view<real_t, idx(Axis::NUM)> g_vector,
-  xpu::soa_view<const real_t, idx(Axis::NUM)> pos,
-  real_t* RESTRICT sum_real,
-  real_t* RESTRICT sum_imag
+  xpu::soa_view<fp_t, idx(Axis::NUM)> g_vector,
+  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos,
+  fp_t* RESTRICT sum_real,
+  fp_t* RESTRICT sum_imag
 ) {
   const auto [i, j]{xpu::global_index<2>()};
   if (i >= g_vector.count() || j >= pos.count()) { return; }
@@ -314,11 +314,11 @@ void cudaInitializeStructureFactors(
 
 __global__
 void cudaUpdateStructureFactors(
-  xpu::array<real_t, idx(Axis::NUM)> old_pos,
-  xpu::array<real_t, idx(Axis::NUM)> new_pos,
-  xpu::soa_view<real_t, idx(Axis::NUM)> g_vector,
-  real_t* RESTRICT sum_real,
-  real_t* RESTRICT sum_imag
+  xpu::array<fp_t, idx(Axis::NUM)> old_pos,
+  xpu::array<fp_t, idx(Axis::NUM)> new_pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> g_vector,
+  fp_t* RESTRICT sum_real,
+  fp_t* RESTRICT sum_imag
 ) {
   const auto [i]{xpu::global_index<1>()};
   if (i >= g_vector.count()) { return; }
@@ -334,12 +334,12 @@ void cudaUpdateStructureFactors(
 
 } // namespace
 
-inline real_t initialize_reciprocal_energy(
+inline fp_t initialize_reciprocal_energy(
   std::size_t num_g_vectors,
-  const real_t* RESTRICT g_weights,
-  const real_t* RESTRICT sum_real,
-  const real_t* RESTRICT sum_imag,
-  real_t* RESTRICT reciprocal_sum_scratch
+  const fp_t* RESTRICT g_weights,
+  const fp_t* RESTRICT sum_real,
+  const fp_t* RESTRICT sum_imag,
+  fp_t* RESTRICT reciprocal_sum_scratch
 ) noexcept {
 #if defined(XPU_CUDA)
   xpu::zero_n(reciprocal_sum_scratch, 1uz);
@@ -360,13 +360,13 @@ inline real_t initialize_reciprocal_energy(
   );
   xpu::cu_check(cudaGetLastError());
 
-  auto reciprocal_sum{0.0_r};
+  auto reciprocal_sum{0.0_fp};
   xpu::copy_n(&reciprocal_sum, reciprocal_sum_scratch, 1uz);
   return reciprocal_sum;
 #else
   static_cast<void>(reciprocal_sum_scratch);
 
-  auto reciprocal_sum{0.0_r};
+  auto reciprocal_sum{0.0_fp};
 
   #pragma omp simd reduction(+ : reciprocal_sum)
   for (auto i = 0uz; i < num_g_vectors; ++i) {
@@ -381,10 +381,10 @@ inline real_t initialize_reciprocal_energy(
 #endif
 }
 
-inline real_t initialize_real_energy(
-  real_t L, real_t half_L, real_t alpha,
-  xpu::soa_view<const real_t, idx(Axis::NUM)> pos,
-  real_t* RESTRICT real_sum_scratch
+inline fp_t initialize_real_energy(
+  fp_t L, fp_t half_L, fp_t alpha,
+  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos,
+  fp_t* RESTRICT real_sum_scratch
 ) noexcept {
 #if defined(XPU_CUDA)
   xpu::zero_n(real_sum_scratch, 1uz);
@@ -404,22 +404,22 @@ inline real_t initialize_real_energy(
   );
   xpu::cu_check(cudaGetLastError());
 
-  auto real_sum{0.0_r};
+  auto real_sum{0.0_fp};
   xpu::copy_n(&real_sum, real_sum_scratch, 1uz);
   return real_sum;
 #else
   static_cast<void>(real_sum_scratch);
 
-  auto real_sum{0.0_r};
+  auto real_sum{0.0_fp};
 
   for (auto i = 0uz; i < pos.count(); ++i) {
-    xpu::array<real_t, idx(Axis::NUM)> particle_pos{
+    xpu::array<fp_t, idx(Axis::NUM)> particle_pos{
       pos[idx(Axis::X)][i],
       pos[idx(Axis::Y)][i],
       pos[idx(Axis::Z)][i]
     };
 
-    auto local_sum{0.0_r};
+    auto local_sum{0.0_fp};
 
     #pragma omp simd reduction(+ : local_sum)
     for (auto j = i + 1uz; j < pos.count(); ++j) {
@@ -438,12 +438,12 @@ inline real_t initialize_real_energy(
 #endif
 }
 
-inline real_t update_real_energy(
+inline fp_t update_real_energy(
   std::size_t moved,
-  real_t L, real_t half_L, real_t alpha,
-  xpu::array<real_t, idx(Axis::NUM)> old_pos,
-  xpu::soa_view<const real_t, idx(Axis::NUM)> pos,
-  real_t* RESTRICT delta_scratch
+  fp_t L, fp_t half_L, fp_t alpha,
+  xpu::array<fp_t, idx(Axis::NUM)> old_pos,
+  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos,
+  fp_t* RESTRICT delta_scratch
 ) noexcept {
 #if defined(XPU_CUDA)
   xpu::zero_n(delta_scratch, 1uz);
@@ -463,19 +463,19 @@ inline real_t update_real_energy(
   );
   xpu::cu_check(cudaGetLastError());
 
-  auto delta{0.0_r};
+  auto delta{0.0_fp};
   xpu::copy_n(&delta, delta_scratch, 1uz);
   return delta;
 #else
   static_cast<void>(delta_scratch);
 
-  xpu::array<real_t, idx(Axis::NUM)> new_pos{
+  xpu::array<fp_t, idx(Axis::NUM)> new_pos{
     pos[idx(Axis::X)][moved],
     pos[idx(Axis::Y)][moved],
     pos[idx(Axis::Z)][moved]
   };
 
-  auto delta{0.0_r};
+  auto delta{0.0_fp};
 
   #pragma omp simd reduction(+ : delta)
   for (auto i = 0uz; i < pos.count(); ++i) {
@@ -491,9 +491,9 @@ inline real_t update_real_energy(
 #endif
 }
 
-inline real_t kinetic_energy(
-  xpu::soa_view<const real_t, idx(Derivatives::NUM)> derivatives,
-  real_t* RESTRICT kinetic_sum_scratch
+inline fp_t kinetic_energy(
+  xpu::soa_view<const fp_t, idx(Derivatives::NUM)> derivatives,
+  fp_t* RESTRICT kinetic_sum_scratch
 ) noexcept {
 #if defined(XPU_CUDA)
   xpu::zero_n(kinetic_sum_scratch, 1uz);
@@ -511,13 +511,13 @@ inline real_t kinetic_energy(
   );
   xpu::cu_check(cudaGetLastError());
 
-  auto kinetic_sum{0.0_r};
+  auto kinetic_sum{0.0_fp};
   xpu::copy_n(&kinetic_sum, kinetic_sum_scratch, 1uz);
-  return -0.5_r * kinetic_sum;
+  return -0.5_fp * kinetic_sum;
 #else
   static_cast<void>(kinetic_sum_scratch);
 
-  auto kinetic_sum{0.0_r};
+  auto kinetic_sum{0.0_fp};
 
   #pragma omp simd reduction(+ : kinetic_sum)
   for (auto i = 0uz; i < derivatives.count(); ++i) {
@@ -528,15 +528,15 @@ inline real_t kinetic_energy(
     );
   }
 
-  return -0.5_r * kinetic_sum;
+  return -0.5_fp * kinetic_sum;
 #endif
 }
 
 inline void initialize_structure_factors(
-  xpu::soa_view<real_t, idx(Axis::NUM)> g_vector,
-  xpu::soa_view<const real_t, idx(Axis::NUM)> pos,
-  real_t* RESTRICT sum_real,
-  real_t* RESTRICT sum_imag
+  xpu::soa_view<fp_t, idx(Axis::NUM)> g_vector,
+  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos,
+  fp_t* RESTRICT sum_real,
+  fp_t* RESTRICT sum_imag
 ) noexcept {
   xpu::zero_n(sum_real, g_vector.count());
   xpu::zero_n(sum_imag, g_vector.count());
@@ -577,11 +577,11 @@ inline void initialize_structure_factors(
 }
 
 inline void update_structure_factors(
-  xpu::array<real_t, idx(Axis::NUM)> old_pos,
-  xpu::array<real_t, idx(Axis::NUM)> new_pos,
-  xpu::soa_view<real_t, idx(Axis::NUM)> g_vector,
-  real_t* RESTRICT sum_real,
-  real_t* RESTRICT sum_imag
+  xpu::array<fp_t, idx(Axis::NUM)> old_pos,
+  xpu::array<fp_t, idx(Axis::NUM)> new_pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> g_vector,
+  fp_t* RESTRICT sum_real,
+  fp_t* RESTRICT sum_imag
 ) noexcept {
 #if defined(XPU_CUDA)
   dim3 updateStructureFactorsThreads{256u};

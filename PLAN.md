@@ -1646,7 +1646,7 @@ mixture makes both goals harder and lets one backend regress unnoticed.
 magic number, schema version, endian/precision tag, checksums, or complete
 metadata, and `output/` is not created automatically. `render.py` always decodes
 a little-endian FP64 header (`<QdQ`) and FP64 frame values, while the C++ writer
-serializes native `real_t` values. Consequently, an FP32 result has a different
+serializes native `fp_t` values. Consequently, an FP32 result has a different
 header/frame width and cannot be decoded correctly by the current renderer.
 Only the first CPU worker receives a writer, `BinOutputWriter::write_done`
 discards every field of `DoneData`, and the cross-worker aggregate is printed

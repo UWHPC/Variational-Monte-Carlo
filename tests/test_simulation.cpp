@@ -17,7 +17,7 @@ TEST_CASE("Simulation API is present", "[simulation]") {
 
 TEST_CASE("Simulation emits consistent init/frame/done records through OutputWriter",
           "[simulation]") {
-  const Config config{make_config(7U, 6.0_r, 0U, 4U, 0.35_r, 12345U, 2U)};
+  const Config config{make_config(7U, 6.0_fp, 0U, 4U, 0.35_fp, 12345U, 2U)};
 
   auto writer{std::make_unique<RecordingOutputWriter>()};
   RecordingOutputWriter* const sink{writer.get()};
@@ -50,7 +50,7 @@ TEST_CASE("Simulation emits consistent init/frame/done records through OutputWri
     REQUIRE(frame.accepted <= frame.proposed);
     require_near(
       frame.acceptance_rate,
-      static_cast<real_t>(frame.accepted) / static_cast<real_t>(frame.proposed)
+      static_cast<fp_t>(frame.accepted) / static_cast<fp_t>(frame.proposed)
     );
     REQUIRE(frame.positions.size() == 3U * config.num_particles);
   }
@@ -63,13 +63,13 @@ TEST_CASE("Simulation emits consistent init/frame/done records through OutputWri
   REQUIRE(done.total_accepted == sink->frames.back().accepted);
   require_near(
     done.final_acceptance_rate,
-    static_cast<real_t>(done.total_accepted) / static_cast<real_t>(done.total_proposed)
+    static_cast<fp_t>(done.total_accepted) / static_cast<fp_t>(done.total_proposed)
   );
   REQUIRE(done.final_standard_error.has_value());
 }
 
 TEST_CASE("Simulation produces blocked energy summary when no writer is attached", "[simulation]") {
-  const Config config{make_config(1U, 5.0_r, 0U, 4U, 0.1_r, 7U, 2U)};
+  const Config config{make_config(1U, 5.0_fp, 0U, 4U, 0.1_fp, 7U, 2U)};
 
   Simulation simulation{config};
   const auto summary{simulation.run()};
@@ -77,13 +77,13 @@ TEST_CASE("Simulation produces blocked energy summary when no writer is attached
   // 4 measure steps, block_size=2 -> 2 complete blocks -> blocking is ready
   REQUIRE(summary.standard_error.has_value());
   REQUIRE(std::isfinite(summary.mean_energy));
-  REQUIRE(summary.acceptance_rate >= 0.0_r);
-  REQUIRE(summary.acceptance_rate <= 1.0_r);
+  REQUIRE(summary.acceptance_rate >= 0.0_fp);
+  REQUIRE(summary.acceptance_rate <= 1.0_fp);
 }
 
 TEST_CASE("Simulation skips blocked energy summary when insufficient blocks are available",
           "[simulation]") {
-  const Config config{make_config(1U, 5.0_r, 0U, 3U, 0.1_r, 9U, 10U)};
+  const Config config{make_config(1U, 5.0_fp, 0U, 3U, 0.1_fp, 9U, 10U)};
 
   Simulation simulation{config};
   const auto summary{simulation.run()};
@@ -91,13 +91,13 @@ TEST_CASE("Simulation skips blocked energy summary when insufficient blocks are 
   // 3 measure steps, block_size=10 -> 0 complete blocks -> no SE available
   REQUIRE_FALSE(summary.standard_error.has_value());
   REQUIRE(std::isfinite(summary.mean_energy));
-  REQUIRE(summary.acceptance_rate >= 0.0_r);
-  REQUIRE(summary.acceptance_rate <= 1.0_r);
+  REQUIRE(summary.acceptance_rate >= 0.0_fp);
+  REQUIRE(summary.acceptance_rate <= 1.0_fp);
 }
 
 TEST_CASE("Simulation accepts zero-step proposals and preserves local energy across frames",
           "[simulation]") {
-  const Config config{make_config(7U, 6.0_r, 0U, 6U, 0.0_r, 314159U, 3U)};
+  const Config config{make_config(7U, 6.0_fp, 0U, 6U, 0.0_fp, 314159U, 3U)};
 
   auto writer{std::make_unique<RecordingOutputWriter>()};
   RecordingOutputWriter* const sink{writer.get()};
@@ -106,7 +106,7 @@ TEST_CASE("Simulation accepts zero-step proposals and preserves local energy acr
   simulation.run();
 
   REQUIRE(sink->frames.size() == config.measure_steps);
-  const real_t first_energy{sink->frames.front().local_energy};
+  const fp_t first_energy{sink->frames.front().local_energy};
 
   for (std::size_t i = 0; i < sink->frames.size(); ++i) {
     const FrameData& frame{sink->frames[i]};
@@ -117,7 +117,7 @@ TEST_CASE("Simulation accepts zero-step proposals and preserves local energy acr
 }
 
 TEST_CASE("Simulation performs rejected moves for a large proposal step size", "[simulation]") {
-  const Config config{make_config(7U, 6.0_r, 0U, 100U, 2.0_r, 20250308U, 10U)};
+  const Config config{make_config(7U, 6.0_fp, 0U, 100U, 2.0_fp, 20250308U, 10U)};
 
   auto writer{std::make_unique<RecordingOutputWriter>()};
   RecordingOutputWriter* const sink{writer.get()};
@@ -131,7 +131,7 @@ TEST_CASE("Simulation performs rejected moves for a large proposal step size", "
 }
 
 TEST_CASE("Simulation warmup path executes with adaptive proposal updates", "[simulation]") {
-  const Config config{make_config(1U, 4.0_r, 5U, 1U, 0.2_r, 42U, 1U)};
+  const Config config{make_config(1U, 4.0_fp, 5U, 1U, 0.2_fp, 42U, 1U)};
 
   auto writer{std::make_unique<RecordingOutputWriter>()};
   RecordingOutputWriter* const sink{writer.get()};

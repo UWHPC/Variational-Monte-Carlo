@@ -25,9 +25,9 @@ Simulation::Simulation(
 , accepted_{}
 , log_psi_current_{}
 , positions_{
-    std::vector<real_t>(particles_.count()),
-    std::vector<real_t>(particles_.count()),
-    std::vector<real_t>(particles_.count())
+    std::vector<fp_t>(particles_.count()),
+    std::vector<fp_t>(particles_.count()),
+    std::vector<fp_t>(particles_.count())
   }
 #if defined(XPU_CUDA)
 , walker_rng_{1uz}
@@ -50,7 +50,7 @@ Simulation::Simulation(
 #endif
 }
 
-const std::array<std::vector<real_t>, idx(Axis::NUM)>& Simulation::positions_snapshot() {
+const std::array<std::vector<fp_t>, idx(Axis::NUM)>& Simulation::positions_snapshot() {
   const std::size_t N{particles_.count()};
   auto [p_x, p_y, p_z]{particles_.pos().pointers()};
 
@@ -62,7 +62,7 @@ const std::array<std::vector<real_t>, idx(Axis::NUM)>& Simulation::positions_sna
 }
 
 void Simulation::initialize_positions() {
-  const real_t length{config_.box_length};
+  const fp_t length{config_.box_length};
 
   constexpr std::size_t MAX_INIT_ATTEMPTS{100};
 
@@ -78,9 +78,9 @@ void Simulation::initialize_positions() {
     auto [p_x, p_y, p_z]{particles_.pos().pointers()};
 
     for (std::size_t i = 0; i < N; i++) {
-      p_x[i] = walker_rng_.uniform<real_t>() * length;
-      p_y[i] = walker_rng_.uniform<real_t>() * length;
-      p_z[i] = walker_rng_.uniform<real_t>() * length;
+      p_x[i] = walker_rng_.uniform<fp_t>() * length;
+      p_y[i] = walker_rng_.uniform<fp_t>() * length;
+      p_z[i] = walker_rng_.uniform<fp_t>() * length;
     }
 #endif
 
@@ -127,10 +127,10 @@ simulation::StepResult Simulation::metropolis_step() {
   };
 
   const std::size_t moved{random.particle};
-  const real_t L{config_.box_length};
-  const real_t inv_L{1.0_r / L};
+  const fp_t L{config_.box_length};
+  const fp_t inv_L{1.0_fp / L};
 
-  const xpu::array<real_t, idx(Axis::NUM)> old_pos{
+  const xpu::array<fp_t, idx(Axis::NUM)> old_pos{
     p_x[moved], p_y[moved], p_z[moved]
   };
 
@@ -147,25 +147,25 @@ simulation::StepResult Simulation::metropolis_step() {
 
   slater.update_trig_cache(moved, particles_);
 
-  const real_t* new_row{slater.build_row(moved)};
-  const real_t slater_ratio{slater.determinant_ratio(moved, new_row)};
+  const fp_t* new_row{slater.build_row(moved)};
+  const fp_t slater_ratio{slater.determinant_ratio(moved, new_row)};
 
-  const real_t delta_jastrow{
+  const fp_t delta_jastrow{
     wave_function_.jastrow_pade().delta_value(
       moved,
       old_pos,
       particles_.pos()
     )
   };
-  const real_t log_ratio_sq{2.0_r * xpu::log(xpu::abs(slater_ratio)) + 2.0_r * delta_jastrow};
+  const fp_t log_ratio_sq{2.0_fp * xpu::log(xpu::abs(slater_ratio)) + 2.0_fp * delta_jastrow};
 
-  const real_t u{xpu::max(random.acceptance, std::numeric_limits<real_t>::min())};
-  const real_t log_u{xpu::log(u)};
-  const real_t min_term{xpu::min(0.0_r, log_ratio_sq)};
+  const fp_t u{xpu::max(random.acceptance, std::numeric_limits<fp_t>::min())};
+  const fp_t log_u{xpu::log(u)};
+  const fp_t min_term{xpu::min(0.0_fp, log_ratio_sq)};
 
   const bool accepted{log_u < min_term};
 
-  const xpu::array<real_t, idx(Axis::NUM)> new_pos{
+  const xpu::array<fp_t, idx(Axis::NUM)> new_pos{
     p_x[moved], p_y[moved], p_z[moved]
   };
 
@@ -175,8 +175,8 @@ simulation::StepResult Simulation::metropolis_step() {
     old_pos,
     new_pos,
     xpu::log(xpu::abs(slater_ratio)) + delta_jastrow,
-    0.0_r,
-    0.0_r
+    0.0_fp,
+    0.0_fp
   };
 
   if (accepted) {
@@ -213,37 +213,28 @@ simulation::StepResult Simulation::metropolis_step() {
 }
 
 void Simulation::warmup() {
-  real_t& step_size{config_.step_size};
+  auto& step_size{config_.step_size};
 
-  const std::size_t warmup_steps{config_.warmup_steps};
-  const std::size_t warmup_batch_size{particles_.count()};
+  constexpr auto target_rate{0.50_fp};
+  constexpr auto initial_gain{0.25_fp};
 
-  std::size_t window_proposed{};
-  std::size_t window_accepted{};
+  const auto proposals_per_sweep{particles_.count()};
 
-  real_t acceptance_rate_window{};
-  const real_t acceptance_target{0.50_r};
-  const real_t gain{0.25_r};
+  const auto max_step_size{0.5_fp * config_.box_length};
+  step_size = xpu::min(step_size, max_step_size);
 
-  for (std::size_t i{}; i < warmup_steps; i++) {
-    window_proposed++;
-    const bool accepted{metropolis_step().accepted};
-    if (accepted)
-      ++window_accepted;
+  for (auto sweep{0uz}; sweep < config_.warmup_sweeps; ++sweep) {
+    auto accepted_proposals{0uz};
 
-    if (window_proposed % warmup_batch_size == 0) {
-      acceptance_rate_window =
-          static_cast<real_t>(window_accepted) / static_cast<real_t>(window_proposed);
-      step_size *= xpu::exp(gain * (acceptance_rate_window - acceptance_target));
-
-      const real_t MAX_STEP{config_.box_length * 0.5_r};
-      if (step_size > MAX_STEP) {
-        step_size = MAX_STEP;
-      }
-
-      window_accepted = 0;
-      window_proposed = 0;
+    for (auto proposal{0uz}; proposal < proposals_per_sweep; ++proposal) {
+      if (metropolis_step().accepted) { ++accepted_proposals; }
     }
+
+    const auto acceptance_rate{static_cast<fp_t>(accepted_proposals) / static_cast<fp_t>(proposals_per_sweep)};
+    const auto gain{initial_gain * xpu::rsqrt(static_cast<fp_t>(sweep + 1uz))};
+
+    step_size *= xpu::exp(gain * (acceptance_rate - target_rate));
+    step_size = xpu::min(step_size, max_step_size);
   }
 }
 
@@ -257,9 +248,9 @@ Simulation::MeasurementSummary Simulation::measure() {
   proposed_ = 0U;
   accepted_ = 0U;
 
-  real_t running_energy_sum{};
-  real_t final_mean_energy{};
-  std::optional<real_t> final_standard_error{};
+  fp_t running_energy_sum{};
+  fp_t final_mean_energy{};
+  std::optional<fp_t> final_standard_error{};
 
   for (std::size_t i = 0; i < measure_steps; ++i) {
     ++proposed_;
@@ -273,14 +264,14 @@ Simulation::MeasurementSummary Simulation::measure() {
       result.old_pos
     );
 
-    const real_t E_local{energy_tracker.eval_total_energy(particles)};
+    const fp_t E_local{energy_tracker.eval_total_energy(particles)};
     running_energy_sum += E_local;
     blocking_analysis.add(E_local);
 
-    const real_t running_mean{running_energy_sum / static_cast<real_t>(i + 1U)};
+    const fp_t running_mean{running_energy_sum / static_cast<fp_t>(i + 1U)};
     final_mean_energy = running_mean;
 
-    std::optional<real_t> frame_standard_error{};
+    std::optional<fp_t> frame_standard_error{};
     if (blocking_analysis.ready()) {
       const auto [blocked_mean, standard_error]{blocking_analysis.mean_and_standard_error()};
       final_mean_energy = blocked_mean;
@@ -292,7 +283,7 @@ Simulation::MeasurementSummary Simulation::measure() {
       const auto& snapshot{positions_snapshot()};
       const std::size_t N{particles_.count()};
 
-      std::vector<real_t> flat_positions(N * 3U);
+      std::vector<fp_t> flat_positions(N * 3U);
       for (std::size_t p{}; p < N; ++p) {
         flat_positions[p * 3U] = snapshot[0][p];
         flat_positions[p * 3U + 1U] = snapshot[1][p];

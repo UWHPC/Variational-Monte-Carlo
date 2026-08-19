@@ -6,7 +6,6 @@
 #include "../output_writer/output_writer.hpp"
 #include "../particles/particles.hpp"
 #include "../wavefunction/wavefunction.hpp"
-#include "simulation_types.hpp"
 #include <xpu/buffer.hpp>
 #include <xpu/random.hpp>
 
@@ -15,6 +14,20 @@
 #include <memory>
 #include <optional>
 #include <vector>
+
+namespace simulation {
+
+struct StepResult {
+  bool accepted;
+  std::size_t moved_particle;
+  xpu::array<fp_t, idx(Axis::NUM)> old_pos;
+  xpu::array<fp_t, idx(Axis::NUM)> new_pos;
+  fp_t log_psi_delta;
+  fp_t real_energy_delta;
+  fp_t reciprocal_energy;
+};
+
+} // namespace simulation
 
 class Simulation {
 private:
@@ -28,15 +41,15 @@ private:
 
   std::size_t proposed_;
   std::size_t accepted_;
-  real_t log_psi_current_;
+  fp_t log_psi_current_;
 
-  std::array<std::vector<real_t>, idx(Axis::NUM)> positions_;
+  std::array<std::vector<fp_t>, idx(Axis::NUM)> positions_;
 
-  [[nodiscard]] real_t acceptance_rate() const {
+  [[nodiscard]] fp_t acceptance_rate() const {
     if (proposed_ == 0uz) {
-      return 0.0_r;
+      return 0.0_fp;
     } else {
-      return static_cast<real_t>(accepted_) / static_cast<real_t>(proposed_);
+      return static_cast<fp_t>(accepted_) / static_cast<fp_t>(proposed_);
     }
   }
 
@@ -47,13 +60,13 @@ private:
   xpu::random::generator walker_rng_;
 #endif
 
-  [[nodiscard]] const std::array<std::vector<real_t>, idx(Axis::NUM)>& positions_snapshot();
+  [[nodiscard]] const std::array<std::vector<fp_t>, idx(Axis::NUM)>& positions_snapshot();
 
 public:
   struct MeasurementSummary {
-    real_t mean_energy;
-    std::optional<real_t> standard_error;
-    real_t acceptance_rate;
+    fp_t mean_energy;
+    std::optional<fp_t> standard_error;
+    fp_t acceptance_rate;
   };
 
   explicit Simulation(

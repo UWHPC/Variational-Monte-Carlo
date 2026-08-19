@@ -10,14 +10,14 @@ namespace jpade {
 namespace {
 
 CUDA_CALLABLE
-inline real_t evaluate_pair_value(
-  const xpu::array<real_t, idx(Axis::NUM)>& particle_pos,
+inline fp_t evaluate_pair_value(
+  const xpu::array<fp_t, idx(Axis::NUM)>& particle_pos,
   std::size_t other,
-  real_t L, real_t half_L,
-  real_t a, real_t b,
-  xpu::soa_view<real_t, idx(Axis::NUM)> pos
+  fp_t L, fp_t half_L,
+  fp_t a, fp_t b,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos
 ) noexcept {
-  xpu::array<real_t, idx(Axis::NUM)> displacement{};
+  xpu::array<fp_t, idx(Axis::NUM)> displacement{};
 
   for (auto axis{idx(Axis::X)}; axis < idx(Axis::NUM); ++axis) {
     auto delta{particle_pos[axis] - pos[axis][other]};
@@ -35,26 +35,26 @@ inline real_t evaluate_pair_value(
     )
   };
 
-  return a * distance / (1.0_r + b * distance);
+  return a * distance / (1.0_fp + b * distance);
 }
 
 CUDA_CALLABLE
 inline void evaluate_derivative_factors(
-  const real_t distance,
-  const real_t a,
-  const real_t b,
-  const real_t neg_two_ab,
-  real_t* gradient_factor,
-  real_t* laplacian_factor
+  const fp_t distance,
+  const fp_t a,
+  const fp_t b,
+  const fp_t neg_two_ab,
+  fp_t* gradient_factor,
+  fp_t* laplacian_factor
 ) noexcept {
   if (distance < EPSILON) {
-    *gradient_factor = 0.0_r;
-    *laplacian_factor = 0.0_r;
+    *gradient_factor = 0.0_fp;
+    *laplacian_factor = 0.0_fp;
     return;
   }
 
-  const auto inverse_distance{1.0_r / distance};
-  const auto inverse_denominator{1.0_r / (1.0_r + b * distance)};
+  const auto inverse_distance{1.0_fp / distance};
+  const auto inverse_denominator{1.0_fp / (1.0_fp + b * distance)};
   const auto inverse_denominator_squared{
     inverse_denominator * inverse_denominator
   };
@@ -65,20 +65,20 @@ inline void evaluate_derivative_factors(
   };
 
   *gradient_factor = first_deriv * inverse_distance;
-  *laplacian_factor = second_deriv + 2.0_r * first_deriv * inverse_distance;
+  *laplacian_factor = second_deriv + 2.0_fp * first_deriv * inverse_distance;
 }
 
 CUDA_CALLABLE
 inline void evaluate_pair_derivatives(
-  const xpu::array<real_t, idx(Axis::NUM)>& particle_pos,
+  const xpu::array<fp_t, idx(Axis::NUM)>& particle_pos,
   std::size_t other,
-  real_t L, real_t half_L,
-  real_t a, real_t b, real_t neg_two_ab,
-  xpu::soa_view<real_t, idx(Axis::NUM)> pos,
-  xpu::array<real_t, idx(Axis::NUM)>* gradient,
-  real_t* laplacian
+  fp_t L, fp_t half_L,
+  fp_t a, fp_t b, fp_t neg_two_ab,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
+  xpu::array<fp_t, idx(Axis::NUM)>* gradient,
+  fp_t* laplacian
 ) noexcept {
-  xpu::array<real_t, idx(Axis::NUM)> displacement{};
+  xpu::array<fp_t, idx(Axis::NUM)> displacement{};
 
   for (auto axis{idx(Axis::X)}; axis < idx(Axis::NUM); ++axis) {
     auto delta{particle_pos[axis] - pos[axis][other]};
@@ -96,7 +96,7 @@ inline void evaluate_pair_derivatives(
     )
   };
 
-  auto gradient_factor{0.0_r};
+  auto gradient_factor{0.0_fp};
 
   evaluate_derivative_factors(
     distance, a, b, neg_two_ab,
@@ -113,11 +113,11 @@ inline void evaluate_pair_derivatives(
 CUDA_CALLABLE
 inline void value(
   std::size_t other,
-  real_t L, real_t half_L,
-  real_t a, real_t b,
-  const xpu::array<real_t, idx(Axis::NUM)>& particle_pos,
-  xpu::soa_view<real_t, idx(Axis::NUM)> pos,
-  real_t* jastrow_value
+  fp_t L, fp_t half_L,
+  fp_t a, fp_t b,
+  const xpu::array<fp_t, idx(Axis::NUM)>& particle_pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
+  fp_t* jastrow_value
 ) noexcept {
   const auto pair_value{
     evaluate_pair_value(
@@ -138,12 +138,12 @@ CUDA_CALLABLE
 inline void delta_value(
   std::size_t other,
   std::size_t moved,
-  real_t L, real_t half_L,
-  real_t a, real_t b,
-  const xpu::array<real_t, idx(Axis::NUM)>& old_pos,
-  const xpu::array<real_t, idx(Axis::NUM)>& new_pos,
-  xpu::soa_view<real_t, idx(Axis::NUM)> pos,
-  real_t* delta
+  fp_t L, fp_t half_L,
+  fp_t a, fp_t b,
+  const xpu::array<fp_t, idx(Axis::NUM)>& old_pos,
+  const xpu::array<fp_t, idx(Axis::NUM)>& new_pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
+  fp_t* delta
 ) noexcept {
   if (other == moved) { return; }
 
@@ -173,21 +173,21 @@ CUDA_CALLABLE
 inline void compute_derivatives(
   std::size_t i,
   std::size_t moved,
-  real_t L, real_t half_L,
-  real_t a, real_t b, real_t neg_two_ab,
-  const xpu::array<real_t, idx(Axis::NUM)>& old_pos,
-  const xpu::array<real_t, idx(Axis::NUM)>& new_pos,
-  xpu::soa_view<real_t, idx(Axis::NUM)> pos,
-  xpu::soa_view<real_t, idx(Derivatives::NUM)> derivatives,
-  real_t* moved_gx, real_t* moved_gy, real_t* moved_gz,real_t* moved_lap
+  fp_t L, fp_t half_L,
+  fp_t a, fp_t b, fp_t neg_two_ab,
+  const xpu::array<fp_t, idx(Axis::NUM)>& old_pos,
+  const xpu::array<fp_t, idx(Axis::NUM)>& new_pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives,
+  fp_t* moved_gx, fp_t* moved_gy, fp_t* moved_gz,fp_t* moved_lap
 ) noexcept {
   if (i == moved) { return; }
 
-  xpu::array<real_t, idx(Axis::NUM)> gradient_old{};
-  xpu::array<real_t, idx(Axis::NUM)> gradient_new{};
+  xpu::array<fp_t, idx(Axis::NUM)> gradient_old{};
+  xpu::array<fp_t, idx(Axis::NUM)> gradient_new{};
 
-  auto laplacian_old{0.0_r};
-  auto laplacian_new{0.0_r};
+  auto laplacian_old{0.0_fp};
+  auto laplacian_new{0.0_fp};
 
   evaluate_pair_derivatives(
     old_pos, i,
@@ -221,15 +221,15 @@ inline void compute_derivatives(
 CUDA_CALLABLE
 inline void add_derivatives(
   std::size_t other,
-  real_t L, real_t half_L,
-  real_t a, real_t b, real_t neg_two_ab,
-  const xpu::array<real_t, idx(Axis::NUM)>& particle_pos,
-  xpu::soa_view<real_t, idx(Axis::NUM)> pos,
-  real_t* gradient_x, real_t* gradient_y, real_t* gradient_z,
-  real_t* laplacian
+  fp_t L, fp_t half_L,
+  fp_t a, fp_t b, fp_t neg_two_ab,
+  const xpu::array<fp_t, idx(Axis::NUM)>& particle_pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
+  fp_t* gradient_x, fp_t* gradient_y, fp_t* gradient_z,
+  fp_t* laplacian
 ) noexcept {
-  xpu::array<real_t, idx(Axis::NUM)> pair_gradient{};
-  auto pair_laplacian{0.0_r};
+  xpu::array<fp_t, idx(Axis::NUM)> pair_gradient{};
+  auto pair_laplacian{0.0_fp};
 
   evaluate_pair_derivatives(
     particle_pos, other,
@@ -261,16 +261,16 @@ namespace {
 #if defined(XPU_CUDA)
 __global__
 void cudaValue(
-  real_t L, real_t half_L,
-  real_t a, real_t b,
-  xpu::soa_view<real_t, idx(Axis::NUM)> pos,
-  real_t* jastrow_value
+  fp_t L, fp_t half_L,
+  fp_t a, fp_t b,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
+  fp_t* jastrow_value
 ) {
   const auto [i, j]{xpu::global_index<2>()};
   if (i >= pos.count() || j >= pos.count()) { return; }
   if (i >= j) { return; }
 
-  xpu::array<real_t, idx(Axis::NUM)> particle_pos{
+  xpu::array<fp_t, idx(Axis::NUM)> particle_pos{
     pos[idx(Axis::X)][i],
     pos[idx(Axis::Y)][i],
     pos[idx(Axis::Z)][i]
@@ -287,16 +287,16 @@ void cudaValue(
 __global__
 void cudaDeltaValue(
   std::size_t moved,
-  real_t L, real_t half_L,
-  real_t a, real_t b,
-  xpu::array<real_t, idx(Axis::NUM)> old_pos,
-  xpu::soa_view<real_t, idx(Axis::NUM)> pos,
-  real_t* delta
+  fp_t L, fp_t half_L,
+  fp_t a, fp_t b,
+  xpu::array<fp_t, idx(Axis::NUM)> old_pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
+  fp_t* delta
 ) {
   const auto [i]{xpu::global_index<1>()};
   if (i >= pos.count()) { return; }
 
-  xpu::array<real_t, idx(Axis::NUM)> new_pos{
+  xpu::array<fp_t, idx(Axis::NUM)> new_pos{
     pos[idx(Axis::X)][moved],
     pos[idx(Axis::Y)][moved],
     pos[idx(Axis::Z)][moved]
@@ -313,16 +313,16 @@ void cudaDeltaValue(
 __global__
 void cudaComputeDerivatives(
   std::size_t moved,
-  real_t L, real_t half_L,
-  real_t a, real_t b, real_t neg_two_ab,
-  xpu::array<real_t, idx(Axis::NUM)> old_pos,
-  xpu::soa_view<real_t, idx(Axis::NUM)> pos,
-  xpu::soa_view<real_t, idx(Derivatives::NUM)> derivatives
+  fp_t L, fp_t half_L,
+  fp_t a, fp_t b, fp_t neg_two_ab,
+  xpu::array<fp_t, idx(Axis::NUM)> old_pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
 ) {
   const auto [i]{xpu::global_index<1>()};
   if (i >= pos.count()) { return; }
 
-  xpu::array<real_t, idx(Axis::NUM)> new_pos{
+  xpu::array<fp_t, idx(Axis::NUM)> new_pos{
     pos[idx(Axis::X)][moved],
     pos[idx(Axis::Y)][moved],
     pos[idx(Axis::Z)][moved]
@@ -341,16 +341,16 @@ void cudaComputeDerivatives(
 
 __global__
 void cudaAddDerivatives(
-  real_t L, real_t half_L,
-  real_t a, real_t b, real_t neg_two_ab,
-  xpu::soa_view<real_t, idx(Axis::NUM)> pos,
-  xpu::soa_view<real_t, idx(Derivatives::NUM)> derivatives
+  fp_t L, fp_t half_L,
+  fp_t a, fp_t b, fp_t neg_two_ab,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
 ) {
   const auto [i, j]{xpu::global_index<2>()};
   if (i >= pos.count() || j >= pos.count()) { return; }
   if (i == j) { return; }
 
-  xpu::array<real_t, idx(Axis::NUM)> particle_pos{
+  xpu::array<fp_t, idx(Axis::NUM)> particle_pos{
     pos[idx(Axis::X)][i],
     pos[idx(Axis::Y)][i],
     pos[idx(Axis::Z)][i]
@@ -370,13 +370,13 @@ void cudaAddDerivatives(
 
 } // namespace
 
-inline real_t value(
-  real_t L, real_t half_L,
-  real_t a, real_t b,
-  xpu::soa_view<real_t, idx(Axis::NUM)> pos
+inline fp_t value(
+  fp_t L, fp_t half_L,
+  fp_t a, fp_t b,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos
 ) {
 #if defined(XPU_CUDA)
-  xpu::buffer<real_t> jastrow_value{1};
+  xpu::buffer<fp_t> jastrow_value{1};
 
   dim3 valueThreads{16, 16};
   dim3 valueBlocks{
@@ -392,23 +392,23 @@ inline real_t value(
   );
   xpu::cu_check(cudaGetLastError());
 
-  real_t value_host{};
+  fp_t value_host{};
   xpu::cu_check(cudaMemcpy(
     &value_host, jastrow_value.data(),
-    sizeof(real_t), cudaMemcpyDeviceToHost
+    sizeof(fp_t), cudaMemcpyDeviceToHost
   ));
   return value_host;
 #else
-  auto jastrow_value{0.0_r};
+  auto jastrow_value{0.0_fp};
 
   for (auto i = 0uz; i < pos.count(); ++i) {
-    xpu::array<real_t, idx(Axis::NUM)> particle_pos{
+    xpu::array<fp_t, idx(Axis::NUM)> particle_pos{
       pos[idx(Axis::X)][i],
       pos[idx(Axis::Y)][i],
       pos[idx(Axis::Z)][i]
     };
 
-    auto local_value{0.0_r};
+    auto local_value{0.0_fp};
 
     #pragma omp simd reduction(+ : local_value)
     for (auto j = i + 1uz; j < pos.count(); ++j) {
@@ -427,15 +427,15 @@ inline real_t value(
 #endif
 }
 
-inline real_t delta_value(
+inline fp_t delta_value(
   std::size_t moved,
-  real_t L, real_t half_L,
-  real_t a, real_t b,
-  xpu::array<real_t, idx(Axis::NUM)> old_pos,
-  xpu::soa_view<real_t, idx(Axis::NUM)> pos
+  fp_t L, fp_t half_L,
+  fp_t a, fp_t b,
+  xpu::array<fp_t, idx(Axis::NUM)> old_pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos
 ) {
 #if defined(XPU_CUDA)
-  xpu::buffer<real_t> delta{1};
+  xpu::buffer<fp_t> delta{1};
 
   dim3 deltaValueThreads{256};
   dim3 deltaValueBlocks{
@@ -451,20 +451,20 @@ inline real_t delta_value(
   );
   xpu::cu_check(cudaGetLastError());
 
-  real_t delta_host{};
+  fp_t delta_host{};
   xpu::cu_check(cudaMemcpy(
     &delta_host, delta.data(),
-    sizeof(real_t), cudaMemcpyDeviceToHost
+    sizeof(fp_t), cudaMemcpyDeviceToHost
   ));
   return delta_host;
 #else
-  xpu::array<real_t, idx(Axis::NUM)> new_pos{
+  xpu::array<fp_t, idx(Axis::NUM)> new_pos{
     pos[idx(Axis::X)][moved],
     pos[idx(Axis::Y)][moved],
     pos[idx(Axis::Z)][moved]
   };
 
-  auto delta{0.0_r};
+  auto delta{0.0_fp};
 
   #pragma omp simd reduction(+ : delta)
   for (auto i = 0uz; i < pos.count(); ++i) {
@@ -482,11 +482,11 @@ inline real_t delta_value(
 
 inline void compute_derivatives(
   std::size_t moved,
-  real_t L, real_t half_L,
-  real_t a, real_t b, real_t neg_two_ab,
-  xpu::array<real_t, idx(Axis::NUM)> old_pos,
-  xpu::soa_view<real_t, idx(Axis::NUM)> pos,
-  xpu::soa_view<real_t, idx(Derivatives::NUM)> derivatives
+  fp_t L, fp_t half_L,
+  fp_t a, fp_t b, fp_t neg_two_ab,
+  xpu::array<fp_t, idx(Axis::NUM)> old_pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
 ) {
 #if defined(XPU_CUDA)
   dim3 computeDerivativesThreads{256};
@@ -503,7 +503,7 @@ inline void compute_derivatives(
   );
   xpu::cu_check(cudaGetLastError());
 #else
-  xpu::array<real_t, idx(Axis::NUM)> new_pos{
+  xpu::array<fp_t, idx(Axis::NUM)> new_pos{
     pos[idx(Axis::X)][moved],
     pos[idx(Axis::Y)][moved],
     pos[idx(Axis::Z)][moved]
@@ -527,10 +527,10 @@ inline void compute_derivatives(
 }
 
 inline void add_derivatives(
-  real_t L, real_t half_L,
-  real_t a, real_t b, real_t neg_two_ab,
-  xpu::soa_view<real_t, idx(Axis::NUM)> pos,
-  xpu::soa_view<real_t, idx(Derivatives::NUM)> derivatives
+  fp_t L, fp_t half_L,
+  fp_t a, fp_t b, fp_t neg_two_ab,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
 ) {
 #if defined(XPU_CUDA)
   dim3 addDerivativesThreads{16, 16};
@@ -548,7 +548,7 @@ inline void add_derivatives(
   xpu::cu_check(cudaGetLastError());
 #else
   for (auto i = 0uz; i < pos.count(); ++i) {
-    xpu::array<real_t, idx(Axis::NUM)> particle_pos{
+    xpu::array<fp_t, idx(Axis::NUM)> particle_pos{
       pos[idx(Axis::X)][i],
       pos[idx(Axis::Y)][i],
       pos[idx(Axis::Z)][i]

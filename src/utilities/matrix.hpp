@@ -9,7 +9,7 @@
 #include <utility>
 
 inline int lower_upper_decomp(
-  real_t* lower_upper,
+  fp_t* lower_upper,
   int* pivot,
   std::size_t N,
   std::size_t stride
@@ -22,19 +22,19 @@ inline int lower_upper_decomp(
 
   for (std::size_t col = 0; col < N; ++col) {
     std::size_t pivot_row{col};
-    real_t max_abs{xpu::abs(lower_upper[col * stride + col])};
+    fp_t max_abs{xpu::abs(lower_upper[col * stride + col])};
 
     for (std::size_t row = col + 1; row < N; ++row) {
-      const real_t value{xpu::abs(lower_upper[row * stride + col])};
+      const fp_t value{xpu::abs(lower_upper[row * stride + col])};
       if (value > max_abs) {
         max_abs = value;
         pivot_row = row;
       }
     }
 
-    constexpr real_t PIVOT_TOLERANCE{1e-12_r};
+    constexpr fp_t PIVOT_TOLERANCE{1e-12_fp};
     if (max_abs < PIVOT_TOLERANCE) {
-      lower_upper[col * stride + col] = 0.0_r;
+      lower_upper[col * stride + col] = 0.0_fp;
       continue;
     }
 
@@ -46,10 +46,10 @@ inline int lower_upper_decomp(
       ++swap_count;
     }
 
-    const real_t pivot_value{lower_upper[col * stride + col]};
+    const fp_t pivot_value{lower_upper[col * stride + col]};
     for (std::size_t row = col + 1; row < N; ++row) {
       lower_upper[row * stride + col] /= pivot_value;
-      const real_t multiplier{lower_upper[row * stride + col]};
+      const fp_t multiplier{lower_upper[row * stride + col]};
       for (std::size_t col2 = col + 1; col2 < N; ++col2) {
         lower_upper[row * stride + col2] -= multiplier * lower_upper[col * stride + col2];
       }
@@ -60,10 +60,10 @@ inline int lower_upper_decomp(
 }
 
 inline void solve_lower_upper(
-  const real_t* lower_upper,
+  const fp_t* lower_upper,
   const int* pivot,
-  const real_t* b,
-  real_t* x,
+  const fp_t* b,
+  fp_t* x,
   std::size_t N,
   std::size_t stride
 ) {
@@ -73,7 +73,7 @@ inline void solve_lower_upper(
   }
 
   for (std::size_t row = 0; row < N; ++row) {
-    real_t sum{x[row]};
+    fp_t sum{x[row]};
     for (std::size_t col = 0; col < row; ++col) {
       sum -= lower_upper[row * stride + col] * x[col];
     }
@@ -82,13 +82,13 @@ inline void solve_lower_upper(
 
   for (std::size_t rev = 0; rev < N; ++rev) {
     const std::size_t row{N - 1 - rev};
-    real_t sum{x[row]};
+    fp_t sum{x[row]};
     for (std::size_t col = row + 1; col < N; ++col) {
       sum -= lower_upper[row * stride + col] * x[col];
     }
 
-    const real_t diag{lower_upper[row * stride + row]};
-    x[row] = (xpu::abs(diag) > std::numeric_limits<real_t>::min()) ? (sum / diag) : 0.0_r;
+    const fp_t diag{lower_upper[row * stride + row]};
+    x[row] = (xpu::abs(diag) > std::numeric_limits<fp_t>::min()) ? (sum / diag) : 0.0_fp;
   }
 }
 

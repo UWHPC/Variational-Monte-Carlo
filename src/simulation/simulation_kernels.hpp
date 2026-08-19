@@ -7,7 +7,7 @@
 #include "../jastrow_pade/jastrow_pade_kernels.hpp"
 #include "../slater_plane_wave/slater_plane_wave.hpp"
 #include "../slater_plane_wave/slater_plane_wave_kernels.hpp"
-#include "simulation_types.hpp"
+#include "simulation.hpp"
 
 #if defined(XPU_CUDA)
   #include <cuda/std/limits>
@@ -22,20 +22,20 @@ namespace simulation {
 
 struct RandomProposal {
   std::size_t particle;
-  xpu::array<real_t, idx(Axis::NUM)> displacement;
-  real_t acceptance;
+  xpu::array<fp_t, idx(Axis::NUM)> displacement;
+  fp_t acceptance;
 };
 
 [[nodiscard]] DEVICE_ONLY
 inline RandomProposal generate_random_proposal(
   xpu::random::generator& generator,
   std::size_t num_particles,
-  real_t step_size
+  fp_t step_size
 ) noexcept {
   const auto particle{generator.uniform_index(num_particles)};
 
-  xpu::array<real_t, idx(Axis::NUM)> displacement{};
-  if (step_size > 0.0_r) {
+  xpu::array<fp_t, idx(Axis::NUM)> displacement{};
+  if (step_size > 0.0_fp) {
     for (auto axis{idx(Axis::X)}; axis < idx(Axis::NUM); ++axis) {
       displacement[axis] = generator.uniform(-step_size, step_size);
     }
@@ -44,7 +44,7 @@ inline RandomProposal generate_random_proposal(
   return {
     particle,
     displacement,
-    generator.uniform<real_t>()
+    generator.uniform<fp_t>()
   };
 }
 
@@ -70,17 +70,17 @@ void cudaSeedGenerator(
 __global__
 void cudaInitializePositions(
   xpu::random::generator* generator,
-  real_t box_length,
-  xpu::soa_view<real_t, idx(Axis::NUM)> pos
+  fp_t box_length,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos
 ) {
   if (threadIdx.x != 0u) { return; }
 
   auto local_generator{*generator};
 
   for (auto particle{0uz}; particle < pos.count(); ++particle) {
-    pos[idx(Axis::X)][particle] = local_generator.uniform<real_t>() * box_length;
-    pos[idx(Axis::Y)][particle] = local_generator.uniform<real_t>() * box_length;
-    pos[idx(Axis::Z)][particle] = local_generator.uniform<real_t>() * box_length;
+    pos[idx(Axis::X)][particle] = local_generator.uniform<fp_t>() * box_length;
+    pos[idx(Axis::Y)][particle] = local_generator.uniform<fp_t>() * box_length;
+    pos[idx(Axis::Z)][particle] = local_generator.uniform<fp_t>() * box_length;
   }
 
   *generator = local_generator;
@@ -89,11 +89,11 @@ void cudaInitializePositions(
 __global__
 void cudaMetropolisStep(
   xpu::random::generator* generator,
-  real_t step_size,
-  real_t L,
-  real_t jastrow_a,
-  real_t jastrow_b,
-  xpu::soa_view<real_t, idx(Axis::NUM)> pos,
+  fp_t step_size,
+  fp_t L,
+  fp_t jastrow_a,
+  fp_t jastrow_b,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
   SlaterPlaneWave::View slater,
   EnergyTracker::View energy,
   ::simulation::StepResult* result
@@ -101,16 +101,16 @@ void cudaMetropolisStep(
   const auto current_thread{static_cast<std::size_t>(threadIdx.x)};
   const auto thread_stride{static_cast<std::size_t>(blockDim.x)};
   const auto num_orbitals{slater.num_orbitals};
-  const xpu::soa_view<const real_t, idx(Axis::NUM)> const_pos{
+  const xpu::soa_view<const fp_t, idx(Axis::NUM)> const_pos{
     pos[idx(Axis::X)], pos.count()
   };
 
   __shared__ stencil::simulation::RandomProposal random;
   __shared__ ::simulation::StepResult step_result;
-  __shared__ real_t ratio;
-  __shared__ real_t delta_jastrow;
-  __shared__ real_t real_energy_delta;
-  __shared__ real_t reciprocal_sum;
+  __shared__ fp_t ratio;
+  __shared__ fp_t delta_jastrow;
+  __shared__ fp_t real_energy_delta;
+  __shared__ fp_t reciprocal_sum;
 
   if (current_thread == 0uz) {
     auto local_generator{*generator};
@@ -122,7 +122,7 @@ void cudaMetropolisStep(
     *generator = local_generator;
 
     const auto particle{random.particle};
-    const auto inv_L{1.0_r / L};
+    const auto inv_L{1.0_fp / L};
 
     step_result = {
       false,
@@ -133,9 +133,9 @@ void cudaMetropolisStep(
         pos[idx(Axis::Z)][particle]
       },
       {},
-      0.0_r,
-      0.0_r,
-      0.0_r
+      0.0_fp,
+      0.0_fp,
+      0.0_fp
     };
 
     for (auto axis{idx(Axis::X)}; axis < idx(Axis::NUM); ++axis) {
@@ -146,8 +146,8 @@ void cudaMetropolisStep(
       step_result.new_pos[axis] = new_position;
     }
 
-    ratio = 0.0_r;
-    delta_jastrow = 0.0_r;
+    ratio = 0.0_fp;
+    delta_jastrow = 0.0_fp;
   }
   __syncthreads();
 
@@ -177,7 +177,7 @@ void cudaMetropolisStep(
   }
   __syncthreads();
 
-  const auto half_L{0.5_r * L};
+  const auto half_L{0.5_fp * L};
   for (auto i{current_thread}; i < num_orbitals; i += thread_stride) {
     stencil::slater::determinant_ratio(
       i, particle, slater.matrix_row_stride,
@@ -196,10 +196,10 @@ void cudaMetropolisStep(
 
   if (current_thread == 0uz) {
     const auto log_psi_delta{xpu::log(xpu::abs(ratio)) + delta_jastrow};
-    const auto log_ratio_sq{2.0_r * log_psi_delta};
-    const auto uniform{xpu::max(random.acceptance, xstd::numeric_limits<real_t>::min())};
+    const auto log_ratio_sq{2.0_fp * log_psi_delta};
+    const auto uniform{xpu::max(random.acceptance, xstd::numeric_limits<fp_t>::min())};
     const auto log_uniform{xpu::log(uniform)};
-    const auto min_term{xpu::min(0.0_r, log_ratio_sq)};
+    const auto min_term{xpu::min(0.0_fp, log_ratio_sq)};
 
     step_result.accepted = log_uniform < min_term;
     step_result.log_psi_delta = log_psi_delta;
@@ -226,14 +226,14 @@ void cudaMetropolisStep(
   for (auto i{current_thread}; i < num_orbitals; i += thread_stride) {
     const auto determinant_index{determinant_row_offset + i};
     slater.inv_d_col[i] = slater.inv_determinant[determinant_index];
-    slater.solution[i] = 0.0_r;
+    slater.solution[i] = 0.0_fp;
   }
   __syncthreads();
 
   for (auto j{current_thread}; j < num_orbitals; j += thread_stride) {
     if (j == particle) { continue; }
 
-    auto solution{0.0_r};
+    auto solution{0.0_fp};
     const auto inverse_row_offset{j * slater.matrix_row_stride};
     for (auto i{0uz}; i < num_orbitals; ++i) {
       const auto inverse_index{inverse_row_offset + i};
@@ -243,7 +243,7 @@ void cudaMetropolisStep(
   }
   __syncthreads();
 
-  const auto inv_ratio{1.0_r / ratio};
+  const auto inv_ratio{1.0_fp / ratio};
   const auto matrix_elements{num_orbitals * num_orbitals};
   for (auto element{current_thread}; element < matrix_elements; element += thread_stride) {
     const auto j{element / num_orbitals};
@@ -274,8 +274,8 @@ void cudaMetropolisStep(
   __syncthreads();
 
   if (current_thread == 0uz) {
-    real_energy_delta = 0.0_r;
-    reciprocal_sum = 0.0_r;
+    real_energy_delta = 0.0_fp;
+    reciprocal_sum = 0.0_fp;
   }
   __syncthreads();
 
@@ -299,7 +299,7 @@ void cudaMetropolisStep(
   __syncthreads();
 
   if (current_thread == 0uz) {
-    const auto reciprocal_prefactor{1.0_r / (2.0_r * xstd::numbers::pi_v<real_t> * L * L * L)};
+    const auto reciprocal_prefactor{1.0_fp / (2.0_fp * xstd::numbers::pi_v<fp_t> * L * L * L)};
     step_result.real_energy_delta = real_energy_delta;
     step_result.reciprocal_energy = reciprocal_prefactor * reciprocal_sum;
     *result = step_result;
@@ -328,8 +328,8 @@ inline void seed_generator(
 
 inline void initialize_positions(
   xpu::random::generator* generator,
-  real_t box_length,
-  xpu::soa_view<real_t, idx(Axis::NUM)> pos
+  fp_t box_length,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos
 ) {
   dim3 initializePositionsThreads{1u};
   dim3 initializePositionsBlocks{1u};
@@ -346,11 +346,11 @@ inline void initialize_positions(
 
 inline ::simulation::StepResult metropolis_step(
   xpu::random::generator* generator,
-  real_t step_size,
-  real_t L,
-  real_t jastrow_a,
-  real_t jastrow_b,
-  xpu::soa_view<real_t, idx(Axis::NUM)> pos,
+  fp_t step_size,
+  fp_t L,
+  fp_t jastrow_a,
+  fp_t jastrow_b,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
   SlaterPlaneWave::View slater,
   EnergyTracker::View energy,
   ::simulation::StepResult* result_scratch
