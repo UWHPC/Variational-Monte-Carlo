@@ -1,0 +1,28 @@
+{
+  "workbench.iconTheme": "vscode-jetbrains-icon-theme-2023-dark",
+  "workbench.tree.indent": 16,
+  "explorer.compactFolders": false,
+  "breadcrumbs.enabled": true,
+  "editor.fontFamily": "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
+  "editor.fontLigatures": true,
+  "editor.fontSize": 13,
+  "editor.lineHeight": 22,
+  "editor.cursorSmoothCaretAnimation": "on",
+  "editor.smoothScrolling": true,
+  "editor.minimap.enabled": false,
+  "editor.bracketPairColorization.enabled": true,
+  "editor.guides.bracketPairs": "active",
+  "editor.renderWhitespace": "selection",
+  "editor.stickyScroll.enabled": true,
+  "intellij-idea-keybindings.useCamelHumpsWords": true,
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "clangd.path": "/usr/bin/clangd",
+  "clangd.arguments": [
+    "--background-index",
+    "--clang-tidy",
+    "--query-driver=/usr/bin/g++-15,/usr/local/cuda-*/bin/nvcc"
+  ],
+  "files.associations": {
+    "*.cu": "cuda-cpp"
+  }
+}

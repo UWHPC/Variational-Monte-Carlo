@@ -7,7 +7,9 @@ docs/*
 data/run.jsonl
 output/
 
-.vscode/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
 .DS_Store
 
 # Prerequisites

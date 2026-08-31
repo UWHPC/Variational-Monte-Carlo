@@ -17,6 +17,12 @@
 
 namespace simulation {
 
+struct RandomProposal {
+  std::size_t particle;
+  xpu::array<fp_t, idx(Axis::NUM)> displacement;
+  fp_t acceptance;
+};
+
 struct StepResult {
   bool accepted;
   std::size_t moved_particle;
@@ -25,6 +31,15 @@ struct StepResult {
   fp_t log_psi_delta;
   fp_t real_energy_delta;
   fp_t reciprocal_energy;
+};
+
+struct MetropolisScratch {
+  RandomProposal proposal;
+  StepResult result;
+  fp_t slater_ratio;
+  fp_t jastrow_delta;
+  fp_t real_energy_delta;
+  fp_t reciprocal_sum;
 };
 
 } // namespace simulation

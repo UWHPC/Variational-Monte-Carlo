@@ -1,0 +1,7 @@
+{
+  "recommendations": [
+    "llvm-vs-code-extensions.vscode-clangd",
+    "k--kato.intellij-idea-keybindings",
+    "chadalen.vscode-jetbrains-icon-theme"
+  ]
+}

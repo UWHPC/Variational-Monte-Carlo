@@ -4,7 +4,6 @@
 
 #include <cmath>
 #include <iostream>
-#include <limits>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -98,10 +97,10 @@ void Simulation::initialize_positions() {
 }
 
 simulation::StepResult Simulation::metropolis_step() {
-#if defined(XPU_CUDA)
   auto& slater{wave_function_.slater_plane_wave()};
   const auto& jastrow{wave_function_.jastrow_pade()};
 
+#if defined(XPU_CUDA)
   const simulation::StepResult result{
     kernel::simulation::metropolis_step(
       walker_rng_.data(),
@@ -116,97 +115,27 @@ simulation::StepResult Simulation::metropolis_step() {
     )
   };
 #else
-  auto [p_x, p_y, p_z]{particles_.pos().pointers()};
-
-  const auto random{
-    stencil::simulation::generate_random_proposal(
-      walker_rng_,
-      particles_.count(),
-      config_.step_size
-    )
-  };
-
-  const std::size_t moved{random.particle};
-  const fp_t L{config_.box_length};
-  const fp_t inv_L{1.0_fp / L};
-
-  const xpu::array<fp_t, idx(Axis::NUM)> old_pos{
-    p_x[moved], p_y[moved], p_z[moved]
-  };
-
-  p_x[moved] += random.displacement[idx(Axis::X)];
-  p_y[moved] += random.displacement[idx(Axis::Y)];
-  p_z[moved] += random.displacement[idx(Axis::Z)];
-
-  // Branchless wrapping for [0, L)
-  p_x[moved] -= L * xpu::floor(p_x[moved] * inv_L);
-  p_y[moved] -= L * xpu::floor(p_y[moved] * inv_L);
-  p_z[moved] -= L * xpu::floor(p_z[moved] * inv_L);
-
-  auto& slater{wave_function_.slater_plane_wave()};
-
-  slater.update_trig_cache(moved, particles_);
-
-  const fp_t* new_row{slater.build_row(moved)};
-  const fp_t slater_ratio{slater.determinant_ratio(moved, new_row)};
-
-  const fp_t delta_jastrow{
-    wave_function_.jastrow_pade().delta_value(
-      moved,
-      old_pos,
-      particles_.pos()
-    )
-  };
-  const fp_t log_ratio_sq{2.0_fp * xpu::log(xpu::abs(slater_ratio)) + 2.0_fp * delta_jastrow};
-
-  const fp_t u{xpu::max(random.acceptance, std::numeric_limits<fp_t>::min())};
-  const fp_t log_u{xpu::log(u)};
-  const fp_t min_term{xpu::min(0.0_fp, log_ratio_sq)};
-
-  const bool accepted{log_u < min_term};
-
-  const xpu::array<fp_t, idx(Axis::NUM)> new_pos{
-    p_x[moved], p_y[moved], p_z[moved]
-  };
-
-  const simulation::StepResult result{
-    accepted,
-    moved,
-    old_pos,
-    new_pos,
-    xpu::log(xpu::abs(slater_ratio)) + delta_jastrow,
-    0.0_fp,
-    0.0_fp
-  };
-
-  if (accepted) {
-    slater.accept_move(moved, new_row, slater_ratio);
-  } else {
-    slater.restore_trig_row(moved);
-    p_x[moved] = old_pos[idx(Axis::X)];
-    p_y[moved] = old_pos[idx(Axis::Y)];
-    p_z[moved] = old_pos[idx(Axis::Z)];
-  }
+  simulation::MetropolisScratch scratch{};
+  stencil::simulation::metropolis_step(
+    walker_rng_,
+    config_.step_size,
+    config_.box_length,
+    jastrow.a(),
+    jastrow.b(),
+    particles_.pos(),
+    slater.view(),
+    energy_tracker_.view(),
+    scratch
+  );
+  const simulation::StepResult result{scratch.result};
 #endif
 
   if (result.accepted) {
     log_psi_current_ += result.log_psi_delta;
-
-#if defined(XPU_CUDA)
     energy_tracker_.accept_move(
       result.real_energy_delta,
       result.reciprocal_energy
     );
-#else
-    energy_tracker_.update_structure_factors(
-      result.old_pos, result.new_pos
-    );
-    energy_tracker_.update_real_energy(
-      result.moved_particle,
-      result.old_pos,
-      particles_
-    );
-#endif
   }
 
   return result;
