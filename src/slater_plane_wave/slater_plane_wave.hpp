@@ -18,6 +18,7 @@ private:
   std::size_t trig_row_stride_;
   std::size_t matrix_row_stride_;
   std::size_t matrix_size_;
+  std::size_t num_walkers_;
   fp_t box_length_;
 
   enum OrbKIndex : std::size_t { K, NUM_ORB_K };
@@ -29,25 +30,30 @@ private:
   enum IntVectorIndex : std::size_t { N_X, N_Y, N_Z, NUM_INT_VECTORS };
   xpu::soa<int, NUM_INT_VECTORS> int_vec_;
 
-  enum VectorIndex : std::size_t {
+  enum KVectorIndex : std::size_t {
     K_X,
     K_Y,
     K_Z,
+    NUM_K_VECTORS
+  };
+  xpu::soa<fp_t, NUM_K_VECTORS> k_vectors_;
+
+  enum WalkerVectorIndex : std::size_t {
     SOLUTION,
     NEW_ROW,
     INV_D_COL,
-    NUM_DOUBLE_VECTORS
+    NUM_WALKER_VECTORS
   };
-  xpu::soa<fp_t, NUM_DOUBLE_VECTORS> fp_vec_;
+  xpu::soa_batch<fp_t, NUM_WALKER_VECTORS> walker_vectors_;
 
   enum TrigIndex : std::size_t { SIN_CACHE, COS_CACHE, NUM_TRIG_ARRAYS };
-  xpu::soa<fp_t, NUM_TRIG_ARRAYS> trig_cache_;
+  xpu::soa_batch<fp_t, NUM_TRIG_ARRAYS> trig_cache_;
 
   enum ScratchTrigIndex : std::size_t { SIN_SAVED, COS_SAVED, NUM_SCRATCH_TRIG };
-  xpu::soa<fp_t, NUM_SCRATCH_TRIG> trig_scratch_;
+  xpu::soa_batch<fp_t, NUM_SCRATCH_TRIG> trig_scratch_;
 
   enum MatrixIndex : std::size_t { D, INV_D, LU, NUM_MATRIX };
-  xpu::soa<fp_t, NUM_MATRIX> matrices_;
+  xpu::soa_batch<fp_t, NUM_MATRIX> matrices_;
 
   xpu::buffer<fp_t> reduction_scratch_;
   xpu::linalg::lu_factorization<fp_t> lu_factorization_;
@@ -89,6 +95,7 @@ public:
   [[nodiscard]] std::size_t trig_row_stride() const noexcept { return trig_row_stride_; }
   [[nodiscard]] std::size_t matrix_row_stride() const noexcept { return matrix_row_stride_; }
   [[nodiscard]] std::size_t matrix_size() const noexcept { return matrix_size_; }
+  [[nodiscard]] std::size_t walker_count() const noexcept { return num_walkers_; }
   [[nodiscard]] fp_t box_length() const noexcept { return box_length_; }
 
   [[nodiscard]]       std::size_t* orbital_k_index()       noexcept { return orbital_k_index_[K]; }
@@ -97,14 +104,26 @@ public:
   [[nodiscard]]       std::uint8_t* orbital_type()       noexcept { return orbital_type_[O]; }
   [[nodiscard]] const std::uint8_t* orbital_type() const noexcept { return orbital_type_[O]; }
 
-  [[nodiscard]] fp_t*       determinant()       noexcept { return matrices_[D]; }
-  [[nodiscard]] fp_t const* determinant() const noexcept { return matrices_[D]; }
+  [[nodiscard]] fp_t* determinant(std::size_t walker = 0uz) noexcept {
+    return matrices_.view<1uz, D>(walker)[0uz];
+  }
+  [[nodiscard]] fp_t const* determinant(std::size_t walker = 0uz) const noexcept {
+    return matrices_.view<1uz, D>(walker)[0uz];
+  }
 
-  [[nodiscard]] fp_t*       inv_determinant()       noexcept { return matrices_[INV_D]; }
-  [[nodiscard]] fp_t const* inv_determinant() const noexcept { return matrices_[INV_D]; }
+  [[nodiscard]] fp_t* inv_determinant(std::size_t walker = 0uz) noexcept {
+    return matrices_.view<1uz, INV_D>(walker)[0uz];
+  }
+  [[nodiscard]] fp_t const* inv_determinant(std::size_t walker = 0uz) const noexcept {
+    return matrices_.view<1uz, INV_D>(walker)[0uz];
+  }
 
-  [[nodiscard]] fp_t*       lower_upper()       noexcept { return matrices_[LU]; }
-  [[nodiscard]] fp_t const* lower_upper() const noexcept { return matrices_[LU]; }
+  [[nodiscard]] fp_t* lower_upper(std::size_t walker = 0uz) noexcept {
+    return matrices_.view<1uz, LU>(walker)[0uz];
+  }
+  [[nodiscard]] fp_t const* lower_upper(std::size_t walker = 0uz) const noexcept {
+    return matrices_.view<1uz, LU>(walker)[0uz];
+  }
 
   [[nodiscard]] CUDA_CALLABLE
   xpu::soa_view<int, idx(Axis::NUM)> n_vector() {
@@ -118,43 +137,66 @@ public:
 
   [[nodiscard]] CUDA_CALLABLE
   xpu::soa_view<fp_t, idx(Axis::NUM)> k_vector() {
-    return fp_vec_.view<idx(Axis::NUM), K_X>();
+    return k_vectors_.view<idx(Axis::NUM), K_X>();
   }
 
   [[nodiscard]] CUDA_CALLABLE
   xpu::soa_view<const fp_t, idx(Axis::NUM)> k_vector() const {
-    return fp_vec_.view<idx(Axis::NUM), K_X>();
+    return k_vectors_.view<idx(Axis::NUM), K_X>();
   }
 
-  [[nodiscard]] fp_t*       solution()       noexcept { return fp_vec_[SOLUTION]; }
-  [[nodiscard]] fp_t const* solution() const noexcept { return fp_vec_[SOLUTION]; }
+  [[nodiscard]] fp_t* solution(std::size_t walker = 0uz) noexcept {
+    return walker_vectors_.view<1uz, SOLUTION>(walker)[0uz];
+  }
+  [[nodiscard]] fp_t const* solution(std::size_t walker = 0uz) const noexcept {
+    return walker_vectors_.view<1uz, SOLUTION>(walker)[0uz];
+  }
 
-  [[nodiscard]] fp_t*       sin_cache()       noexcept { return trig_cache_[SIN_CACHE]; }
-  [[nodiscard]] fp_t const* sin_cache() const noexcept { return trig_cache_[SIN_CACHE]; }
+  [[nodiscard]] fp_t* sin_cache(std::size_t walker = 0uz) noexcept {
+    return trig_cache_.view<1uz, SIN_CACHE>(walker)[0uz];
+  }
+  [[nodiscard]] fp_t const* sin_cache(std::size_t walker = 0uz) const noexcept {
+    return trig_cache_.view<1uz, SIN_CACHE>(walker)[0uz];
+  }
 
-  [[nodiscard]] fp_t*       cos_cache()       noexcept { return trig_cache_[COS_CACHE]; }
-  [[nodiscard]] fp_t const* cos_cache() const noexcept { return trig_cache_[COS_CACHE]; }
+  [[nodiscard]] fp_t* cos_cache(std::size_t walker = 0uz) noexcept {
+    return trig_cache_.view<1uz, COS_CACHE>(walker)[0uz];
+  }
+  [[nodiscard]] fp_t const* cos_cache(std::size_t walker = 0uz) const noexcept {
+    return trig_cache_.view<1uz, COS_CACHE>(walker)[0uz];
+  }
 
-  void restore_trig_row(std::size_t particle);
-  void update_trig_cache(std::size_t particle, Particles& particles);
+  void restore_trig_row(std::size_t particle, std::size_t walker = 0uz);
+  void update_trig_cache(
+    std::size_t particle,
+    Particles& particles,
+    std::size_t walker = 0uz
+  );
 
-  fp_t log_abs_det(const Particles& particles);
+  fp_t log_abs_det(const Particles& particles, std::size_t walker = 0uz);
 
-  fp_t* build_row(std::size_t particle) noexcept;
+  fp_t* build_row(std::size_t particle, std::size_t walker = 0uz) noexcept;
 
   [[nodiscard]] fp_t determinant_ratio(
     std::size_t particle,
-    const fp_t* new_row
+    const fp_t* new_row,
+    std::size_t walker = 0uz
   ) const noexcept;
 
-  void accept_move(std::size_t particle, const fp_t* new_row, fp_t ratio) noexcept;
+  void accept_move(
+    std::size_t particle,
+    const fp_t* new_row,
+    fp_t ratio,
+    std::size_t walker = 0uz
+  ) noexcept;
 
   void add_derivatives(
-    xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
+    xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives,
+    std::size_t walker = 0uz
   ) const noexcept;
 
   [[nodiscard]] CUDA_CALLABLE
-  View view() noexcept {
+  View view(std::size_t walker = 0uz) noexcept {
     return {
       this->num_orbitals(),
       this->num_unique_k(),
@@ -163,22 +205,28 @@ public:
       this->k_vector(),
       this->orbital_k_index(),
       this->orbital_type(),
-      this->determinant(),
-      this->inv_determinant(),
-      this->solution(),
-      this->new_row(),
-      this->inv_d_col(),
-      this->sin_cache(),
-      this->cos_cache(),
-      trig_scratch_[SIN_SAVED],
-      trig_scratch_[COS_SAVED]
+      this->determinant(walker),
+      this->inv_determinant(walker),
+      this->solution(walker),
+      this->new_row(walker),
+      this->inv_d_col(walker),
+      this->sin_cache(walker),
+      this->cos_cache(walker),
+      trig_scratch_.view<1uz, SIN_SAVED>(walker)[0uz],
+      trig_scratch_.view<1uz, COS_SAVED>(walker)[0uz]
     };
   }
 
 private:
-  void save_trig_row(std::size_t particle);
+  void save_trig_row(std::size_t particle, std::size_t walker);
 
-  [[nodiscard]] fp_t* new_row() noexcept { return fp_vec_[NEW_ROW]; }
-  [[nodiscard]] fp_t* inv_d_col() noexcept { return fp_vec_[INV_D_COL]; }
-  [[nodiscard]] fp_t* reduction_scratch() noexcept { return reduction_scratch_.data(); }
+  [[nodiscard]] fp_t* new_row(std::size_t walker) noexcept {
+    return walker_vectors_.view<1uz, NEW_ROW>(walker)[0uz];
+  }
+  [[nodiscard]] fp_t* inv_d_col(std::size_t walker) noexcept {
+    return walker_vectors_.view<1uz, INV_D_COL>(walker)[0uz];
+  }
+  [[nodiscard]] fp_t* reduction_scratch(std::size_t walker) noexcept {
+    return reduction_scratch_.data() + walker;
+  }
 };

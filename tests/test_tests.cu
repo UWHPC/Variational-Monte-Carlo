@@ -11,6 +11,7 @@
 #include "test_rigorous_physics.cpp"
 #include "test_simulation.cpp"
 #include "test_slater_plane_wave.cpp"
+#include "test_slater_batch.cpp"
 #include "test_validation_free_gas.cpp"
 #include "test_validation_interacting.cpp"
 #include "test_wavefunction.cpp"
