@@ -75,7 +75,8 @@ set(XPU_ARCH_NATIVE OFF CACHE BOOL "" FORCE)
 fetchcontent_declare(
   xpu
   GIT_REPOSITORY https://github.com/UWHPC/xpu.git
-  GIT_TAG 132146e
+  GIT_TAG main
+  GIT_SHALLOW TRUE
 )
 fetchcontent_makeavailable(xpu)
 
