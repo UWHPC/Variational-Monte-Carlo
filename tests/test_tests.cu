@@ -16,3 +16,4 @@
 #include "test_validation_free_gas.cpp"
 #include "test_validation_interacting.cpp"
 #include "test_wavefunction.cpp"
+#include "test_wavefunction_batch.cpp"

@@ -3,23 +3,26 @@
 #include "../jastrow_pade/jastrow_pade.hpp"
 #include "../particles/particles.hpp"
 #include "../slater_plane_wave/slater_plane_wave.hpp"
+#include <xpu/buffer.hpp>
 #include <xpu/soa.hpp>
 
+#include <cassert>
 #include <cstddef>
+#include <cstdint>
 
 class WaveFunction {
 private:
   JastrowPade jastrow_pade_;
   SlaterPlaneWave slater_plane_wave_;
 
-  bool jastrow_cache_valid_;
-  std::size_t steps_since_refresh_;
+  xpu::buffer<std::uint8_t> jastrow_cache_valid_;
+  xpu::buffer<std::size_t> steps_since_refresh_;
 
   enum class ArrayIndex : std::size_t {
     DERIVATIVES,
     NUM_ARRAYS = enum_index(ArrayIndex::DERIVATIVES, Derivatives::NUM)
   };
-  xpu::soa<fp_t, idx(ArrayIndex::NUM_ARRAYS)> deriv_;
+  xpu::soa_batch<fp_t, idx(ArrayIndex::NUM_ARRAYS)> deriv_;
 
 public:
   explicit WaveFunction(
@@ -30,10 +33,13 @@ public:
   )
     : jastrow_pade_{box_length, a, b}
     , slater_plane_wave_{particles, box_length}
-    , jastrow_cache_valid_{}
-    , steps_since_refresh_{}
-    , deriv_{particles.count()}
-  { }
+    , jastrow_cache_valid_{particles.walker_count()}
+    , steps_since_refresh_{particles.walker_count()}
+    , deriv_{particles.walker_count(), particles.count()}
+  {
+    xpu::zero_n(jastrow_cache_valid_.data(), particles.walker_count());
+    xpu::zero_n(steps_since_refresh_.data(), particles.walker_count());
+  }
 
   [[nodiscard]]       JastrowPade& jastrow_pade()       noexcept { return jastrow_pade_; }
   [[nodiscard]] const JastrowPade& jastrow_pade() const noexcept { return jastrow_pade_; }
@@ -42,30 +48,44 @@ public:
   [[nodiscard]] const SlaterPlaneWave& slater_plane_wave() const noexcept { return slater_plane_wave_; }
 
   [[nodiscard]] CUDA_CALLABLE
-  xpu::soa_view<fp_t, idx(Derivatives::NUM)> j_derivatives() {
-    return deriv_.view<idx(Derivatives::NUM), idx(ArrayIndex::DERIVATIVES)>();
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> j_derivatives(std::size_t walker = 0uz) {
+    return deriv_.view<idx(Derivatives::NUM), idx(ArrayIndex::DERIVATIVES)>(walker);
   }
 
   [[nodiscard]] CUDA_CALLABLE
-  xpu::soa_view<const fp_t, idx(Derivatives::NUM)> j_derivatives() const {
-    return deriv_.view<idx(Derivatives::NUM), idx(ArrayIndex::DERIVATIVES)>();
+  xpu::soa_view<const fp_t, idx(Derivatives::NUM)> j_derivatives(std::size_t walker = 0uz) const {
+    return deriv_.view<idx(Derivatives::NUM), idx(ArrayIndex::DERIVATIVES)>(walker);
   }
 
-  [[nodiscard]] bool jastrow_cache_valid() const noexcept { return jastrow_cache_valid_; }
-  void set_jastrow_cache_valid(bool value) noexcept { jastrow_cache_valid_ = value; }
+  [[nodiscard]] bool jastrow_cache_valid(std::size_t walker = 0uz) const noexcept {
+    assert(walker < deriv_.batch_count());
+    return jastrow_cache_valid_.data()[walker] != 0u;
+  }
+  void set_jastrow_cache_valid(bool value, std::size_t walker = 0uz) noexcept {
+    assert(walker < deriv_.batch_count());
+    jastrow_cache_valid_.data()[walker] = static_cast<std::uint8_t>(value);
+  }
 
-  [[nodiscard]] std::size_t steps_since_refresh() const noexcept { return steps_since_refresh_; }
-  void set_steps_since_refresh(std::size_t value) noexcept { steps_since_refresh_ = value; }
+  [[nodiscard]] std::size_t steps_since_refresh(std::size_t walker = 0uz) const noexcept {
+    assert(walker < deriv_.batch_count());
+    return steps_since_refresh_.data()[walker];
+  }
+  void set_steps_since_refresh(std::size_t value, std::size_t walker = 0uz) noexcept {
+    assert(walker < deriv_.batch_count());
+    steps_since_refresh_.data()[walker] = value;
+  }
 
-  void evaluate_derivatives(Particles& particles) noexcept;
+  void evaluate_derivatives(Particles& particles, std::size_t walker = 0uz) noexcept;
   void evaluate_derivatives(
     Particles& particles,
     bool move_accepted,
     std::size_t moved,
-    xpu::array<fp_t, idx(Axis::NUM)> old_pos
+    xpu::array<fp_t, idx(Axis::NUM)> old_pos,
+    std::size_t walker = 0uz
   ) noexcept;
 
-  fp_t evaluate_log_psi(Particles& particles) {
-    return this->slater_plane_wave().log_abs_det(particles) + this->jastrow_pade().value(particles.pos());
+  fp_t evaluate_log_psi(Particles& particles, std::size_t walker = 0uz) {
+    return this->slater_plane_wave().log_abs_det(particles, walker)
+      + this->jastrow_pade().value(particles.pos(walker));
   }
 };
