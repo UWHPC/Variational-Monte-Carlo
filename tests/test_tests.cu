@@ -2,6 +2,7 @@
 #include "test_blocking_analysis.cpp"
 #include "test_config.cpp"
 #include "test_energy_tracking.cpp"
+#include "test_energy_batch.cpp"
 #include "test_jastrow_pade.cpp"
 #include "test_known_energy.cpp"
 #include "test_matrix.cpp"

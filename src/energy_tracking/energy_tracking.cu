@@ -5,16 +5,21 @@
 #include <numbers>
 #include <vector>
 
-EnergyTracker::EnergyTracker(fp_t box_length, std::size_t num_particles)
+EnergyTracker::EnergyTracker(
+  fp_t box_length,
+  std::size_t num_particles,
+  std::size_t num_walkers
+)
 : box_length_{box_length}
 , ewald_alpha_{6.0_fp / box_length}
 , ewald_correction_{-6.0_fp * static_cast<fp_t>(num_particles)/(xpu::sqrt(std::numbers::pi_v<fp_t>) * box_length)}
 , ewald_background_{-std::numbers::pi_v<fp_t>*static_cast<fp_t>(num_particles)*static_cast<fp_t>(num_particles)/(72.0_fp * box_length)}
-, V_recip_{}
-, V_real_{}
 , num_g_vectors_{}
-, data_{0uz}
-, reduction_scratch_{1uz}
+, num_walkers_{num_walkers}
+, shared_data_{0uz}
+, walker_data_{num_walkers, 0uz}
+, walker_scalars_{num_walkers}
+, reduction_scratch_{num_walkers}
 {
   const fp_t two_pi_over_L{2.0_fp * std::numbers::pi_v<fp_t> / box_length};
   const fp_t four_alpha_sq{4.0_fp * ewald_alpha_ * ewald_alpha_};
@@ -61,7 +66,11 @@ EnergyTracker::EnergyTracker(fp_t box_length, std::size_t num_particles)
 
   num_g_vectors_ = g_x.size();
 
-  data_ = xpu::soa<fp_t, idx(ArrayIndex::NUM_ARRAYS)>{
+  shared_data_ = xpu::soa<fp_t, idx(SharedArray::NUM_ARRAYS)>{
+    this->num_g_vectors()
+  };
+  walker_data_ = xpu::soa_batch<fp_t, idx(WalkerArray::NUM_ARRAYS)>{
+    this->walker_count(),
     this->num_g_vectors()
   };
 
@@ -89,7 +98,7 @@ EnergyTracker::EnergyTracker(fp_t box_length, std::size_t num_particles)
   );
 }
 
-void EnergyTracker::initialize_reciprocal_energy() noexcept {
+void EnergyTracker::initialize_reciprocal_energy(std::size_t walker) noexcept {
   const fp_t L{box_length_};
   const fp_t prefactor{
     1.0_fp / (2.0_fp * std::numbers::pi_v<fp_t> * L * L * L)
@@ -98,63 +107,74 @@ void EnergyTracker::initialize_reciprocal_energy() noexcept {
     kernel::energy::initialize_reciprocal_energy(
       this->num_g_vectors(),
       this->g_weights(),
-      this->sum_real(), this->sum_imag(),
-      this->reduction_scratch()
+      this->sum_real(walker), this->sum_imag(walker),
+      this->reduction_scratch(walker)
     )
   };
 
-  V_recip_ = prefactor * reciprocal_sum;
+  reciprocal_energy_value(walker) = prefactor * reciprocal_sum;
 }
 
-void EnergyTracker::initialize_real_energy(const Particles& particles) noexcept {
+void EnergyTracker::initialize_real_energy(
+  const Particles& particles,
+  std::size_t walker
+) noexcept {
   const fp_t L{box_length_};
   const fp_t half_L{0.5_fp * L};
 
-  V_real_ = kernel::energy::initialize_real_energy(
+  real_energy(walker) = kernel::energy::initialize_real_energy(
     L, half_L, ewald_alpha_,
-    particles.pos(),
-    this->reduction_scratch()
+    particles.pos(walker),
+    this->reduction_scratch(walker)
   );
 }
 
-void EnergyTracker::initialize_structure_factors(const Particles& particles) noexcept {
+void EnergyTracker::initialize_structure_factors(
+  const Particles& particles,
+  std::size_t walker
+) noexcept {
   kernel::energy::initialize_structure_factors(
-    this->g_vector(), particles.pos(),
-    this->sum_real(), this->sum_imag()
+    this->g_vector(), particles.pos(walker),
+    this->sum_real(walker), this->sum_imag(walker)
   );
 }
 
 void EnergyTracker::update_structure_factors(
   xpu::array<fp_t, idx(Axis::NUM)> old_pos,
-  xpu::array<fp_t, idx(Axis::NUM)> new_pos
+  xpu::array<fp_t, idx(Axis::NUM)> new_pos,
+  std::size_t walker
 ) noexcept {
   kernel::energy::update_structure_factors(
     old_pos, new_pos,
     this->g_vector(),
-    this->sum_real(), this->sum_imag()
+    this->sum_real(walker), this->sum_imag(walker)
   );
 
-  this->initialize_reciprocal_energy();
+  this->initialize_reciprocal_energy(walker);
 }
-fp_t EnergyTracker::kinetic_energy(const Particles& particles) const noexcept {
+fp_t EnergyTracker::kinetic_energy(
+  const Particles& particles,
+  std::size_t walker
+) const noexcept {
   return kernel::energy::kinetic_energy(
-    particles.derivatives(),
-    this->reduction_scratch()
+    particles.derivatives(walker),
+    this->reduction_scratch(walker)
   );
 }
 
 void EnergyTracker::update_real_energy(
   std::size_t moved,
   xpu::array<fp_t, idx(Axis::NUM)> old_pos,
-  const Particles& particles
+  const Particles& particles,
+  std::size_t walker
 ) noexcept {
   const fp_t L{box_length_};
   const fp_t half_L{0.5_fp * L};
 
-  V_real_ += kernel::energy::update_real_energy(
+  real_energy(walker) += kernel::energy::update_real_energy(
     moved,
     L, half_L, ewald_alpha_,
-    old_pos, particles.pos(),
-    this->reduction_scratch()
+    old_pos, particles.pos(walker),
+    this->reduction_scratch(walker)
   );
 }

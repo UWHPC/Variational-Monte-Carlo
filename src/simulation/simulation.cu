@@ -18,7 +18,7 @@ Simulation::Simulation(
 , particles_{config_.num_particles}
 , wave_function_{particles_, config_.box_length, config_.jastrow_a, config_.jastrow_b}
 , blocking_analysis_{config_.block_size}
-, energy_tracker_{config_.box_length, config_.num_particles}
+, energy_tracker_{config_.box_length, particles_}
 , output_writer_{std::move(output_writer)}
 , proposed_{}
 , accepted_{}
