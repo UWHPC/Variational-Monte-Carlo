@@ -11,15 +11,30 @@ private:
   fp_t b_;
 
 public:
+  struct View {
+    fp_t box_length;
+    fp_t a;
+    fp_t b;
+  };
+
   explicit JastrowPade(fp_t box_length, fp_t a = 0.25_fp, fp_t b = 1.0_fp) noexcept
     : box_length_{box_length}
     , a_{a}
     , b_{b}
   { }
 
-  [[nodiscard]] fp_t box_length() const noexcept { return box_length_; }
-  [[nodiscard]] fp_t a() const noexcept { return a_; }
-  [[nodiscard]] fp_t b() const noexcept { return b_; }
+  [[nodiscard]] CUDA_CALLABLE fp_t box_length() const noexcept { return box_length_; }
+  [[nodiscard]] CUDA_CALLABLE fp_t a() const noexcept { return a_; }
+  [[nodiscard]] CUDA_CALLABLE fp_t b() const noexcept { return b_; }
+
+  [[nodiscard]] CUDA_CALLABLE
+  View view() const noexcept {
+    return {
+      this->box_length(),
+      this->a(),
+      this->b()
+    };
+  }
 
   [[nodiscard]] fp_t value(xpu::soa_view<fp_t, idx(Axis::NUM)> pos) const noexcept;
 

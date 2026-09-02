@@ -28,25 +28,14 @@ Simulation::Simulation(
     std::vector<fp_t>(particles_.count()),
     std::vector<fp_t>(particles_.count())
   }
-#if defined(XPU_CUDA)
 , walker_rng_{1uz}
 , step_result_{1uz}
-#else
-, walker_rng_{}
-#endif
 {
-#if defined(XPU_CUDA)
   kernel::simulation::seed_generator(
     walker_rng_.data(),
     config_.master_seed,
     walker_id
   );
-#else
-  walker_rng_.seed(
-    config_.master_seed,
-    walker_id
-  );
-#endif
 }
 
 const std::array<std::vector<fp_t>, idx(Axis::NUM)>& Simulation::positions_snapshot() {
@@ -66,22 +55,11 @@ void Simulation::initialize_positions() {
   constexpr std::size_t MAX_INIT_ATTEMPTS{100};
 
   for (std::size_t attempt = 0; attempt < MAX_INIT_ATTEMPTS; ++attempt) {
-#if defined(XPU_CUDA)
     kernel::simulation::initialize_positions(
       walker_rng_.data(),
       length,
       particles_.pos()
     );
-#else
-    const std::size_t N{particles_.count()};
-    auto [p_x, p_y, p_z]{particles_.pos().pointers()};
-
-    for (std::size_t i = 0; i < N; i++) {
-      p_x[i] = walker_rng_.uniform<fp_t>() * length;
-      p_y[i] = walker_rng_.uniform<fp_t>() * length;
-      p_z[i] = walker_rng_.uniform<fp_t>() * length;
-    }
-#endif
 
     log_psi_current_ = wave_function_.evaluate_log_psi(particles_);
     if (std::isfinite(log_psi_current_)) { break; }
@@ -97,38 +75,13 @@ void Simulation::initialize_positions() {
 }
 
 simulation::StepResult Simulation::metropolis_step() {
-  auto& slater{wave_function_.slater_plane_wave()};
-  const auto& jastrow{wave_function_.jastrow_pade()};
-
-#if defined(XPU_CUDA)
   const simulation::StepResult result{
     kernel::simulation::metropolis_step(
-      walker_rng_.data(),
+      this->view(),
       config_.step_size,
-      config_.box_length,
-      jastrow.a(),
-      jastrow.b(),
-      particles_.pos(),
-      slater.view(),
-      energy_tracker_.view(),
-      step_result_.data()
+      config_.box_length
     )
   };
-#else
-  simulation::MetropolisScratch scratch{};
-  stencil::simulation::metropolis_step(
-    walker_rng_,
-    config_.step_size,
-    config_.box_length,
-    jastrow.a(),
-    jastrow.b(),
-    particles_.pos(),
-    slater.view(),
-    energy_tracker_.view(),
-    scratch
-  );
-  const simulation::StepResult result{scratch.result};
-#endif
 
   if (result.accepted) {
     log_psi_current_ += result.log_psi_delta;

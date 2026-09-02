@@ -535,5 +535,64 @@ inline ::simulation::StepResult metropolis_step(
 
 #endif
 
+#if !defined(XPU_CUDA)
+
+inline void seed_generator(
+  xpu::random::generator* generator,
+  std::uint64_t master_seed,
+  std::uint64_t walker_id
+) {
+  generator->seed(master_seed, walker_id);
+}
+
+inline void initialize_positions(
+  xpu::random::generator* generator,
+  fp_t box_length,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos
+) {
+  for (auto particle{0uz}; particle < pos.count(); ++particle) {
+    pos[idx(Axis::X)][particle] = generator->uniform<fp_t>() * box_length;
+    pos[idx(Axis::Y)][particle] = generator->uniform<fp_t>() * box_length;
+    pos[idx(Axis::Z)][particle] = generator->uniform<fp_t>() * box_length;
+  }
+}
+
+#endif
+
+inline ::simulation::StepResult metropolis_step(
+  Simulation::View simulation,
+  fp_t step_size,
+  fp_t box_length
+) {
+#if defined(XPU_CUDA)
+  return metropolis_step(
+    simulation.generator,
+    step_size,
+    box_length,
+    simulation.wave_function.jastrow.a,
+    simulation.wave_function.jastrow.b,
+    simulation.particles.pos,
+    simulation.wave_function.slater,
+    simulation.energy_tracker,
+    simulation.step_result
+  );
+#else
+  ::simulation::MetropolisScratch scratch{};
+  stencil::simulation::metropolis_step(
+    *simulation.generator,
+    step_size,
+    box_length,
+    simulation.wave_function.jastrow.a,
+    simulation.wave_function.jastrow.b,
+    simulation.particles.pos,
+    simulation.wave_function.slater,
+    simulation.energy_tracker,
+    scratch
+  );
+  *simulation.step_result = scratch.result;
+  return scratch.result;
+#endif
+}
+
 } // namespace kernel::simulation
 } // namespace kernel

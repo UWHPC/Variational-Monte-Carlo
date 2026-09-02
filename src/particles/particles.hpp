@@ -17,6 +17,12 @@ private:
   xpu::soa_batch<fp_t, idx(ArrayIndex::NUM_SUB_ARRAYS)> data_;
 
 public:
+  struct View {
+    std::size_t count;
+    xpu::soa_view<fp_t, idx(Axis::NUM)> pos;
+    xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives;
+  };
+
   explicit Particles(
     std::size_t num_particles,
     std::size_t num_walkers = 1uz
@@ -57,5 +63,14 @@ public:
   [[nodiscard]] CUDA_CALLABLE
   xpu::soa_view<const fp_t, idx(Derivatives::NUM)> derivatives(std::size_t walker = 0uz) const {
     return data_.view<idx(Derivatives::NUM), idx(ArrayIndex::DERIVATIVES)>(walker);
+  }
+
+  [[nodiscard]] CUDA_CALLABLE
+  View view(std::size_t walker = 0uz) noexcept {
+    return {
+      this->count(),
+      this->pos(walker),
+      this->derivatives(walker)
+    };
   }
 };

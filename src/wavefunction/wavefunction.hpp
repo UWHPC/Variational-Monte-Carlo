@@ -25,6 +25,14 @@ private:
   xpu::soa_batch<fp_t, idx(ArrayIndex::NUM_ARRAYS)> deriv_;
 
 public:
+  struct View {
+    JastrowPade::View jastrow;
+    SlaterPlaneWave::View slater;
+    xpu::soa_view<fp_t, idx(Derivatives::NUM)> jastrow_derivatives;
+    std::uint8_t* jastrow_cache_valid;
+    std::size_t* steps_since_refresh;
+  };
+
   explicit WaveFunction(
     const Particles& particles,
     fp_t box_length,
@@ -55,6 +63,18 @@ public:
   [[nodiscard]] CUDA_CALLABLE
   xpu::soa_view<const fp_t, idx(Derivatives::NUM)> j_derivatives(std::size_t walker = 0uz) const {
     return deriv_.view<idx(Derivatives::NUM), idx(ArrayIndex::DERIVATIVES)>(walker);
+  }
+
+  [[nodiscard]] CUDA_CALLABLE
+  View view(std::size_t walker = 0uz) noexcept {
+    assert(walker < deriv_.batch_count());
+    return {
+      this->jastrow_pade().view(),
+      this->slater_plane_wave().view(walker),
+      this->j_derivatives(walker),
+      jastrow_cache_valid_.data() + walker,
+      steps_since_refresh_.data() + walker
+    };
   }
 
   [[nodiscard]] bool jastrow_cache_valid(std::size_t walker = 0uz) const noexcept {

@@ -68,16 +68,20 @@ private:
     }
   }
 
-#if defined(XPU_CUDA)
   xpu::buffer<xpu::random::generator> walker_rng_;
   xpu::buffer<simulation::StepResult> step_result_;
-#else
-  xpu::random::generator walker_rng_;
-#endif
 
   [[nodiscard]] const std::array<std::vector<fp_t>, idx(Axis::NUM)>& positions_snapshot();
 
 public:
+  struct View {
+    Particles::View particles;
+    WaveFunction::View wave_function;
+    EnergyTracker::View energy_tracker;
+    xpu::random::generator* generator;
+    simulation::StepResult* step_result;
+  };
+
   struct MeasurementSummary {
     fp_t mean_energy;
     std::optional<fp_t> standard_error;
@@ -89,11 +93,23 @@ public:
     std::unique_ptr<OutputWriter> output_writer = nullptr,
     std::uint64_t walker_id = 0
   );
+
+  [[nodiscard]] CUDA_CALLABLE
+  View view(std::size_t walker = 0uz) noexcept {
+    return {
+      particles_.view(walker),
+      wave_function_.view(walker),
+      energy_tracker_.view(walker),
+      walker_rng_.data() + walker,
+      step_result_.data() + walker
+    };
+  }
+
   MeasurementSummary run();
+  simulation::StepResult metropolis_step();
 
 private:
   void initialize_positions();
-  simulation::StepResult metropolis_step();
   void warmup();
   MeasurementSummary measure();
 };
