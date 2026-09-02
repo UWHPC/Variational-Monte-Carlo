@@ -48,11 +48,11 @@ TEST_CASE("Batched wavefunctions match independent walkers", "[wavefunction][wal
     set_positions(independent_particles, 0uz, walker);
     WaveFunction independent{independent_particles, box_length};
 
-    batched_log_psi[walker] = batched.evaluate_log_psi(particles, walker);
-    const auto independent_log_psi{independent.evaluate_log_psi(independent_particles)};
+    batched_log_psi[walker] = batched.evaluate_log_psi(particles.view(walker), walker);
+    const auto independent_log_psi{independent.evaluate_log_psi(independent_particles.view())};
 
-    batched.evaluate_derivatives(particles, false, 0uz, {}, walker);
-    independent.evaluate_derivatives(independent_particles);
+    batched.evaluate_derivatives(particles.view(walker), false, 0uz, {}, walker);
+    independent.evaluate_derivatives(independent_particles.view());
 
     const auto batched_derivatives{particles.derivatives(walker)};
     const auto independent_derivatives{independent_particles.derivatives()};

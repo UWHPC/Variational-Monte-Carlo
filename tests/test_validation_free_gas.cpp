@@ -35,8 +35,8 @@ TEST_CASE("Free gas N=1: kinetic energy is exactly zero", "[validation]") {
     particles.pos().y_[0] = uniform(rng);
     particles.pos().z_[0] = uniform(rng);
 
-    wf.evaluate_log_psi(particles);
-    wf.evaluate_derivatives(particles);
+    wf.evaluate_log_psi(particles.view());
+    wf.evaluate_derivatives(particles.view());
 
     const fp_t T_local{local_kinetic_energy(particles)};
 
@@ -70,8 +70,8 @@ TEST_CASE("Free gas N=7: local kinetic energy matches exact value at every sampl
       particles.pos().z_[i] = uniform(rng);
     }
 
-    wf.evaluate_log_psi(particles);
-    wf.evaluate_derivatives(particles);
+    wf.evaluate_log_psi(particles.view());
+    wf.evaluate_derivatives(particles.view());
 
     const fp_t T_local{local_kinetic_energy(particles)};
 
@@ -105,8 +105,8 @@ TEST_CASE("Free gas N=19: local kinetic energy matches exact value at every samp
       particles.pos().z_[i] = uniform(rng);
     }
 
-    wf.evaluate_log_psi(particles);
-    wf.evaluate_derivatives(particles);
+    wf.evaluate_log_psi(particles.view());
+    wf.evaluate_derivatives(particles.view());
 
     const fp_t T_local{local_kinetic_energy(particles)};
 
@@ -136,8 +136,8 @@ TEST_CASE("Free gas zero-variance: local kinetic energy is configuration-indepen
       particles.pos().z_[i] = uniform(rng);
     }
 
-    wf.evaluate_log_psi(particles);
-    wf.evaluate_derivatives(particles);
+    wf.evaluate_log_psi(particles.view());
+    wf.evaluate_derivatives(particles.view());
 
     const fp_t T_local{local_kinetic_energy(particles)};
 
@@ -167,10 +167,10 @@ TEST_CASE("Free gas: EnergyTracker kinetic term matches manual computation", "[v
     particles.pos().z_[i] = uniform(rng);
   }
 
-  wf.evaluate_log_psi(particles);
-  wf.evaluate_derivatives(particles);
+  wf.evaluate_log_psi(particles.view());
+  wf.evaluate_derivatives(particles.view());
 
-  tracker.initialize_structure_factors(particles);
+  tracker.initialize_structure_factors(particles.view());
 
   const fp_t T_manual{local_kinetic_energy(particles)};
   const SlaterPlaneWave& slater{wf.slater_plane_wave()};
@@ -234,8 +234,8 @@ TEST_CASE("Free gas partial shell N=16: zero-variance property still holds", "[v
       particles.pos().z_[i] = uniform(rng);
     }
 
-    wf.evaluate_log_psi(particles);
-    wf.evaluate_derivatives(particles);
+    wf.evaluate_log_psi(particles.view());
+    wf.evaluate_derivatives(particles.view());
 
     const fp_t T_local{local_kinetic_energy(particles)};
 

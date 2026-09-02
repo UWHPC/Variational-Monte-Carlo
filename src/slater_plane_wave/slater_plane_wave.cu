@@ -21,7 +21,7 @@ struct nVectorCandidate {
 
 } // namespace
 
-void SlaterPlaneWave::initialize(const Particles& particles) {
+void SlaterPlaneWave::initialize() {
   const auto num_orbitals{this->num_orbitals()};
   const auto n_max{
     static_cast<int>(xpu::ceil(xpu::cbrt(static_cast<fp_t>(num_orbitals)))) + 2
@@ -117,11 +117,11 @@ void SlaterPlaneWave::initialize(const Particles& particles) {
   xpu::copy_n(this->orbital_type(), orbital_type.data(), num_orbitals);
 
   trig_cache_ = xpu::soa_batch<fp_t, NUM_TRIG_ARRAYS>(
-    particles.walker_count(),
-    particles.count() * this->trig_row_stride()
+    this->walker_count(),
+    this->num_orbitals() * this->trig_row_stride()
   );
   trig_scratch_ = xpu::soa_batch<fp_t, NUM_SCRATCH_TRIG>(
-    particles.walker_count(),
+    this->walker_count(),
     this->num_unique_k()
   );
 }
@@ -143,7 +143,7 @@ SlaterPlaneWave::SlaterPlaneWave(const Particles& particles, fp_t box_lengthL)
   , reduction_scratch_{particles.walker_count()}
   , lu_factorization_{particles.count(), matrix_row_stride_}
 {
-  this->initialize(particles);
+  this->initialize();
 };
 
 void SlaterPlaneWave::restore_trig_row(
@@ -193,19 +193,11 @@ void SlaterPlaneWave::save_trig_row(
 
 void SlaterPlaneWave::update_trig_cache(
   std::size_t particle,
-  Particles& particles,
+  Particles::View particles,
   std::size_t walker
 ) {
-  const auto row_offset{particle * this->trig_row_stride()};
-
   this->save_trig_row(particle, walker);
-
-  kernel::slater::update_trig_cache(
-    this->num_unique_k(),
-    row_offset, particle,
-    particles.pos(walker), this->k_vector(),
-    this->sin_cache(walker), this->cos_cache(walker)
-  );
+  kernel::slater::update_trig_cache(this->view(walker), particle, particles);
 }
 
 void SlaterPlaneWave::accept_move(
@@ -216,6 +208,7 @@ void SlaterPlaneWave::accept_move(
 ) noexcept {
   const auto inv_ratio{1.0_fp / ratio};
   if (!std::isfinite(inv_ratio)) { return; }
+  auto slater{this->view(walker)};
 
   const auto particle_offset{this->matrix_row_stride() * particle};
   xpu::copy_n(
@@ -225,17 +218,9 @@ void SlaterPlaneWave::accept_move(
   );
   xpu::zero_n(this->solution(walker), this->num_orbitals());
 
-  kernel::slater::k_compute_sk(
-    this->num_orbitals(), particle, this->matrix_row_stride(),
-    new_row, this->inv_determinant(walker), this->solution(walker)
-  );
+  kernel::slater::k_compute_sk(slater, particle, new_row);
 
-  kernel::slater::k_update_inverse(
-    this->num_orbitals(), particle, this->matrix_row_stride(),
-    inv_ratio,
-    this->inv_d_col(walker), this->solution(walker),
-    this->inv_determinant(walker)
-  );
+  kernel::slater::k_update_inverse(slater, particle, inv_ratio);
 
   xpu::copy_n(
     &this->determinant(walker)[particle_offset],
@@ -248,12 +233,7 @@ fp_t* SlaterPlaneWave::build_row(
   std::size_t particle,
   std::size_t walker
 ) noexcept {
-  kernel::slater::build_row(
-    this->num_orbitals(), particle, this->trig_row_stride(),
-    this->sin_cache(walker), this->cos_cache(walker),
-    this->orbital_k_index(), this->orbital_type(),
-    this->new_row(walker)
-  );
+  kernel::slater::build_row(this->view(walker), particle);
 
   return this->new_row(walker);
 }
@@ -262,45 +242,27 @@ fp_t SlaterPlaneWave::determinant_ratio(
   std::size_t particle,
   const fp_t* new_row,
   std::size_t walker
-) const noexcept {
+) noexcept {
   return kernel::slater::determinant_ratio(
-    this->num_orbitals(), particle, this->matrix_row_stride(),
-    new_row, this->inv_determinant(walker)
+    this->view(walker), particle, new_row
   );
 }
 
 void SlaterPlaneWave::add_derivatives(
   xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives,
   std::size_t walker
-) const noexcept {
-  kernel::slater::add_derivatives(
-    this->num_orbitals(), this->matrix_row_stride(), this->trig_row_stride(),
-    this->k_vector(),
-    this->orbital_k_index(), this->orbital_type(),
-    this->inv_determinant(walker),
-    this->sin_cache(walker), this->cos_cache(walker),
-    derivatives
-  );
+) noexcept {
+  kernel::slater::add_derivatives(this->view(walker), derivatives);
 }
 
 fp_t SlaterPlaneWave::log_abs_det(
-  const Particles& particles,
+  Particles::View particles,
   std::size_t walker
 ) {
-  kernel::slater::build_trig_cache(
-    this->num_unique_k(),
-    this->trig_row_stride(),
-    particles.pos(walker), std::as_const(*this).k_vector(),
-    this->sin_cache(walker), this->cos_cache(walker)
-  );
+  auto slater{this->view(walker)};
+  kernel::slater::build_trig_cache(slater, particles);
 
-  kernel::slater::build_determinant(
-    this->num_orbitals(),
-    this->trig_row_stride(), this->matrix_row_stride(),
-    this->sin_cache(walker), this->cos_cache(walker),
-    this->orbital_k_index(), this->orbital_type(),
-    this->determinant(walker)
-  );
+  kernel::slater::build_determinant(slater);
 
   xpu::copy_n(
     this->lower_upper(walker),
@@ -318,12 +280,7 @@ fp_t SlaterPlaneWave::log_abs_det(
   }
 
   const auto log_abs_det{
-    kernel::slater::compute_log_abs_det(
-      this->num_orbitals(),
-      this->matrix_row_stride(),
-      this->lower_upper(walker),
-      this->reduction_scratch(walker)
-    )
+    kernel::slater::compute_log_abs_det(slater)
   };
   if (!std::isfinite(log_abs_det)) {
     return -std::numeric_limits<fp_t>::infinity();

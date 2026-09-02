@@ -46,8 +46,8 @@ TEST_CASE("EnergyTracker total energy changes by expected kinetic contribution",
   with_derivatives.grad_log_psi().z_[2] = -0.5_fp;
   with_derivatives.lap_log_psi()[2] = 0.7_fp;
 
-  const fp_t energy_without_derivatives{tracker.eval_total_energy(reference)};
-  const fp_t energy_with_derivatives{tracker.eval_total_energy(with_derivatives)};
+  const fp_t energy_without_derivatives{tracker.eval_total_energy(reference.view())};
+  const fp_t energy_with_derivatives{tracker.eval_total_energy(with_derivatives.view())};
 
   fp_t expected_kinetic{};
   for (std::size_t i = 0; i < n; ++i) {
@@ -101,8 +101,8 @@ TEST_CASE("EnergyTracker is invariant under box-periodic particle translations",
   translated.pos().z_[1] += 3.0_fp * L;
   translated.pos().x_[2] -= L;
 
-  const fp_t baseline{tracker.eval_total_energy(particles)};
-  const fp_t shifted{tracker.eval_total_energy(translated)};
+  const fp_t baseline{tracker.eval_total_energy(particles.view())};
+  const fp_t shifted{tracker.eval_total_energy(translated.view())};
   require_near(shifted, baseline, 1e-9_fp);
 }
 
@@ -128,7 +128,7 @@ TEST_CASE("EnergyTracker handles degenerate positions and permutation symmetry",
   particles.grad_log_psi().z_[1] = 0.2_fp;
   particles.lap_log_psi()[1] = -0.5_fp;
 
-  const fp_t degenerate_energy{tracker.eval_total_energy(particles)};
+  const fp_t degenerate_energy{tracker.eval_total_energy(particles.view())};
   REQUIRE(std::isfinite(degenerate_energy));
 
   Particles permuted{n};
@@ -148,7 +148,7 @@ TEST_CASE("EnergyTracker handles degenerate positions and permutation symmetry",
   permuted.grad_log_psi().z_[1] = particles.grad_log_psi().z_[0];
   permuted.lap_log_psi()[1] = particles.lap_log_psi()[0];
 
-  const fp_t permuted_energy{tracker.eval_total_energy(permuted)};
+  const fp_t permuted_energy{tracker.eval_total_energy(permuted.view())};
   require_near(permuted_energy, degenerate_energy, 1e-10_fp);
 }
 
@@ -170,9 +170,9 @@ TEST_CASE("EnergyTracker incremental reciprocal and real-energy updates match fu
   initial.pos().z_[2] = 4.8_fp;
 
   EnergyTracker incremental{L, n};
-  incremental.initialize_structure_factors(initial);
+  incremental.initialize_structure_factors(initial.view());
   incremental.initialize_reciprocal_energy();
-  incremental.initialize_real_energy(initial);
+  incremental.initialize_real_energy(initial.view());
 
   Particles moved_particles{n};
   copy_positions(initial, moved_particles);
@@ -197,15 +197,15 @@ TEST_CASE("EnergyTracker incremental reciprocal and real-energy updates match fu
   incremental.update_structure_factors(
     old_pos, new_pos
   );
-  incremental.update_real_energy(moved, old_pos, moved_particles);
+  incremental.update_real_energy(moved, old_pos, moved_particles.view());
 
   EnergyTracker rebuilt{L, n};
-  rebuilt.initialize_structure_factors(moved_particles);
+  rebuilt.initialize_structure_factors(moved_particles.view());
   rebuilt.initialize_reciprocal_energy();
-  rebuilt.initialize_real_energy(moved_particles);
+  rebuilt.initialize_real_energy(moved_particles.view());
 
-  const fp_t incremental_total{incremental.eval_total_energy(moved_particles)};
-  const fp_t rebuilt_total{rebuilt.eval_total_energy(moved_particles)};
+  const fp_t incremental_total{incremental.eval_total_energy(moved_particles.view())};
+  const fp_t rebuilt_total{rebuilt.eval_total_energy(moved_particles.view())};
 
   INFO("Incremental Ewald updates should agree with a full reinitialization after one move.");
   CAPTURE(moved, old_pos, incremental_total, rebuilt_total);

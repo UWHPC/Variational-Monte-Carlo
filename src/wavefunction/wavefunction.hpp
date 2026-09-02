@@ -95,17 +95,17 @@ public:
     steps_since_refresh_.data()[walker] = value;
   }
 
-  void evaluate_derivatives(Particles& particles, std::size_t walker = 0uz) noexcept;
+  void evaluate_derivatives(Particles::View particles, std::size_t walker = 0uz) noexcept;
   void evaluate_derivatives(
-    Particles& particles,
+    Particles::View particles,
     bool move_accepted,
     std::size_t moved,
     xpu::array<fp_t, idx(Axis::NUM)> old_pos,
     std::size_t walker = 0uz
   ) noexcept;
 
-  fp_t evaluate_log_psi(Particles& particles, std::size_t walker = 0uz) {
+  fp_t evaluate_log_psi(Particles::View particles, std::size_t walker = 0uz) {
     return this->slater_plane_wave().log_abs_det(particles, walker)
-      + this->jastrow_pade().value(particles.pos(walker));
+      + this->jastrow_pade().value(particles);
   }
 };

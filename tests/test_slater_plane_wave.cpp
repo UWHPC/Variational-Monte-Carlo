@@ -38,7 +38,7 @@ TEST_CASE("log_abs_det handles the N=1 constant orbital case", "[slater]") {
   particles.pos().y_[0] = 1.50_fp;
   particles.pos().z_[0] = 7.75_fp;
 
-  const fp_t logDet{slater.log_abs_det(particles)};
+  const fp_t logDet{slater.log_abs_det(particles.view())};
 
   require_near(logDet, 0.0_fp);
   require_near(slater.determinant()[0], 1.0_fp);
@@ -63,7 +63,7 @@ TEST_CASE("log_abs_det computes an inverse satisfying D*invD = I", "[slater]") {
   particles.pos().y_[2] = 1.8_fp;
   particles.pos().z_[2] = 0.9_fp;
 
-  const fp_t logDet{slater.log_abs_det(particles)};
+  const fp_t logDet{slater.log_abs_det(particles.view())};
   REQUIRE(std::isfinite(logDet));
 
   for (std::size_t row = 0; row < N; ++row) {
@@ -95,7 +95,7 @@ TEST_CASE("log_abs_det reuses CUDA scratch across repeated N=512 calls", "[cuda-
     particles.pos().z_[particle] = coordinate(rng);
   }
 
-  const fp_t first{slater.log_abs_det(particles)};
+  const fp_t first{slater.log_abs_det(particles.view())};
   REQUIRE(std::isfinite(first));
   REQUIRE(std::abs(first) > 1e-3_fp);
 
@@ -105,7 +105,7 @@ TEST_CASE("log_abs_det reuses CUDA scratch across repeated N=512 calls", "[cuda-
 
   for (std::size_t call = 0; call < 4U; ++call) {
     CAPTURE(call, tolerance);
-    const fp_t repeated{slater.log_abs_det(particles)};
+    const fp_t repeated{slater.log_abs_det(particles.view())};
     REQUIRE(std::isfinite(repeated));
     require_near(repeated, first, tolerance);
   }
@@ -151,7 +151,7 @@ TEST_CASE("determinant_ratio matches exact determinant ratio for a moved row", "
   particles.pos().z_[2] = 2.6_fp;
 
   SlaterPlaneWave slater{particles, L};
-  const fp_t logDetOld{slater.log_abs_det(particles)};
+  const fp_t logDetOld{slater.log_abs_det(particles.view())};
   REQUIRE(std::isfinite(logDetOld));
 
   const fp_t detOld{determinant_3x3(slater.determinant(), slater.matrix_row_stride())};
@@ -162,12 +162,12 @@ TEST_CASE("determinant_ratio matches exact determinant ratio for a moved row", "
   particles.pos().y_[moved] -= 0.20_fp;
   particles.pos().z_[moved] += 0.15_fp;
 
-  slater.update_trig_cache(moved, particles);
+  slater.update_trig_cache(moved, particles.view());
   const fp_t* const newRow{slater.build_row(moved)};
   const fp_t ratio{slater.determinant_ratio(moved, newRow)};
 
   SlaterPlaneWave exactSlater{particles, L};
-  const fp_t logDetNew{exactSlater.log_abs_det(particles)};
+  const fp_t logDetNew{exactSlater.log_abs_det(particles.view())};
   REQUIRE(std::isfinite(logDetNew));
 
   const fp_t detNew{
@@ -201,7 +201,7 @@ TEST_CASE("accept_move matches a fresh full rebuild after an accepted row update
   particles.pos().z_[2] = 3.3_fp;
 
   SlaterPlaneWave updated{particles, L};
-  const fp_t logDetInitial{updated.log_abs_det(particles)};
+  const fp_t logDetInitial{updated.log_abs_det(particles.view())};
   REQUIRE(std::isfinite(logDetInitial));
 
   constexpr std::size_t moved{2U};
@@ -209,7 +209,7 @@ TEST_CASE("accept_move matches a fresh full rebuild after an accepted row update
   particles.pos().y_[moved] += 0.19_fp;
   particles.pos().z_[moved] += 0.41_fp;
 
-  updated.update_trig_cache(moved, particles);
+  updated.update_trig_cache(moved, particles.view());
   const fp_t* const newRow{updated.build_row(moved)};
   const fp_t ratio{updated.determinant_ratio(moved, newRow)};
 
@@ -221,7 +221,7 @@ TEST_CASE("accept_move matches a fresh full rebuild after an accepted row update
   updated.accept_move(moved, newRow, ratio);
 
   SlaterPlaneWave rebuilt{particles, L};
-  const fp_t logDetRebuilt{rebuilt.log_abs_det(particles)};
+  const fp_t logDetRebuilt{rebuilt.log_abs_det(particles.view())};
   REQUIRE(std::isfinite(logDetRebuilt));
 
   const std::size_t S{updated.matrix_row_stride()};
@@ -255,7 +255,7 @@ TEST_CASE("N=3 determinant matrix uses cos/sin basis correctly", "[slater]") {
   particles.pos().y_[2] = 8.0_fp;
   particles.pos().z_[2] = 9.0_fp;
 
-  slater.log_abs_det(particles);
+  slater.log_abs_det(particles.view());
 
   const auto& k_index{slater.orbital_k_index()};
   const auto& o_type{slater.orbital_type()};
@@ -312,7 +312,7 @@ TEST_CASE("N=7 determinant is nonzero with cos/sin basis", "[slater]") {
     particles.pos().z_[i] = 0.3_fp + static_cast<fp_t>(i) * 1.3_fp;
   }
 
-  const fp_t logDet{slater.log_abs_det(particles)};
+  const fp_t logDet{slater.log_abs_det(particles.view())};
   REQUIRE(std::isfinite(logDet));
 
   // Verify D * D^{-1} = I
@@ -349,7 +349,7 @@ TEST_CASE("Slater derivatives match finite-difference for N=3 cos/sin basis", "[
   particles.pos().z_[2] = 8.9_fp;
 
   // Compute analytic derivatives
-  slater.log_abs_det(particles);
+  slater.log_abs_det(particles.view());
   const std::size_t stride{particles.p_stride()};
   std::vector<fp_t> gradX(stride, 0.0_fp);
   std::vector<fp_t> gradY(stride, 0.0_fp);
@@ -363,7 +363,7 @@ TEST_CASE("Slater derivatives match finite-difference for N=3 cos/sin basis", "[
 #else
   const fp_t h{1e-3_fp};
 #endif
-  const fp_t center{slater.log_abs_det(particles)};
+  const fp_t center{slater.log_abs_det(particles.view())};
 
   auto shift_and_eval = [&](std::size_t p, fp_t dx, fp_t dy, fp_t dz) {
     Particles shifted{N};
@@ -375,7 +375,7 @@ TEST_CASE("Slater derivatives match finite-difference for N=3 cos/sin basis", "[
     shifted.pos().x_[p] += dx;
     shifted.pos().y_[p] += dy;
     shifted.pos().z_[p] += dz;
-    return slater.log_abs_det(shifted);
+    return slater.log_abs_det(shifted.view());
   };
 
   for (std::size_t p = 0; p < N; ++p) {

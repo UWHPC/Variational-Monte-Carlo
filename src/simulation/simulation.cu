@@ -61,7 +61,7 @@ void Simulation::initialize_positions() {
       particles_.pos()
     );
 
-    log_psi_current_ = wave_function_.evaluate_log_psi(particles_);
+    log_psi_current_ = wave_function_.evaluate_log_psi(particles_.view());
     if (std::isfinite(log_psi_current_)) { break; }
 
     if (attempt == MAX_INIT_ATTEMPTS - 1) {
@@ -69,17 +69,16 @@ void Simulation::initialize_positions() {
     }
   }
 
-  energy_tracker_.initialize_structure_factors(particles_);
+  energy_tracker_.initialize_structure_factors(particles_.view());
   energy_tracker_.initialize_reciprocal_energy();
-  energy_tracker_.initialize_real_energy(particles_);
+  energy_tracker_.initialize_real_energy(particles_.view());
 }
 
 simulation::StepResult Simulation::metropolis_step() {
   const simulation::StepResult result{
     kernel::simulation::metropolis_step(
       this->view(),
-      config_.step_size,
-      config_.box_length
+      config_.step_size
     )
   };
 
@@ -142,11 +141,11 @@ Simulation::MeasurementSummary Simulation::measure() {
     }
 
     wavefunction.evaluate_derivatives(
-      particles, result.accepted, result.moved_particle,
+      particles.view(), result.accepted, result.moved_particle,
       result.old_pos
     );
 
-    const fp_t E_local{energy_tracker.eval_total_energy(particles)};
+    const fp_t E_local{energy_tracker.eval_total_energy(particles.view())};
     running_energy_sum += E_local;
     blocking_analysis.add(E_local);
 

@@ -15,24 +15,21 @@ void reset_derivatives(
 
 } // namespace
 
-void WaveFunction::evaluate_derivatives(Particles& particles, std::size_t walker) noexcept {
-  reset_derivatives(particles.derivatives(walker));
+void WaveFunction::evaluate_derivatives(Particles::View particles, std::size_t walker) noexcept {
+  reset_derivatives(particles.derivatives);
   reset_derivatives(this->j_derivatives(walker));
 
-  slater_plane_wave_.add_derivatives(particles.derivatives(walker), walker);
-  jastrow_pade_.add_derivatives(particles.pos(walker), this->j_derivatives(walker));
+  slater_plane_wave_.add_derivatives(particles.derivatives, walker);
+  jastrow_pade_.add_derivatives(particles, this->j_derivatives(walker));
 
-  kernel::wavefunction::derivative_sums(
-    particles.derivatives(walker),
-    this->j_derivatives(walker)
-  );
+  kernel::wavefunction::derivative_sums(this->view(walker), particles);
 
   set_jastrow_cache_valid(true, walker);
   set_steps_since_refresh(0uz, walker);
 }
 
 void WaveFunction::evaluate_derivatives(
-  Particles& particles,
+  Particles::View particles,
   bool move_accepted,
   std::size_t moved,
   xpu::array<fp_t, idx(Axis::NUM)> old_pos,
@@ -54,19 +51,16 @@ void WaveFunction::evaluate_derivatives(
   jastrow_pade_.update_derivatives_for_move(
     moved,
     old_pos,
-    particles.pos(walker),
+    particles,
     this->j_derivatives(walker)
   );
 
-  reset_derivatives(particles.derivatives(walker));
+  reset_derivatives(particles.derivatives);
 
   slater_plane_wave_.add_derivatives(
-    particles.derivatives(walker),
+    particles.derivatives,
     walker
   );
   
-  kernel::wavefunction::derivative_sums(
-    particles.derivatives(walker),
-    this->j_derivatives(walker)
-  );
+  kernel::wavefunction::derivative_sums(this->view(walker), particles);
 }

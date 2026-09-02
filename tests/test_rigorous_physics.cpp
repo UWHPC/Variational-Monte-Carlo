@@ -175,7 +175,7 @@ TEST_CASE("Fully polarized Jastrow cusp matches the same-spin analytical form ne
     particles.pos().z_[1] = 0.0_fp;
 
     const fp_t expected_value{0.25_fp * r / (1.0_fp + r)};
-    const fp_t actual_value{jastrow.value(particles.pos())};
+    const fp_t actual_value{jastrow.value(particles.view())};
 
     INFO("Checking Jastrow value against the exact same-spin Padé form near coalescence.");
     CAPTURE(r, actual_value, expected_value);
@@ -186,7 +186,7 @@ TEST_CASE("Fully polarized Jastrow cusp matches the same-spin analytical form ne
     std::vector<fp_t> grad_z(particles.p_stride(), 0.0_fp);
     std::vector<fp_t> lap(particles.p_stride(), 0.0_fp);
 
-    jastrow.add_derivatives(particles, grad_x.data(), grad_y.data(), grad_z.data(), lap.data());
+    jastrow.add_derivatives(particles.view(), grad_x.data(), grad_y.data(), grad_z.data(), lap.data());
 
     const fp_t first_derivative{0.25_fp / ((1.0_fp + r) * (1.0_fp + r))};
     const fp_t second_derivative{-0.5_fp / ((1.0_fp + r) * (1.0_fp + r) * (1.0_fp + r))};
@@ -227,7 +227,7 @@ TEST_CASE(
   original.pos().z_[2] = 0.5_fp;
 
   SlaterPlaneWave slater_original{original, box_length};
-  const fp_t log_original{slater_original.log_abs_det(original)};
+  const fp_t log_original{slater_original.log_abs_det(original.view())};
   REQUIRE(std::isfinite(log_original));
 
   const fp_t det_original{
@@ -244,7 +244,7 @@ TEST_CASE(
   std::swap(swapped.pos().z_[0], swapped.pos().z_[1]);
 
   SlaterPlaneWave slater_swapped{swapped, box_length};
-  const fp_t log_swapped{slater_swapped.log_abs_det(swapped)};
+  const fp_t log_swapped{slater_swapped.log_abs_det(swapped.view())};
   REQUIRE(std::isfinite(log_swapped));
 
   const fp_t det_swapped{
@@ -279,7 +279,7 @@ TEST_CASE("SlaterPlaneWave is periodic under box translations of a single partic
   particles.pos().z_[2] = 2.9_fp;
 
   SlaterPlaneWave baseline{particles, box_length};
-  const fp_t baseline_log_det{baseline.log_abs_det(particles)};
+  const fp_t baseline_log_det{baseline.log_abs_det(particles.view())};
   REQUIRE(std::isfinite(baseline_log_det));
 
   Particles shifted{n};
@@ -289,7 +289,7 @@ TEST_CASE("SlaterPlaneWave is periodic under box translations of a single partic
   shifted.pos().z_[1] += 2.0_fp * box_length;
 
   SlaterPlaneWave translated{shifted, box_length};
-  const fp_t translated_log_det{translated.log_abs_det(shifted)};
+  const fp_t translated_log_det{translated.log_abs_det(shifted.view())};
   REQUIRE(std::isfinite(translated_log_det));
 
   INFO("Plane-wave Slater determinant must be invariant under integer box translations.");
@@ -326,7 +326,7 @@ TEST_CASE("Randomized determinant_ratio matches exact determinant ratio over man
     }
 
     SlaterPlaneWave slater{particles, box_length};
-    const fp_t baseline_log_det{slater.log_abs_det(particles)};
+    const fp_t baseline_log_det{slater.log_abs_det(particles.view())};
 
     INFO("Baseline Slater rebuild must be finite for randomized determinant-ratio testing.");
     CAPTURE(sample, baseline_log_det);
@@ -348,12 +348,12 @@ TEST_CASE("Randomized determinant_ratio matches exact determinant ratio over man
     particles.pos().z_[moved] =
         wrap_coordinate(particles.pos().z_[moved] + move_dist(rng), box_length);
 
-    slater.update_trig_cache(moved, particles);
+    slater.update_trig_cache(moved, particles.view());
     const fp_t* const new_row{slater.build_row(moved)};
     const fp_t ratio{slater.determinant_ratio(moved, new_row)};
 
     SlaterPlaneWave rebuilt{particles, box_length};
-    const fp_t rebuilt_log_det{rebuilt.log_abs_det(particles)};
+    const fp_t rebuilt_log_det{rebuilt.log_abs_det(particles.view())};
 
     INFO("Fresh rebuild must be finite for randomized determinant-ratio testing.");
     CAPTURE(sample, moved, rebuilt_log_det);
@@ -393,7 +393,7 @@ TEST_CASE("SlaterPlaneWave reports a singular determinant for duplicate particle
   particles.pos().z_[2] = 1.70_fp;
 
   SlaterPlaneWave slater{particles, box_length};
-  const fp_t log_abs_det{slater.log_abs_det(particles)};
+  const fp_t log_abs_det{slater.log_abs_det(particles.view())};
   const fp_t det{phy_determinant3x3(slater.determinant(), slater.matrix_row_stride())};
 
   INFO("Duplicate particle positions should create duplicate Slater rows and a singular matrix.");
@@ -413,7 +413,7 @@ TEST_CASE("Repeated accepted Slater updates preserve predictive determinant rati
   set_stable_closed_shell_positions(particles);
 
   SlaterPlaneWave maintained{particles, box_length};
-  const fp_t initial_log_det{maintained.log_abs_det(particles)};
+  const fp_t initial_log_det{maintained.log_abs_det(particles.view())};
 
   INFO("Initial Slater matrix for the multi-step drift test must be well-defined.");
   CAPTURE(initial_log_det);
@@ -430,7 +430,7 @@ TEST_CASE("Repeated accepted Slater updates preserve predictive determinant rati
     particles.pos().y_[moved] = wrap_coordinate(particles.pos().y_[moved] + dy, box_length);
     particles.pos().z_[moved] = wrap_coordinate(particles.pos().z_[moved] + dz, box_length);
 
-    maintained.update_trig_cache(moved, particles);
+    maintained.update_trig_cache(moved, particles.view());
     const fp_t* const accepted_row{maintained.build_row(moved)};
     const fp_t accepted_ratio{maintained.determinant_ratio(moved, accepted_row)};
 
@@ -442,7 +442,7 @@ TEST_CASE("Repeated accepted Slater updates preserve predictive determinant rati
     maintained.accept_move(moved, accepted_row, accepted_ratio);
 
     SlaterPlaneWave rebuilt{particles, box_length};
-    const fp_t rebuilt_log_det{rebuilt.log_abs_det(particles)};
+    const fp_t rebuilt_log_det{rebuilt.log_abs_det(particles.view())};
 
     INFO("Fresh rebuild produced a non-finite log determinant during the multi-step "
          "predictive-consistency test.");
@@ -489,8 +489,8 @@ TEST_CASE("Repeated accepted Slater updates preserve predictive determinant rati
     probe_particles.pos().z_[probe] =
         wrap_coordinate(probe_particles.pos().z_[probe] + probe_dz, box_length);
 
-    maintained.update_trig_cache(probe, probe_particles);
-    rebuilt.update_trig_cache(probe, probe_particles);
+    maintained.update_trig_cache(probe, probe_particles.view());
+    rebuilt.update_trig_cache(probe, probe_particles.view());
 
     const fp_t* const maintained_probe_row{maintained.build_row(probe)};
     const fp_t* const rebuilt_probe_row{rebuilt.build_row(probe)};
@@ -523,8 +523,8 @@ TEST_CASE("WaveFunction log_psi and derivatives are invariant under integer box 
   }
 
   WaveFunction baseline{particles, box_length};
-  const fp_t baseline_log_psi{baseline.evaluate_log_psi(particles)};
-  baseline.evaluate_derivatives(particles);
+  const fp_t baseline_log_psi{baseline.evaluate_log_psi(particles.view())};
+  baseline.evaluate_derivatives(particles.view());
 
   std::vector<fp_t> baseline_grad_x(n);
   std::vector<fp_t> baseline_grad_y(n);
@@ -553,8 +553,8 @@ TEST_CASE("WaveFunction log_psi and derivatives are invariant under integer box 
   }
 
   WaveFunction translated{shifted, box_length};
-  const fp_t translated_log_psi{translated.evaluate_log_psi(shifted)};
-  translated.evaluate_derivatives(shifted);
+  const fp_t translated_log_psi{translated.evaluate_log_psi(shifted.view())};
+  translated.evaluate_derivatives(shifted.view());
 
   INFO("WaveFunction must be periodic under integer box translations.");
   CAPTURE(baseline_log_psi, translated_log_psi);
@@ -588,11 +588,11 @@ TEST_CASE("EnergyTracker matches an exact Ewald reference on many random small c
     }
 
     EnergyTracker tracker{box_length, n};
-    tracker.initialize_structure_factors(particles);
+    tracker.initialize_structure_factors(particles.view());
     tracker.initialize_reciprocal_energy();
-    tracker.initialize_real_energy(particles);
+    tracker.initialize_real_energy(particles.view());
 
-    const fp_t tracker_total{tracker.eval_total_energy(particles)};
+    const fp_t tracker_total{tracker.eval_total_energy(particles.view())};
     const fp_t exact_total{exact_total_potential(particles, box_length)};
 
     INFO("EnergyTracker total potential should match the exact Ewald reference on many random "
@@ -622,9 +622,9 @@ TEST_CASE("EnergyTracker remains close to the exact Ewald reference across many 
   particles.pos().z_[2] = 4.45_fp;
 
   EnergyTracker tracker{box_length, n};
-  tracker.initialize_structure_factors(particles);
+  tracker.initialize_structure_factors(particles.view());
   tracker.initialize_reciprocal_energy();
-  tracker.initialize_real_energy(particles);
+  tracker.initialize_real_energy(particles.view());
 
   for (std::size_t step = 0; step < steps; ++step) {
     const std::size_t moved{step % n};
@@ -659,9 +659,9 @@ TEST_CASE("EnergyTracker remains close to the exact Ewald reference across many 
     tracker.update_structure_factors(
       old_pos, new_pos
     );
-    tracker.update_real_energy(moved, old_pos, particles);
+    tracker.update_real_energy(moved, old_pos, particles.view());
 
-    const fp_t tracker_total{tracker.eval_total_energy(particles)};
+    const fp_t tracker_total{tracker.eval_total_energy(particles.view())};
     const fp_t exact_total{exact_total_potential(particles, box_length)};
 
     INFO("Cached Ewald updates drifted too far from an exact recomputation.");

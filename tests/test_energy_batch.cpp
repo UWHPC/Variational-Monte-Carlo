@@ -43,20 +43,20 @@ TEST_CASE("Batched energy walkers match independent calculations", "[energy][wal
 
   for (auto walker{0uz}; walker < num_walkers; ++walker) {
     set_state(particles, walker, walker);
-    batched_tracker.initialize_structure_factors(particles, walker);
+    batched_tracker.initialize_structure_factors(particles.view(walker), walker);
     batched_tracker.initialize_reciprocal_energy(walker);
-    batched_tracker.initialize_real_energy(particles, walker);
+    batched_tracker.initialize_real_energy(particles.view(walker), walker);
 
     Particles independent_particles{num_particles};
     set_state(independent_particles, 0uz, walker);
     EnergyTracker independent_tracker{box_length, independent_particles};
-    independent_tracker.initialize_structure_factors(independent_particles);
+    independent_tracker.initialize_structure_factors(independent_particles.view());
     independent_tracker.initialize_reciprocal_energy();
-    independent_tracker.initialize_real_energy(independent_particles);
+    independent_tracker.initialize_real_energy(independent_particles.view());
 
-    batched_energies[walker] = batched_tracker.eval_total_energy(particles, walker);
+    batched_energies[walker] = batched_tracker.eval_total_energy(particles.view(walker), walker);
     const auto independent_energy{
-      independent_tracker.eval_total_energy(independent_particles)
+      independent_tracker.eval_total_energy(independent_particles.view())
     };
 
     CAPTURE(walker, batched_energies[walker], independent_energy);

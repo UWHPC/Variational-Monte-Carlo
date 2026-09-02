@@ -47,9 +47,9 @@ TEST_CASE("Batched Slater walkers match independent calculations", "[slater][wal
     set_positions(independent_particles, 0uz, walker);
     SlaterPlaneWave independent_slater{independent_particles, box_length};
 
-    batched_log_dets[walker] = batched_slater.log_abs_det(particles, walker);
+    batched_log_dets[walker] = batched_slater.log_abs_det(particles.view(walker), walker);
     const auto independent_log_det{
-      independent_slater.log_abs_det(independent_particles)
+      independent_slater.log_abs_det(independent_particles.view())
     };
 
     CAPTURE(walker, batched_log_dets[walker], independent_log_det);

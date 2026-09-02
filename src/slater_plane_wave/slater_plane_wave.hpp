@@ -71,6 +71,8 @@ public:
 
     fp_t* determinant;
     fp_t* inv_determinant;
+    fp_t* lower_upper;
+    fp_t* reduction_scratch;
     fp_t* solution;
     fp_t* new_row;
     fp_t* inv_d_col;
@@ -82,7 +84,6 @@ public:
   };
 
   explicit SlaterPlaneWave(const Particles& particles, fp_t box_length);
-  void initialize(const Particles& particles);
 
   SlaterPlaneWave(const SlaterPlaneWave&) = delete;
   SlaterPlaneWave& operator=(const SlaterPlaneWave&) = delete;
@@ -169,11 +170,11 @@ public:
   void restore_trig_row(std::size_t particle, std::size_t walker = 0uz);
   void update_trig_cache(
     std::size_t particle,
-    Particles& particles,
+    Particles::View particles,
     std::size_t walker = 0uz
   );
 
-  fp_t log_abs_det(const Particles& particles, std::size_t walker = 0uz);
+  fp_t log_abs_det(Particles::View particles, std::size_t walker = 0uz);
 
   fp_t* build_row(std::size_t particle, std::size_t walker = 0uz) noexcept;
 
@@ -181,7 +182,7 @@ public:
     std::size_t particle,
     const fp_t* new_row,
     std::size_t walker = 0uz
-  ) const noexcept;
+  ) noexcept;
 
   void accept_move(
     std::size_t particle,
@@ -193,7 +194,7 @@ public:
   void add_derivatives(
     xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives,
     std::size_t walker = 0uz
-  ) const noexcept;
+  ) noexcept;
 
   [[nodiscard]] CUDA_CALLABLE
   View view(std::size_t walker = 0uz) noexcept {
@@ -207,6 +208,8 @@ public:
       this->orbital_type(),
       this->determinant(walker),
       this->inv_determinant(walker),
+      this->lower_upper(walker),
+      this->reduction_scratch(walker),
       this->solution(walker),
       this->new_row(walker),
       this->inv_d_col(walker),
@@ -218,6 +221,7 @@ public:
   }
 
 private:
+  void initialize();
   void save_trig_row(std::size_t particle, std::size_t walker);
 
   [[nodiscard]] fp_t* new_row(std::size_t walker) noexcept {

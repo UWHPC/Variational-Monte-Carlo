@@ -99,44 +99,31 @@ EnergyTracker::EnergyTracker(
 }
 
 void EnergyTracker::initialize_reciprocal_energy(std::size_t walker) noexcept {
-  const fp_t L{box_length_};
+  auto energy{this->view(walker)};
   const fp_t prefactor{
-    1.0_fp / (2.0_fp * std::numbers::pi_v<fp_t> * L * L * L)
+    1.0_fp / (2.0_fp * std::numbers::pi_v<fp_t>
+      * energy.box_length * energy.box_length * energy.box_length)
   };
   const auto reciprocal_sum{
-    kernel::energy::initialize_reciprocal_energy(
-      this->num_g_vectors(),
-      this->g_weights(),
-      this->sum_real(walker), this->sum_imag(walker),
-      this->reduction_scratch(walker)
-    )
+    kernel::energy::initialize_reciprocal_energy(energy)
   };
 
-  reciprocal_energy_value(walker) = prefactor * reciprocal_sum;
+  *energy.reciprocal_energy = prefactor * reciprocal_sum;
 }
 
 void EnergyTracker::initialize_real_energy(
-  const Particles& particles,
+  Particles::View particles,
   std::size_t walker
 ) noexcept {
-  const fp_t L{box_length_};
-  const fp_t half_L{0.5_fp * L};
-
-  real_energy(walker) = kernel::energy::initialize_real_energy(
-    L, half_L, ewald_alpha_,
-    particles.pos(walker),
-    this->reduction_scratch(walker)
-  );
+  auto energy{this->view(walker)};
+  *energy.real_energy = kernel::energy::initialize_real_energy(energy, particles);
 }
 
 void EnergyTracker::initialize_structure_factors(
-  const Particles& particles,
+  Particles::View particles,
   std::size_t walker
 ) noexcept {
-  kernel::energy::initialize_structure_factors(
-    this->g_vector(), particles.pos(walker),
-    this->sum_real(walker), this->sum_imag(walker)
-  );
+  kernel::energy::initialize_structure_factors(this->view(walker), particles);
 }
 
 void EnergyTracker::update_structure_factors(
@@ -144,37 +131,28 @@ void EnergyTracker::update_structure_factors(
   xpu::array<fp_t, idx(Axis::NUM)> new_pos,
   std::size_t walker
 ) noexcept {
-  kernel::energy::update_structure_factors(
-    old_pos, new_pos,
-    this->g_vector(),
-    this->sum_real(walker), this->sum_imag(walker)
-  );
+  kernel::energy::update_structure_factors(this->view(walker), old_pos, new_pos);
 
   this->initialize_reciprocal_energy(walker);
 }
 fp_t EnergyTracker::kinetic_energy(
-  const Particles& particles,
+  Particles::View particles,
   std::size_t walker
-) const noexcept {
+) noexcept {
   return kernel::energy::kinetic_energy(
-    particles.derivatives(walker),
-    this->reduction_scratch(walker)
+    this->view(walker),
+    particles
   );
 }
 
 void EnergyTracker::update_real_energy(
   std::size_t moved,
   xpu::array<fp_t, idx(Axis::NUM)> old_pos,
-  const Particles& particles,
+  Particles::View particles,
   std::size_t walker
 ) noexcept {
-  const fp_t L{box_length_};
-  const fp_t half_L{0.5_fp * L};
-
-  real_energy(walker) += kernel::energy::update_real_energy(
-    moved,
-    L, half_L, ewald_alpha_,
-    old_pos, particles.pos(walker),
-    this->reduction_scratch(walker)
+  auto energy{this->view(walker)};
+  *energy.real_energy += kernel::energy::update_real_energy(
+    energy, moved, old_pos, particles
   );
 }

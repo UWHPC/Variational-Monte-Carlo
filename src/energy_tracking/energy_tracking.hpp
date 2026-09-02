@@ -44,12 +44,18 @@ private:
 
 public:
   struct View {
+    fp_t box_length;
     std::size_t num_g_vectors;
     fp_t ewald_alpha;
+    fp_t ewald_correction;
+    fp_t ewald_background;
     xpu::soa_view<fp_t, idx(Axis::NUM)> g_vector;
     const fp_t* g_weights;
     fp_t* sum_real;
     fp_t* sum_imag;
+    fp_t* real_energy;
+    fp_t* reciprocal_energy;
+    fp_t* reduction_scratch;
   };
 
   explicit EnergyTracker(
@@ -74,12 +80,12 @@ public:
 
   void initialize_reciprocal_energy(std::size_t walker = 0uz) noexcept;
   void initialize_real_energy(
-    const Particles& particles,
+    Particles::View particles,
     std::size_t walker = 0uz
   ) noexcept;
 
   void initialize_structure_factors(
-    const Particles& particles,
+    Particles::View particles,
     std::size_t walker = 0uz
   ) noexcept;
 
@@ -92,26 +98,32 @@ public:
   void update_real_energy(
     std::size_t moved,
     xpu::array<fp_t, idx(Axis::NUM)> old_pos,
-    const Particles& particles,
+    Particles::View particles,
     std::size_t walker = 0uz
   ) noexcept;
 
   fp_t eval_total_energy(
-    const Particles& particles,
+    Particles::View particles,
     std::size_t walker = 0uz
-  ) const noexcept {
+  ) noexcept {
     return kinetic_energy(particles, walker) + potential_energy(walker);
   }
 
   [[nodiscard]] CUDA_CALLABLE
   View view(std::size_t walker = 0uz) noexcept {
     return {
+      box_length_,
       this->num_g_vectors(),
       ewald_alpha_,
+      ewald_correction_,
+      ewald_background_,
       this->g_vector(),
       this->g_weights(),
       this->sum_real(walker),
-      this->sum_imag(walker)
+      this->sum_imag(walker),
+      &this->real_energy(walker),
+      &this->reciprocal_energy_value(walker),
+      this->reduction_scratch(walker)
     };
   }
 
@@ -174,9 +186,9 @@ private:
   }
 
   fp_t kinetic_energy(
-    const Particles& particles,
+    Particles::View particles,
     std::size_t walker
-  ) const noexcept;
+  ) noexcept;
   inline fp_t potential_energy(std::size_t walker) const noexcept {
     return
       real_energy(walker) +

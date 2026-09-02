@@ -35,7 +35,7 @@ TEST_CASE("WaveFunction evaluateDerivatives clears buffers and delegates to Jast
   std::vector<fp_t> expectedLap(stride, 0.0_fp);
 
   // Need to call log_abs_det first to populate the inverse
-  waveFunction.slater_plane_wave().log_abs_det(particles);
+  waveFunction.slater_plane_wave().log_abs_det(particles.view());
   waveFunction.slater_plane_wave().add_derivatives(
     expectedX.data(), expectedY.data(),
     expectedZ.data(), expectedLap.data()
@@ -46,7 +46,7 @@ TEST_CASE("WaveFunction evaluateDerivatives clears buffers and delegates to Jast
     expectedZ.data(), expectedLap.data()
   );
 
-  waveFunction.evaluate_derivatives(particles);
+  waveFunction.evaluate_derivatives(particles.view());
 
   for (std::size_t i = 0; i < stride; ++i) {
     require_near(particles.grad_log_psi().x_[i], expectedX[i]);
@@ -68,7 +68,7 @@ TEST_CASE("WaveFunction evaluate_log_psi returns finite for N=1", "[wavefunction
 
   WaveFunction waveFunction{particles, 10.0_fp, 0.5_fp, 1.0_fp};
 
-  const fp_t logPsi{waveFunction.evaluate_log_psi(particles)};
+  const fp_t logPsi{waveFunction.evaluate_log_psi(particles.view())};
   require_near(logPsi, 0.0_fp);
 }
 

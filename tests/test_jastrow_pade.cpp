@@ -29,7 +29,7 @@ fp_t valueAtOffset(
   shifted.pos().x_[particle] += dx;
   shifted.pos().y_[particle] += dy;
   shifted.pos().z_[particle] += dz;
-  return jastrow.value(shifted.pos());
+  return jastrow.value(shifted.view());
 }
 
 } // namespace
@@ -48,7 +48,7 @@ TEST_CASE("Jastrow value uses minimum-image pair distances", "[jastrow]") {
 
   const fp_t r{0.2_fp};
   const fp_t expected{(0.25_fp * r) / (1.0_fp + r)};
-  require_near(jastrow.value(particles.pos()), expected);
+  require_near(jastrow.value(particles.view()), expected);
 }
 
 TEST_CASE("Jastrow value skips degenerate pairs", "[jastrow]") {
@@ -63,7 +63,7 @@ TEST_CASE("Jastrow value skips degenerate pairs", "[jastrow]") {
   particles.pos().y_[1] = 2.0_fp;
   particles.pos().z_[1] = 3.0_fp;
 
-  require_near(jastrow.value(particles.pos()), 0.0_fp);
+  require_near(jastrow.value(particles.view()), 0.0_fp);
 }
 
 TEST_CASE("Jastrow derivatives match the analytic two-particle result", "[jastrow]") {
@@ -84,7 +84,7 @@ TEST_CASE("Jastrow derivatives match the analytic two-particle result", "[jastro
   std::vector<fp_t> gradZ(stride, 0.0_fp);
   std::vector<fp_t> lap(stride, 0.0_fp);
 
-  jastrow.add_derivatives(particles, gradX.data(), gradY.data(), gradZ.data(), lap.data());
+  jastrow.add_derivatives(particles.view(), gradX.data(), gradY.data(), gradZ.data(), lap.data());
 
   require_near(gradX[0], -0.0625_fp);
   require_near(gradX[1], 0.0625_fp);
@@ -125,7 +125,7 @@ TEST_CASE("Jastrow derivatives are unchanged for degenerate pairs", "[jastrow]")
   std::vector<fp_t> gradZ(stride, 1.5_fp);
   std::vector<fp_t> lap(stride, 7.0_fp);
 
-  jastrow.add_derivatives(particles, gradX.data(), gradY.data(), gradZ.data(), lap.data());
+  jastrow.add_derivatives(particles.view(), gradX.data(), gradY.data(), gradZ.data(), lap.data());
 
   for (std::size_t i = 0; i < stride; ++i) {
     require_near(gradX[i], 3.0_fp);
@@ -156,10 +156,10 @@ TEST_CASE("Jastrow derivatives match finite-difference gradients and Laplacians"
   std::vector<fp_t> gradY(stride, 0.0_fp);
   std::vector<fp_t> gradZ(stride, 0.0_fp);
   std::vector<fp_t> lap(stride, 0.0_fp);
-  jastrow.add_derivatives(particles, gradX.data(), gradY.data(), gradZ.data(), lap.data());
+  jastrow.add_derivatives(particles.view(), gradX.data(), gradY.data(), gradZ.data(), lap.data());
 
   const fp_t h{FD_STEP};
-  const fp_t valueCenter{jastrow.value(particles.pos())};
+  const fp_t valueCenter{jastrow.value(particles.view())};
 
   const fp_t dJdx{
     (

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <xpu/xpu.hpp>
+#include "wavefunction.hpp"
 #include "../utilities/components.hpp"
 #include "../utilities/macros.hpp"
 
@@ -67,6 +68,16 @@ inline void derivative_sums(
     stencil::wavefunction::derivative_sum(i, log_derivatives, jastrow_derivatives);
   }
 #endif
+}
+
+inline void derivative_sums(
+  WaveFunction::View wave_function,
+  Particles::View particles
+) {
+  derivative_sums(
+    particles.derivatives,
+    wave_function.jastrow_derivatives
+  );
 }
 
 } // namespace kernel::wavefunction

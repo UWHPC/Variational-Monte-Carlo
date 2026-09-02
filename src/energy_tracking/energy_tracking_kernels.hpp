@@ -1,6 +1,7 @@
 #pragma once
 
 #include <xpu/xpu.hpp>
+#include "energy_tracking.hpp"
 #include "../utilities/components.hpp"
 #include "../utilities/macros.hpp"
 
@@ -14,7 +15,7 @@ inline fp_t evaluate_pair_energy(
   std::size_t other,
   fp_t L, fp_t half_L, fp_t alpha,
   const xpu::array<fp_t, idx(Axis::NUM)>& particle_pos,
-  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos
 ) noexcept {
   xpu::array<fp_t, idx(Axis::NUM)> displacement{};
 
@@ -69,7 +70,7 @@ inline void initialize_real_energy(
   std::size_t other,
   fp_t L, fp_t half_L, fp_t alpha,
   const xpu::array<fp_t, idx(Axis::NUM)>& particle_pos,
-  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
   fp_t* RESTRICT real_sum
 ) noexcept {
   const auto pair_energy{
@@ -93,7 +94,7 @@ inline void update_real_energy(
   fp_t L, fp_t half_L, fp_t alpha,
   const xpu::array<fp_t, idx(Axis::NUM)>& old_pos,
   const xpu::array<fp_t, idx(Axis::NUM)>& new_pos,
-  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
   fp_t* RESTRICT delta
 ) noexcept {
   if (other == moved) { return; }
@@ -123,7 +124,7 @@ inline void update_real_energy(
 CUDA_CALLABLE
 inline void kinetic_energy(
   std::size_t i,
-  xpu::soa_view<const fp_t, idx(Derivatives::NUM)> derivatives,
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives,
   fp_t* RESTRICT kinetic_sum
 ) noexcept {
   const auto gradient_x{derivatives[idx(Derivatives::GRAD_X)][i]};
@@ -149,7 +150,7 @@ CUDA_CALLABLE
 inline void initialize_structure_factors(
   std::size_t g, std::size_t particle,
   xpu::soa_view<fp_t, idx(Axis::NUM)> g_vector,
-  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
   fp_t* RESTRICT sum_real,
   fp_t* RESTRICT sum_imag
 ) noexcept {
@@ -234,7 +235,7 @@ void cudaInitializeReciprocalEnergy(
 __global__
 void cudaInitializeRealEnergy(
   fp_t L, fp_t half_L, fp_t alpha,
-  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
   fp_t* RESTRICT real_sum
 ) {
   const auto [i, j]{xpu::global_index<2>()};
@@ -260,7 +261,7 @@ void cudaUpdateRealEnergy(
   std::size_t moved,
   fp_t L, fp_t half_L, fp_t alpha,
   xpu::array<fp_t, idx(Axis::NUM)> old_pos,
-  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
   fp_t* RESTRICT delta
 ) {
   const auto [i]{xpu::global_index<1>()};
@@ -282,7 +283,7 @@ void cudaUpdateRealEnergy(
 
 __global__
 void cudaKineticEnergy(
-  xpu::soa_view<const fp_t, idx(Derivatives::NUM)> derivatives,
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives,
   fp_t* RESTRICT kinetic_sum
 ) {
   const auto [i]{xpu::global_index<1>()};
@@ -298,7 +299,7 @@ void cudaKineticEnergy(
 __global__
 void cudaInitializeStructureFactors(
   xpu::soa_view<fp_t, idx(Axis::NUM)> g_vector,
-  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
   fp_t* RESTRICT sum_real,
   fp_t* RESTRICT sum_imag
 ) {
@@ -383,7 +384,7 @@ inline fp_t initialize_reciprocal_energy(
 
 inline fp_t initialize_real_energy(
   fp_t L, fp_t half_L, fp_t alpha,
-  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
   fp_t* RESTRICT real_sum_scratch
 ) noexcept {
 #if defined(XPU_CUDA)
@@ -442,7 +443,7 @@ inline fp_t update_real_energy(
   std::size_t moved,
   fp_t L, fp_t half_L, fp_t alpha,
   xpu::array<fp_t, idx(Axis::NUM)> old_pos,
-  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
   fp_t* RESTRICT delta_scratch
 ) noexcept {
 #if defined(XPU_CUDA)
@@ -492,7 +493,7 @@ inline fp_t update_real_energy(
 }
 
 inline fp_t kinetic_energy(
-  xpu::soa_view<const fp_t, idx(Derivatives::NUM)> derivatives,
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives,
   fp_t* RESTRICT kinetic_sum_scratch
 ) noexcept {
 #if defined(XPU_CUDA)
@@ -534,7 +535,7 @@ inline fp_t kinetic_energy(
 
 inline void initialize_structure_factors(
   xpu::soa_view<fp_t, idx(Axis::NUM)> g_vector,
-  xpu::soa_view<const fp_t, idx(Axis::NUM)> pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
   fp_t* RESTRICT sum_real,
   fp_t* RESTRICT sum_imag
 ) noexcept {
@@ -610,6 +611,84 @@ inline void update_structure_factors(
     );
   }
 #endif
+}
+
+inline fp_t initialize_reciprocal_energy(
+  EnergyTracker::View energy
+) noexcept {
+  return initialize_reciprocal_energy(
+    energy.num_g_vectors,
+    energy.g_weights,
+    energy.sum_real,
+    energy.sum_imag,
+    energy.reduction_scratch
+  );
+}
+
+inline fp_t initialize_real_energy(
+  EnergyTracker::View energy,
+  Particles::View particles
+) noexcept {
+  return initialize_real_energy(
+    energy.box_length,
+    0.5_fp * energy.box_length,
+    energy.ewald_alpha,
+    particles.pos,
+    energy.reduction_scratch
+  );
+}
+
+inline fp_t update_real_energy(
+  EnergyTracker::View energy,
+  std::size_t moved,
+  xpu::array<fp_t, idx(Axis::NUM)> old_pos,
+  Particles::View particles
+) noexcept {
+  return update_real_energy(
+    moved,
+    energy.box_length,
+    0.5_fp * energy.box_length,
+    energy.ewald_alpha,
+    old_pos,
+    particles.pos,
+    energy.reduction_scratch
+  );
+}
+
+inline fp_t kinetic_energy(
+  EnergyTracker::View energy,
+  Particles::View particles
+) noexcept {
+  return kinetic_energy(
+    particles.derivatives,
+    energy.reduction_scratch
+  );
+}
+
+inline void initialize_structure_factors(
+  EnergyTracker::View energy,
+  Particles::View particles
+) noexcept {
+  initialize_structure_factors(
+    energy.g_vector,
+    particles.pos,
+    energy.sum_real,
+    energy.sum_imag
+  );
+}
+
+inline void update_structure_factors(
+  EnergyTracker::View energy,
+  xpu::array<fp_t, idx(Axis::NUM)> old_pos,
+  xpu::array<fp_t, idx(Axis::NUM)> new_pos
+) noexcept {
+  update_structure_factors(
+    old_pos,
+    new_pos,
+    energy.g_vector,
+    energy.sum_real,
+    energy.sum_imag
+  );
 }
 
 } // namespace kernel::energy

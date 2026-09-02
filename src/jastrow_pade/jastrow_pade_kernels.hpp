@@ -1,6 +1,7 @@
 #pragma once
 
 #include <xpu/xpu.hpp>
+#include "jastrow_pade.hpp"
 #include "../utilities/components.hpp"
 #include "../utilities/macros.hpp"
 
@@ -570,6 +571,72 @@ inline void add_derivatives(
     }
   }
 #endif
+}
+
+inline fp_t value(
+  JastrowPade::View jastrow,
+  Particles::View particles
+) noexcept {
+  return value(
+    jastrow.box_length,
+    0.5_fp * jastrow.box_length,
+    jastrow.a,
+    jastrow.b,
+    particles.pos
+  );
+}
+
+inline fp_t delta_value(
+  JastrowPade::View jastrow,
+  std::size_t moved,
+  xpu::array<fp_t, idx(Axis::NUM)> old_pos,
+  Particles::View particles
+) noexcept {
+  return delta_value(
+    moved,
+    jastrow.box_length,
+    0.5_fp * jastrow.box_length,
+    jastrow.a,
+    jastrow.b,
+    old_pos,
+    particles.pos
+  );
+}
+
+inline void compute_derivatives(
+  JastrowPade::View jastrow,
+  std::size_t moved,
+  xpu::array<fp_t, idx(Axis::NUM)> old_pos,
+  Particles::View particles,
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
+) noexcept {
+  compute_derivatives(
+    moved,
+    jastrow.box_length,
+    0.5_fp * jastrow.box_length,
+    jastrow.a,
+    jastrow.b,
+    -2.0_fp * jastrow.a * jastrow.b,
+    old_pos,
+    particles.pos,
+    derivatives
+  );
+}
+
+inline void add_derivatives(
+  JastrowPade::View jastrow,
+  Particles::View particles,
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
+) noexcept {
+  add_derivatives(
+    jastrow.box_length,
+    0.5_fp * jastrow.box_length,
+    jastrow.a,
+    jastrow.b,
+    -2.0_fp * jastrow.a * jastrow.b,
+    particles.pos,
+    derivatives
+  );
 }
 
 } // namespace kernel::jpade

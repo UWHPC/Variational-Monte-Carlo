@@ -2,6 +2,7 @@
 
 #include <xpu/launch.hpp>
 #include <xpu/math.hpp>
+#include "slater_plane_wave.hpp"
 #include "../utilities/components.hpp"
 #include "../utilities/macros.hpp"
 
@@ -86,7 +87,7 @@ inline void add_derivatives(
   std::size_t i, std::size_t j,
   std::size_t matrix_row_stride,
   std::size_t trig_row_stride,
-  xpu::soa_view<const fp_t, idx(Axis::NUM)> k_vector,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> k_vector,
   const std::size_t* RESTRICT orbital_k_index,
   const std::uint8_t* RESTRICT orbital_type,
   const fp_t* RESTRICT inv_det,
@@ -221,8 +222,8 @@ __global__
 void cudaBuildTrigCache(
   std::size_t num_unique_k,
   std::size_t trig_row_stride,
-  xpu::soa_view<const fp_t, idx(Axis::NUM)> particle_pos,
-  xpu::soa_view<const fp_t, idx(Axis::NUM)> k_vector,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> particle_pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> k_vector,
   fp_t* RESTRICT sin_cache,
   fp_t* RESTRICT cos_cache
 ) {
@@ -319,7 +320,7 @@ void cudaAddDerivatives(
   std::size_t num_orbitals,
   std::size_t matrix_row_stride,
   std::size_t trig_row_stride,
-  xpu::soa_view<const fp_t, idx(Axis::NUM)> k_vector,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> k_vector,
   const std::size_t* RESTRICT orbital_k_index,
   const std::uint8_t* RESTRICT orbital_type,
   const fp_t* RESTRICT inv_det,
@@ -430,8 +431,8 @@ inline void update_trig_cache(
 inline void build_trig_cache(
   std::size_t num_unique_k,
   std::size_t trig_row_stride,
-  xpu::soa_view<const fp_t, idx(Axis::NUM)> particle_pos,
-  xpu::soa_view<const fp_t, idx(Axis::NUM)> k_vector,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> particle_pos,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> k_vector,
   fp_t* RESTRICT sin_cache,
   fp_t* RESTRICT cos_cache
 ) {
@@ -630,7 +631,7 @@ inline void add_derivatives(
   std::size_t num_orbitals,
   std::size_t matrix_row_stride,
   std::size_t trig_row_stride,
-  xpu::soa_view<const fp_t, idx(Axis::NUM)> k_vector,
+  xpu::soa_view<fp_t, idx(Axis::NUM)> k_vector,
   const std::size_t* RESTRICT orbital_k_index,
   const std::uint8_t* RESTRICT orbital_type,
   const fp_t* RESTRICT inv_det,
@@ -759,6 +760,137 @@ inline void k_compute_sk(
     }
   }
 #endif
+}
+
+inline void update_trig_cache(
+  SlaterPlaneWave::View slater,
+  std::size_t particle,
+  Particles::View particles
+) {
+  update_trig_cache(
+    slater.num_unique_k,
+    particle * slater.trig_row_stride,
+    particle,
+    particles.pos,
+    slater.k_vector,
+    slater.sin_cache,
+    slater.cos_cache
+  );
+}
+
+inline void build_trig_cache(
+  SlaterPlaneWave::View slater,
+  Particles::View particles
+) {
+  build_trig_cache(
+    slater.num_unique_k,
+    slater.trig_row_stride,
+    particles.pos,
+    slater.k_vector,
+    slater.sin_cache,
+    slater.cos_cache
+  );
+}
+
+inline void build_determinant(SlaterPlaneWave::View slater) {
+  build_determinant(
+    slater.num_orbitals,
+    slater.trig_row_stride,
+    slater.matrix_row_stride,
+    slater.sin_cache,
+    slater.cos_cache,
+    slater.orbital_k_index,
+    slater.orbital_type,
+    slater.determinant
+  );
+}
+
+inline fp_t compute_log_abs_det(SlaterPlaneWave::View slater) {
+  return compute_log_abs_det(
+    slater.num_orbitals,
+    slater.matrix_row_stride,
+    slater.lower_upper,
+    slater.reduction_scratch
+  );
+}
+
+inline void build_row(
+  SlaterPlaneWave::View slater,
+  std::size_t particle
+) {
+  build_row(
+    slater.num_orbitals,
+    particle,
+    slater.trig_row_stride,
+    slater.sin_cache,
+    slater.cos_cache,
+    slater.orbital_k_index,
+    slater.orbital_type,
+    slater.new_row
+  );
+}
+
+inline fp_t determinant_ratio(
+  SlaterPlaneWave::View slater,
+  std::size_t particle,
+  const fp_t* new_row
+) {
+  return determinant_ratio(
+    slater.num_orbitals,
+    particle,
+    slater.matrix_row_stride,
+    new_row,
+    slater.inv_determinant
+  );
+}
+
+inline void add_derivatives(
+  SlaterPlaneWave::View slater,
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
+) {
+  add_derivatives(
+    slater.num_orbitals,
+    slater.matrix_row_stride,
+    slater.trig_row_stride,
+    slater.k_vector,
+    slater.orbital_k_index,
+    slater.orbital_type,
+    slater.inv_determinant,
+    slater.sin_cache,
+    slater.cos_cache,
+    derivatives
+  );
+}
+
+inline void k_compute_sk(
+  SlaterPlaneWave::View slater,
+  std::size_t particle,
+  const fp_t* new_row
+) {
+  k_compute_sk(
+    slater.num_orbitals,
+    particle,
+    slater.matrix_row_stride,
+    new_row,
+    slater.inv_determinant,
+    slater.solution
+  );
+}
+
+inline void k_update_inverse(
+  SlaterPlaneWave::View slater,
+  std::size_t particle,
+  fp_t inv_ratio
+) {
+  k_update_inverse(
+    slater.num_orbitals,
+    particle,
+    slater.matrix_row_stride,
+    inv_ratio,
+    slater.inv_d_col,
+    slater.solution,
+    slater.inv_determinant
+  );
 }
 
 } // namespace kernel::slater

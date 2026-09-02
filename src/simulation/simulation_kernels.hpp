@@ -297,9 +297,6 @@ inline void calculate_energy_deltas(
 ) noexcept {
   const auto particle{scratch.proposal.particle};
   const auto half_L{0.5_fp * L};
-  const xpu::soa_view<const fp_t, idx(Axis::NUM)> const_pos{
-    pos[idx(Axis::X)], pos.count()
-  };
 
   for (auto i{execution::thread()}; i < energy.num_g_vectors; i += execution::stride()) {
     stencil::energy::initialize_reciprocal_energy(
@@ -314,7 +311,7 @@ inline void calculate_energy_deltas(
     stencil::energy::update_real_energy(
       i, particle,
       L, half_L, energy.ewald_alpha,
-      scratch.result.old_pos, scratch.result.new_pos, const_pos,
+      scratch.result.old_pos, scratch.result.new_pos, pos,
       &scratch.real_energy_delta
     );
   }
@@ -336,16 +333,18 @@ inline void finalize_energy(
 
 CUDA_CALLABLE
 inline void metropolis_step(
-  xpu::random::generator& generator,
+  Simulation::View simulation,
   fp_t step_size,
-  fp_t L,
-  fp_t jastrow_a,
-  fp_t jastrow_b,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
-  SlaterPlaneWave::View slater,
-  EnergyTracker::View energy,
   ::simulation::MetropolisScratch& scratch
 ) noexcept {
+  auto& generator{*simulation.generator};
+  const auto L{simulation.wave_function.jastrow.box_length};
+  const auto jastrow_a{simulation.wave_function.jastrow.a};
+  const auto jastrow_b{simulation.wave_function.jastrow.b};
+  const auto pos{simulation.particles.pos};
+  const auto slater{simulation.wave_function.slater};
+  const auto energy{simulation.energy_tracker};
+
   propose_move(generator, step_size, L, pos, scratch);
   execution::sync();
 
@@ -432,32 +431,19 @@ void cudaInitializePositions(
 
 __global__
 void cudaMetropolisStep(
-  xpu::random::generator* generator,
-  fp_t step_size,
-  fp_t L,
-  fp_t jastrow_a,
-  fp_t jastrow_b,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
-  SlaterPlaneWave::View slater,
-  EnergyTracker::View energy,
-  ::simulation::StepResult* result
+  Simulation::View simulation,
+  fp_t step_size
 ) {
   __shared__ ::simulation::MetropolisScratch scratch;
 
   stencil::simulation::metropolis_step(
-    *generator,
+    simulation,
     step_size,
-    L,
-    jastrow_a,
-    jastrow_b,
-    pos,
-    slater,
-    energy,
     scratch
   );
 
   if (execution::thread() == 0uz) {
-    *result = scratch.result;
+    *simulation.step_result = scratch.result;
   }
 }
 
@@ -499,40 +485,6 @@ inline void initialize_positions(
   xpu::cu_check(cudaGetLastError());
 }
 
-inline ::simulation::StepResult metropolis_step(
-  xpu::random::generator* generator,
-  fp_t step_size,
-  fp_t L,
-  fp_t jastrow_a,
-  fp_t jastrow_b,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
-  SlaterPlaneWave::View slater,
-  EnergyTracker::View energy,
-  ::simulation::StepResult* result_scratch
-) {
-  dim3 metropolisStepThreads{256u};
-  dim3 metropolisStepBlocks{1u};
-
-  cudaMetropolisStep<<<
-    metropolisStepBlocks, metropolisStepThreads
-  >>>(
-    generator,
-    step_size,
-    L,
-    jastrow_a,
-    jastrow_b,
-    pos,
-    slater,
-    energy,
-    result_scratch
-  );
-  xpu::cu_check(cudaGetLastError());
-
-  ::simulation::StepResult result{};
-  xpu::copy_n(&result, result_scratch, 1uz);
-  return result;
-}
-
 #endif
 
 #if !defined(XPU_CUDA)
@@ -561,32 +513,27 @@ inline void initialize_positions(
 
 inline ::simulation::StepResult metropolis_step(
   Simulation::View simulation,
-  fp_t step_size,
-  fp_t box_length
+  fp_t step_size
 ) {
 #if defined(XPU_CUDA)
-  return metropolis_step(
-    simulation.generator,
-    step_size,
-    box_length,
-    simulation.wave_function.jastrow.a,
-    simulation.wave_function.jastrow.b,
-    simulation.particles.pos,
-    simulation.wave_function.slater,
-    simulation.energy_tracker,
-    simulation.step_result
+  dim3 metropolisStepThreads{256u};
+  dim3 metropolisStepBlocks{1u};
+  cudaMetropolisStep<<<
+    metropolisStepBlocks, metropolisStepThreads
+  >>>(
+    simulation,
+    step_size
   );
+  xpu::cu_check(cudaGetLastError());
+
+  ::simulation::StepResult result{};
+  xpu::copy_n(&result, simulation.step_result, 1uz);
+  return result;
 #else
   ::simulation::MetropolisScratch scratch{};
   stencil::simulation::metropolis_step(
-    *simulation.generator,
+    simulation,
     step_size,
-    box_length,
-    simulation.wave_function.jastrow.a,
-    simulation.wave_function.jastrow.b,
-    simulation.particles.pos,
-    simulation.wave_function.slater,
-    simulation.energy_tracker,
     scratch
   );
   *simulation.step_result = scratch.result;
