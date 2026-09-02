@@ -15,36 +15,57 @@
 #include <optional>
 #include <vector>
 
-namespace simulation {
-
-struct RandomProposal {
-  std::size_t particle;
-  xpu::array<fp_t, idx(Axis::NUM)> displacement;
-  fp_t acceptance;
-};
-
-struct StepResult {
-  bool accepted;
-  std::size_t moved_particle;
-  xpu::array<fp_t, idx(Axis::NUM)> old_pos;
-  xpu::array<fp_t, idx(Axis::NUM)> new_pos;
-  fp_t log_psi_delta;
-  fp_t real_energy_delta;
-  fp_t reciprocal_energy;
-};
-
-struct MetropolisScratch {
-  RandomProposal proposal;
-  StepResult result;
-  fp_t slater_ratio;
-  fp_t jastrow_delta;
-  fp_t real_energy_delta;
-  fp_t reciprocal_sum;
-};
-
-} // namespace simulation
-
 class Simulation {
+public:
+  struct RandomProposal {
+    std::size_t particle;
+    xpu::array<fp_t, idx(Axis::NUM)> displacement;
+    fp_t acceptance;
+  };
+
+  struct StepResult {
+    bool accepted;
+    std::size_t moved_particle;
+    xpu::array<fp_t, idx(Axis::NUM)> old_pos;
+    xpu::array<fp_t, idx(Axis::NUM)> new_pos;
+    fp_t log_psi_delta;
+    fp_t real_energy_delta;
+    fp_t reciprocal_energy;
+  };
+
+  struct MetropolisScratch {
+    RandomProposal proposal;
+    StepResult result;
+    fp_t slater_ratio;
+    fp_t jastrow_delta;
+    fp_t real_energy_delta;
+    fp_t reciprocal_sum;
+  };
+
+  struct SweepResult {
+    std::size_t proposed;
+    std::size_t accepted;
+
+    [[nodiscard]] fp_t acceptance_rate() const noexcept {
+      if (proposed == 0uz) { return 0.0_fp; }
+      return static_cast<fp_t>(accepted) / static_cast<fp_t>(proposed);
+    }
+  };
+
+  struct View {
+    Particles::View particles{};
+    WaveFunction::View wave_function{};
+    EnergyTracker::View energy_tracker{};
+    xpu::random::generator* generator{};
+    StepResult* step_result{};
+  };
+
+  struct MeasurementSummary {
+    fp_t mean_energy;
+    std::optional<fp_t> standard_error;
+    fp_t acceptance_rate;
+  };
+
 private:
   Config config_;
 
@@ -56,7 +77,6 @@ private:
 
   std::size_t proposed_;
   std::size_t accepted_;
-  fp_t log_psi_current_;
 
   std::array<std::vector<fp_t>, idx(Axis::NUM)> positions_;
 
@@ -69,25 +89,13 @@ private:
   }
 
   xpu::buffer<xpu::random::generator> walker_rng_;
-  xpu::buffer<simulation::StepResult> step_result_;
+  xpu::buffer<StepResult> step_result_;
+  xpu::buffer<View> walker_views_;
+  xpu::buffer<SweepResult> sweep_result_;
 
   [[nodiscard]] const std::array<std::vector<fp_t>, idx(Axis::NUM)>& positions_snapshot();
 
 public:
-  struct View {
-    Particles::View particles;
-    WaveFunction::View wave_function;
-    EnergyTracker::View energy_tracker;
-    xpu::random::generator* generator;
-    simulation::StepResult* step_result;
-  };
-
-  struct MeasurementSummary {
-    fp_t mean_energy;
-    std::optional<fp_t> standard_error;
-    fp_t acceptance_rate;
-  };
-
   explicit Simulation(
     Config cfg,
     std::unique_ptr<OutputWriter> output_writer = nullptr,
@@ -106,7 +114,8 @@ public:
   }
 
   MeasurementSummary run();
-  simulation::StepResult metropolis_step();
+  StepResult metropolis_step();
+  SweepResult metropolis_sweep();
 
 private:
   void initialize_positions();

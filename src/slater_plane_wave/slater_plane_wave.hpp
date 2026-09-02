@@ -60,27 +60,27 @@ private:
 
 public:
   struct View {
-    std::size_t num_orbitals;
-    std::size_t num_unique_k;
-    std::size_t trig_row_stride;
-    std::size_t matrix_row_stride;
+    std::size_t num_orbitals{};
+    std::size_t num_unique_k{};
+    std::size_t trig_row_stride{};
+    std::size_t matrix_row_stride{};
 
-    xpu::soa_view<fp_t, idx(Axis::NUM)> k_vector;
-    const std::size_t* orbital_k_index;
-    const std::uint8_t* orbital_type;
+    xpu::soa_view<fp_t, idx(Axis::NUM)> k_vector{nullptr, 0uz};
+    const std::size_t* orbital_k_index{};
+    const std::uint8_t* orbital_type{};
 
-    fp_t* determinant;
-    fp_t* inv_determinant;
-    fp_t* lower_upper;
-    fp_t* reduction_scratch;
-    fp_t* solution;
-    fp_t* new_row;
-    fp_t* inv_d_col;
+    fp_t* determinant{};
+    fp_t* inv_determinant{};
+    fp_t* lower_upper{};
+    fp_t* reduction_scratch{};
+    fp_t* solution{};
+    fp_t* new_row{};
+    fp_t* inv_d_col{};
 
-    fp_t* sin_cache;
-    fp_t* cos_cache;
-    fp_t* sin_saved;
-    fp_t* cos_saved;
+    fp_t* sin_cache{};
+    fp_t* cos_cache{};
+    fp_t* sin_saved{};
+    fp_t* cos_saved{};
   };
 
   explicit SlaterPlaneWave(const Particles& particles, fp_t box_length);

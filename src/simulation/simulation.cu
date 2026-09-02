@@ -15,27 +15,36 @@ Simulation::Simulation(
   std::uint64_t walker_id
 )
 : config_{std::move(config)}
-, particles_{config_.num_particles}
+, particles_{config_.num_particles, config_.num_walkers}
 , wave_function_{particles_, config_.box_length, config_.jastrow_a, config_.jastrow_b}
 , blocking_analysis_{config_.block_size}
 , energy_tracker_{config_.box_length, particles_}
 , output_writer_{std::move(output_writer)}
 , proposed_{}
 , accepted_{}
-, log_psi_current_{}
 , positions_{
     std::vector<fp_t>(particles_.count()),
     std::vector<fp_t>(particles_.count()),
     std::vector<fp_t>(particles_.count())
   }
-, walker_rng_{1uz}
-, step_result_{1uz}
+, walker_rng_{config_.num_walkers}
+, step_result_{config_.num_walkers}
+, walker_views_{config_.num_walkers}
+, sweep_result_{1uz}
 {
-  kernel::simulation::seed_generator(
-    walker_rng_.data(),
-    config_.master_seed,
-    walker_id
-  );
+  std::vector<View> views{};
+  views.reserve(config_.num_walkers);
+
+  for (auto walker{0uz}; walker < config_.num_walkers; ++walker) {
+    kernel::simulation::seed_generator(
+      walker_rng_.data() + walker,
+      config_.master_seed,
+      walker_id * config_.num_walkers + walker
+    );
+    views.emplace_back(this->view(walker));
+  }
+
+  xpu::copy_n(walker_views_.data(), views.data(), views.size());
 }
 
 const std::array<std::vector<fp_t>, idx(Axis::NUM)>& Simulation::positions_snapshot() {
@@ -54,42 +63,52 @@ void Simulation::initialize_positions() {
 
   constexpr std::size_t MAX_INIT_ATTEMPTS{100};
 
-  for (std::size_t attempt = 0; attempt < MAX_INIT_ATTEMPTS; ++attempt) {
-    kernel::simulation::initialize_positions(
-      walker_rng_.data(),
-      length,
-      particles_.pos()
-    );
+  for (auto walker{0uz}; walker < particles_.walker_count(); ++walker) {
+    for (std::size_t attempt = 0; attempt < MAX_INIT_ATTEMPTS; ++attempt) {
+      kernel::simulation::initialize_positions(
+        walker_rng_.data() + walker,
+        length,
+        particles_.pos(walker)
+      );
 
-    log_psi_current_ = wave_function_.evaluate_log_psi(particles_.view());
-    if (std::isfinite(log_psi_current_)) { break; }
+      const auto log_psi{wave_function_.evaluate_log_psi(
+        particles_.view(walker), walker
+      )};
+      if (std::isfinite(log_psi)) { break; }
 
-    if (attempt == MAX_INIT_ATTEMPTS - 1) {
-      throw std::runtime_error("Failed to find non-singular initial configuration");
+      if (attempt == MAX_INIT_ATTEMPTS - 1) {
+        throw std::runtime_error("Failed to find non-singular initial configuration");
+      }
     }
-  }
 
-  energy_tracker_.initialize_structure_factors(particles_.view());
-  energy_tracker_.initialize_reciprocal_energy();
-  energy_tracker_.initialize_real_energy(particles_.view());
+    energy_tracker_.initialize_structure_factors(particles_.view(walker), walker);
+    energy_tracker_.initialize_reciprocal_energy(walker);
+    energy_tracker_.initialize_real_energy(particles_.view(walker), walker);
+  }
 }
 
-simulation::StepResult Simulation::metropolis_step() {
-  const simulation::StepResult result{
+Simulation::StepResult Simulation::metropolis_step() {
+  const Simulation::StepResult result{
     kernel::simulation::metropolis_step(
       this->view(),
       config_.step_size
     )
   };
 
-  if (result.accepted) {
-    log_psi_current_ += result.log_psi_delta;
-    energy_tracker_.accept_move(
-      result.real_energy_delta,
-      result.reciprocal_energy
-    );
-  }
+  return result;
+}
 
+Simulation::SweepResult Simulation::metropolis_sweep() {
+  kernel::simulation::metropolis_sweep(
+    walker_views_.data(),
+    particles_.walker_count(),
+    particles_.count(),
+    config_.step_size,
+    sweep_result_.data()
+  );
+
+  SweepResult result{};
+  xpu::copy_n(&result, sweep_result_.data(), 1uz);
   return result;
 }
 
@@ -99,19 +118,12 @@ void Simulation::warmup() {
   constexpr auto target_rate{0.50_fp};
   constexpr auto initial_gain{0.25_fp};
 
-  const auto proposals_per_sweep{particles_.count()};
-
   const auto max_step_size{0.5_fp * config_.box_length};
   step_size = xpu::min(step_size, max_step_size);
 
   for (auto sweep{0uz}; sweep < config_.warmup_sweeps; ++sweep) {
-    auto accepted_proposals{0uz};
-
-    for (auto proposal{0uz}; proposal < proposals_per_sweep; ++proposal) {
-      if (metropolis_step().accepted) { ++accepted_proposals; }
-    }
-
-    const auto acceptance_rate{static_cast<fp_t>(accepted_proposals) / static_cast<fp_t>(proposals_per_sweep)};
+    const auto result{metropolis_sweep()};
+    const auto acceptance_rate{result.acceptance_rate()};
     const auto gain{initial_gain * xpu::rsqrt(static_cast<fp_t>(sweep + 1uz))};
 
     step_size *= xpu::exp(gain * (acceptance_rate - target_rate));
@@ -120,8 +132,6 @@ void Simulation::warmup() {
 }
 
 Simulation::MeasurementSummary Simulation::measure() {
-  const std::size_t measure_steps{config_.measure_steps};
-
   auto& wavefunction{wave_function_};
   auto& particles{particles_};
   auto& blocking_analysis{blocking_analysis_};
@@ -131,25 +141,33 @@ Simulation::MeasurementSummary Simulation::measure() {
 
   fp_t running_energy_sum{};
   fp_t final_mean_energy{};
+  std::size_t sample_count{};
   std::optional<fp_t> final_standard_error{};
 
-  for (std::size_t i = 0; i < measure_steps; ++i) {
-    ++proposed_;
-    const simulation::StepResult result{metropolis_step()};
-    if (result.accepted) {
-      ++accepted_;
+  for (auto sweep{0uz}; sweep < config_.measure_sweeps; ++sweep) {
+    const auto result{metropolis_sweep()};
+    proposed_ += result.proposed;
+    accepted_ += result.accepted;
+
+    auto sweep_energy_sum{0.0_fp};
+    for (auto walker{0uz}; walker < particles.walker_count(); ++walker) {
+      wavefunction.evaluate_derivatives(particles.view(walker), walker);
+
+      const auto local_energy{
+        energy_tracker.eval_total_energy(particles.view(walker), walker)
+      };
+      running_energy_sum += local_energy;
+      sweep_energy_sum += local_energy;
+      ++sample_count;
+      blocking_analysis.add(local_energy);
     }
 
-    wavefunction.evaluate_derivatives(
-      particles.view(), result.accepted, result.moved_particle,
-      result.old_pos
-    );
-
-    const fp_t E_local{energy_tracker.eval_total_energy(particles.view())};
-    running_energy_sum += E_local;
-    blocking_analysis.add(E_local);
-
-    const fp_t running_mean{running_energy_sum / static_cast<fp_t>(i + 1U)};
+    const auto local_energy{
+      sweep_energy_sum / static_cast<fp_t>(particles.walker_count())
+    };
+    const fp_t running_mean{
+      running_energy_sum / static_cast<fp_t>(sample_count)
+    };
     final_mean_energy = running_mean;
 
     std::optional<fp_t> frame_standard_error{};
@@ -172,11 +190,11 @@ Simulation::MeasurementSummary Simulation::measure() {
       }
 
       output_writer_->write_frame(FrameData{
-        .step = i + 1U,
+        .step = sweep + 1uz,
         .accepted = accepted_,
         .proposed = proposed_,
         .acceptance_rate = acceptance_rate(),
-        .local_energy = E_local,
+        .local_energy = local_energy,
         .mean_energy = running_mean,
         .standard_error = frame_standard_error,
         .positions = std::move(flat_positions)
@@ -184,8 +202,10 @@ Simulation::MeasurementSummary Simulation::measure() {
     }
 
     if (config_.is_master_thread) {
-      if ((i & 127) == 0 || i == measure_steps) {
-        std::cout << "\rProgress: " << (i * 100 / measure_steps) << "%" << std::flush;
+      if ((sweep & 127uz) == 0uz || sweep + 1uz == config_.measure_sweeps) {
+        std::cout << "\rProgress: "
+                  << ((sweep + 1uz) * 100uz / config_.measure_sweeps)
+                  << "%" << std::flush;
       }
     }
   }

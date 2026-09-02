@@ -26,6 +26,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     std::cout << "\n<--- Config Settings --->\n"
               << "Number of threads: " << num_threads << "\n"
               << "Number of particles: " << master_config.num_particles << "\n"
+              << "Number of walkers: " << master_config.num_walkers << "\n"
               << "Number of warmup sweeps: " << master_config.warmup_sweeps << "\n"
               << "Number of measure sweeps: " << master_config.measure_sweeps << "\n"
               << "Length of box: " << master_config.box_length << "\n"

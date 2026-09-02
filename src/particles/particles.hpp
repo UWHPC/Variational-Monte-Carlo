@@ -18,9 +18,9 @@ private:
 
 public:
   struct View {
-    std::size_t count;
-    xpu::soa_view<fp_t, idx(Axis::NUM)> pos;
-    xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives;
+    std::size_t count{};
+    xpu::soa_view<fp_t, idx(Axis::NUM)> pos{nullptr, 0uz};
+    xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives{nullptr, 0uz};
   };
 
   explicit Particles(

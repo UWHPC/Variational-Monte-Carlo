@@ -25,7 +25,7 @@ namespace stencil {
 namespace simulation {
 
 [[nodiscard]] CUDA_CALLABLE
-inline ::simulation::RandomProposal generate_random_proposal(
+inline Simulation::RandomProposal generate_random_proposal(
   xpu::random::generator& generator,
   std::size_t num_particles,
   fp_t step_size
@@ -52,7 +52,7 @@ inline void propose_move(
   fp_t step_size,
   fp_t L,
   xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
-  ::simulation::MetropolisScratch& scratch
+  Simulation::MetropolisScratch& scratch
 ) noexcept {
   if (execution::thread() != 0uz) { return; }
 
@@ -97,7 +97,7 @@ CUDA_CALLABLE
 inline void update_trig_cache(
   xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
   SlaterPlaneWave::View slater,
-  const ::simulation::MetropolisScratch& scratch
+  const Simulation::MetropolisScratch& scratch
 ) noexcept {
   const auto particle{scratch.proposal.particle};
   const auto trig_row_offset{particle * slater.trig_row_stride};
@@ -118,7 +118,7 @@ inline void update_trig_cache(
 CUDA_CALLABLE
 inline void build_slater_row(
   SlaterPlaneWave::View slater,
-  const ::simulation::MetropolisScratch& scratch
+  const Simulation::MetropolisScratch& scratch
 ) noexcept {
   const auto particle{scratch.proposal.particle};
 
@@ -139,7 +139,7 @@ inline void calculate_probability_ratio(
   fp_t jastrow_b,
   xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
   SlaterPlaneWave::View slater,
-  ::simulation::MetropolisScratch& scratch
+  Simulation::MetropolisScratch& scratch
 ) noexcept {
   const auto particle{scratch.proposal.particle};
   const auto half_L{0.5_fp * L};
@@ -162,7 +162,7 @@ inline void calculate_probability_ratio(
 
 CUDA_CALLABLE
 inline void decide_move(
-  ::simulation::MetropolisScratch& scratch
+  Simulation::MetropolisScratch& scratch
 ) noexcept {
   if (execution::thread() != 0uz) { return; }
 
@@ -185,7 +185,7 @@ CUDA_CALLABLE
 inline void reject_move(
   xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
   SlaterPlaneWave::View slater,
-  const ::simulation::MetropolisScratch& scratch
+  const Simulation::MetropolisScratch& scratch
 ) noexcept {
   const auto particle{scratch.proposal.particle};
   const auto trig_row_offset{particle * slater.trig_row_stride};
@@ -206,7 +206,7 @@ inline void reject_move(
 CUDA_CALLABLE
 inline void prepare_inverse_update(
   SlaterPlaneWave::View slater,
-  const ::simulation::MetropolisScratch& scratch
+  const Simulation::MetropolisScratch& scratch
 ) noexcept {
   const auto particle{scratch.proposal.particle};
   const auto determinant_row_offset{particle * slater.matrix_row_stride};
@@ -220,7 +220,7 @@ inline void prepare_inverse_update(
 CUDA_CALLABLE
 inline void calculate_inverse_solution(
   SlaterPlaneWave::View slater,
-  const ::simulation::MetropolisScratch& scratch
+  const Simulation::MetropolisScratch& scratch
 ) noexcept {
   const auto particle{scratch.proposal.particle};
 
@@ -239,7 +239,7 @@ inline void calculate_inverse_solution(
 CUDA_CALLABLE
 inline void commit_slater_move(
   SlaterPlaneWave::View slater,
-  const ::simulation::MetropolisScratch& scratch
+  const Simulation::MetropolisScratch& scratch
 ) noexcept {
   const auto particle{scratch.proposal.particle};
   const auto inv_ratio{1.0_fp / scratch.slater_ratio};
@@ -266,7 +266,7 @@ inline void commit_slater_move(
 CUDA_CALLABLE
 inline void update_structure_factors(
   EnergyTracker::View energy,
-  const ::simulation::MetropolisScratch& scratch
+  const Simulation::MetropolisScratch& scratch
 ) noexcept {
   for (auto i{execution::thread()}; i < energy.num_g_vectors; i += execution::stride()) {
     stencil::energy::update_structure_factors(
@@ -280,7 +280,7 @@ inline void update_structure_factors(
 
 CUDA_CALLABLE
 inline void reset_energy_reductions(
-  ::simulation::MetropolisScratch& scratch
+  Simulation::MetropolisScratch& scratch
 ) noexcept {
   if (execution::thread() != 0uz) { return; }
   scratch.real_energy_delta = 0.0_fp;
@@ -293,7 +293,7 @@ inline void calculate_energy_deltas(
   xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
   SlaterPlaneWave::View slater,
   EnergyTracker::View energy,
-  ::simulation::MetropolisScratch& scratch
+  Simulation::MetropolisScratch& scratch
 ) noexcept {
   const auto particle{scratch.proposal.particle};
   const auto half_L{0.5_fp * L};
@@ -320,7 +320,7 @@ inline void calculate_energy_deltas(
 CUDA_CALLABLE
 inline void finalize_energy(
   fp_t L,
-  ::simulation::MetropolisScratch& scratch
+  Simulation::MetropolisScratch& scratch
 ) noexcept {
   if (execution::thread() != 0uz) { return; }
 
@@ -332,10 +332,21 @@ inline void finalize_energy(
 }
 
 CUDA_CALLABLE
+inline void commit_energy(
+  EnergyTracker::View energy,
+  const Simulation::MetropolisScratch& scratch
+) noexcept {
+  if (execution::thread() != 0uz) { return; }
+
+  *energy.real_energy += scratch.result.real_energy_delta;
+  *energy.reciprocal_energy = scratch.result.reciprocal_energy;
+}
+
+CUDA_CALLABLE
 inline void metropolis_step(
   Simulation::View simulation,
   fp_t step_size,
-  ::simulation::MetropolisScratch& scratch
+  Simulation::MetropolisScratch& scratch
 ) noexcept {
   auto& generator{*simulation.generator};
   const auto L{simulation.wave_function.jastrow.box_length};
@@ -389,6 +400,9 @@ inline void metropolis_step(
 
   finalize_energy(L, scratch);
   execution::sync();
+
+  commit_energy(energy, scratch);
+  execution::sync();
 }
 
 } // namespace stencil::simulation
@@ -434,7 +448,7 @@ void cudaMetropolisStep(
   Simulation::View simulation,
   fp_t step_size
 ) {
-  __shared__ ::simulation::MetropolisScratch scratch;
+  __shared__ Simulation::MetropolisScratch scratch;
 
   stencil::simulation::metropolis_step(
     simulation,
@@ -444,6 +458,52 @@ void cudaMetropolisStep(
 
   if (execution::thread() == 0uz) {
     *simulation.step_result = scratch.result;
+  }
+}
+
+__global__
+void cudaMetropolisSweep(
+  Simulation::View* simulations,
+  std::size_t walker_count,
+  std::size_t proposals_per_walker,
+  fp_t step_size,
+  Simulation::SweepResult* result
+) {
+  const auto walker{static_cast<std::size_t>(blockIdx.x)};
+  if (walker >= walker_count) { return; }
+
+  __shared__ Simulation::MetropolisScratch scratch;
+  __shared__ Simulation::SweepResult local_result;
+
+  if (execution::thread() == 0uz) {
+    local_result = {};
+  }
+  execution::sync();
+
+  for (auto proposal{0uz}; proposal < proposals_per_walker; ++proposal) {
+    stencil::simulation::metropolis_step(
+      simulations[walker],
+      step_size,
+      scratch
+    );
+
+    if (execution::thread() == 0uz) {
+      ++local_result.proposed;
+      local_result.accepted += static_cast<std::size_t>(scratch.result.accepted);
+    }
+    execution::sync();
+  }
+
+  if (execution::thread() == 0uz) {
+    static_assert(sizeof(std::size_t) == sizeof(unsigned long long));
+    atomicAdd(
+      reinterpret_cast<unsigned long long*>(&result->proposed),
+      static_cast<unsigned long long>(local_result.proposed)
+    );
+    atomicAdd(
+      reinterpret_cast<unsigned long long*>(&result->accepted),
+      static_cast<unsigned long long>(local_result.accepted)
+    );
   }
 }
 
@@ -511,7 +571,7 @@ inline void initialize_positions(
 
 #endif
 
-inline ::simulation::StepResult metropolis_step(
+inline Simulation::StepResult metropolis_step(
   Simulation::View simulation,
   fp_t step_size
 ) {
@@ -526,11 +586,11 @@ inline ::simulation::StepResult metropolis_step(
   );
   xpu::cu_check(cudaGetLastError());
 
-  ::simulation::StepResult result{};
+  Simulation::StepResult result{};
   xpu::copy_n(&result, simulation.step_result, 1uz);
   return result;
 #else
-  ::simulation::MetropolisScratch scratch{};
+  Simulation::MetropolisScratch scratch{};
   stencil::simulation::metropolis_step(
     simulation,
     step_size,
@@ -538,6 +598,50 @@ inline ::simulation::StepResult metropolis_step(
   );
   *simulation.step_result = scratch.result;
   return scratch.result;
+#endif
+}
+
+inline void metropolis_sweep(
+  Simulation::View* simulations,
+  std::size_t walker_count,
+  std::size_t proposals_per_walker,
+  fp_t step_size,
+  Simulation::SweepResult* result
+) {
+  xpu::memset(result, 0, sizeof(Simulation::SweepResult));
+
+#if defined(XPU_CUDA)
+  dim3 metropolisSweepThreads{256u};
+  dim3 metropolisSweepBlocks{static_cast<unsigned int>(walker_count)};
+  cudaMetropolisSweep<<<
+    metropolisSweepBlocks, metropolisSweepThreads
+  >>>(
+    simulations,
+    walker_count,
+    proposals_per_walker,
+    step_size,
+    result
+  );
+  xpu::cu_check(cudaGetLastError());
+#else
+  for (auto walker{0uz}; walker < walker_count; ++walker) {
+    Simulation::SweepResult local_result{};
+
+    for (auto proposal{0uz}; proposal < proposals_per_walker; ++proposal) {
+      Simulation::MetropolisScratch scratch{};
+      stencil::simulation::metropolis_step(
+        simulations[walker],
+        step_size,
+        scratch
+      );
+
+      ++local_result.proposed;
+      local_result.accepted += static_cast<std::size_t>(scratch.result.accepted);
+    }
+
+    result->proposed += local_result.proposed;
+    result->accepted += local_result.accepted;
+  }
 #endif
 }
 

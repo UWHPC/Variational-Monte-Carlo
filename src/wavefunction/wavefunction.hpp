@@ -26,11 +26,11 @@ private:
 
 public:
   struct View {
-    JastrowPade::View jastrow;
-    SlaterPlaneWave::View slater;
-    xpu::soa_view<fp_t, idx(Derivatives::NUM)> jastrow_derivatives;
-    std::uint8_t* jastrow_cache_valid;
-    std::size_t* steps_since_refresh;
+    JastrowPade::View jastrow{};
+    SlaterPlaneWave::View slater{};
+    xpu::soa_view<fp_t, idx(Derivatives::NUM)> jastrow_derivatives{nullptr, 0uz};
+    std::uint8_t* jastrow_cache_valid{};
+    std::size_t* steps_since_refresh{};
   };
 
   explicit WaveFunction(

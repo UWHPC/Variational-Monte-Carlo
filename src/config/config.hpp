@@ -16,6 +16,7 @@ class Config {
 public:
   std::size_t num_threads{1};
   std::size_t num_particles{7U};
+  std::size_t num_walkers{1U};
   std::size_t warmup_sweeps{100U};
   std::size_t measure_sweeps{100U};
   fp_t box_length{10.0_fp};
@@ -41,6 +42,7 @@ public:
     auto map{parse(file)};
     read(map, "Num_Threads", cfg.num_threads);
     read(map, "Num_Particles", cfg.num_particles);
+    read(map, "Num_Walkers", cfg.num_walkers);
     read(map, "Warmup_Sweeps", cfg.warmup_sweeps);
     read(map, "Measure_Sweeps", cfg.measure_sweeps);
     read(map, "Box_Length", cfg.box_length);
@@ -65,6 +67,9 @@ private:
     if (num_particles < 1U) {
       throw std::invalid_argument("[Config] Num_Particles must be >= 1");
     }
+    if (num_walkers < 1U) {
+      throw std::invalid_argument("[Config] Num_Walkers must be >= 1");
+    }
     if (block_size < 1U) {
       throw std::invalid_argument("[Config] Block_Size must be >= 1");
     }
@@ -74,8 +79,8 @@ private:
     if (measure_sweeps < 1U) {
       throw std::invalid_argument("[Config] Measure_Sweeps must be >= 1");
     }
-    warmup_steps = num_particles * warmup_sweeps;
-    measure_steps = num_particles * measure_sweeps;
+    warmup_steps = num_particles * num_walkers * warmup_sweeps;
+    measure_steps = num_particles * num_walkers * measure_sweeps;
     step_size = box_length / 10.0_fp;
   }
 

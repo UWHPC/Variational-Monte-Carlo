@@ -44,18 +44,18 @@ private:
 
 public:
   struct View {
-    fp_t box_length;
-    std::size_t num_g_vectors;
-    fp_t ewald_alpha;
-    fp_t ewald_correction;
-    fp_t ewald_background;
-    xpu::soa_view<fp_t, idx(Axis::NUM)> g_vector;
-    const fp_t* g_weights;
-    fp_t* sum_real;
-    fp_t* sum_imag;
-    fp_t* real_energy;
-    fp_t* reciprocal_energy;
-    fp_t* reduction_scratch;
+    fp_t box_length{};
+    std::size_t num_g_vectors{};
+    fp_t ewald_alpha{};
+    fp_t ewald_correction{};
+    fp_t ewald_background{};
+    xpu::soa_view<fp_t, idx(Axis::NUM)> g_vector{nullptr, 0uz};
+    const fp_t* g_weights{};
+    fp_t* sum_real{};
+    fp_t* sum_imag{};
+    fp_t* real_energy{};
+    fp_t* reciprocal_energy{};
+    fp_t* reduction_scratch{};
   };
 
   explicit EnergyTracker(

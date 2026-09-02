@@ -13,9 +13,9 @@ private:
 
 public:
   struct View {
-    fp_t box_length;
-    fp_t a;
-    fp_t b;
+    fp_t box_length{};
+    fp_t a{};
+    fp_t b{};
   };
 
   explicit JastrowPade(fp_t box_length, fp_t a = 0.25_fp, fp_t b = 1.0_fp) noexcept
