@@ -249,10 +249,10 @@ fp_t SlaterPlaneWave::determinant_ratio(
 }
 
 void SlaterPlaneWave::add_derivatives(
-  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives,
+  Particles::View particles,
   std::size_t walker
 ) noexcept {
-  kernel::slater::add_derivatives(this->view(walker), derivatives);
+  kernel::slater::add_derivatives(this->view(walker), particles);
 }
 
 fp_t SlaterPlaneWave::log_abs_det(

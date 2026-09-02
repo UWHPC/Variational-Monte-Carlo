@@ -58,6 +58,7 @@ public:
     EnergyTracker::View energy_tracker{};
     xpu::random::generator* generator{};
     StepResult* step_result{};
+    fp_t* local_energy{};
   };
 
   struct MeasurementSummary {
@@ -90,6 +91,7 @@ private:
 
   xpu::buffer<xpu::random::generator> walker_rng_;
   xpu::buffer<StepResult> step_result_;
+  xpu::buffer<fp_t> local_energies_;
   xpu::buffer<View> walker_views_;
   xpu::buffer<SweepResult> sweep_result_;
 
@@ -109,13 +111,15 @@ public:
       wave_function_.view(walker),
       energy_tracker_.view(walker),
       walker_rng_.data() + walker,
-      step_result_.data() + walker
+      step_result_.data() + walker,
+      local_energies_.data() + walker
     };
   }
 
   MeasurementSummary run();
   StepResult metropolis_step();
   SweepResult metropolis_sweep();
+  void measure_walkers();
 
 private:
   void initialize_positions();

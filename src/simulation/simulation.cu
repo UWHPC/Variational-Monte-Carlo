@@ -29,6 +29,7 @@ Simulation::Simulation(
   }
 , walker_rng_{config_.num_walkers}
 , step_result_{config_.num_walkers}
+, local_energies_{config_.num_walkers}
 , walker_views_{config_.num_walkers}
 , sweep_result_{1uz}
 {
@@ -112,6 +113,13 @@ Simulation::SweepResult Simulation::metropolis_sweep() {
   return result;
 }
 
+void Simulation::measure_walkers() {
+  kernel::simulation::measure_walkers(
+    walker_views_.data(),
+    particles_.walker_count()
+  );
+}
+
 void Simulation::warmup() {
   auto& step_size{config_.step_size};
 
@@ -132,10 +140,8 @@ void Simulation::warmup() {
 }
 
 Simulation::MeasurementSummary Simulation::measure() {
-  auto& wavefunction{wave_function_};
   auto& particles{particles_};
   auto& blocking_analysis{blocking_analysis_};
-  auto& energy_tracker{energy_tracker_};
   proposed_ = 0U;
   accepted_ = 0U;
 
@@ -143,19 +149,23 @@ Simulation::MeasurementSummary Simulation::measure() {
   fp_t final_mean_energy{};
   std::size_t sample_count{};
   std::optional<fp_t> final_standard_error{};
+  std::vector<fp_t> local_energies(particles.walker_count());
 
   for (auto sweep{0uz}; sweep < config_.measure_sweeps; ++sweep) {
     const auto result{metropolis_sweep()};
     proposed_ += result.proposed;
     accepted_ += result.accepted;
 
+    measure_walkers();
+    xpu::copy_n(
+      local_energies.data(),
+      local_energies_.data(),
+      local_energies.size()
+    );
+
     auto sweep_energy_sum{0.0_fp};
     for (auto walker{0uz}; walker < particles.walker_count(); ++walker) {
-      wavefunction.evaluate_derivatives(particles.view(walker), walker);
-
-      const auto local_energy{
-        energy_tracker.eval_total_energy(particles.view(walker), walker)
-      };
+      const auto local_energy{local_energies[walker]};
       running_energy_sum += local_energy;
       sweep_energy_sum += local_energy;
       ++sample_count;

@@ -19,7 +19,7 @@ void WaveFunction::evaluate_derivatives(Particles::View particles, std::size_t w
   reset_derivatives(particles.derivatives);
   reset_derivatives(this->j_derivatives(walker));
 
-  slater_plane_wave_.add_derivatives(particles.derivatives, walker);
+  slater_plane_wave_.add_derivatives(particles, walker);
   jastrow_pade_.add_derivatives(particles, this->j_derivatives(walker));
 
   kernel::wavefunction::derivative_sums(this->view(walker), particles);
@@ -58,7 +58,7 @@ void WaveFunction::evaluate_derivatives(
   reset_derivatives(particles.derivatives);
 
   slater_plane_wave_.add_derivatives(
-    particles.derivatives,
+    particles,
     walker
   );
   

@@ -84,35 +84,28 @@ inline void determinant_ratio(
 
 CUDA_CALLABLE
 inline void add_derivatives(
-  std::size_t i, std::size_t j,
-  std::size_t matrix_row_stride,
-  std::size_t trig_row_stride,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> k_vector,
-  const std::size_t* RESTRICT orbital_k_index,
-  const std::uint8_t* RESTRICT orbital_type,
-  const fp_t* RESTRICT inv_det,
-  const fp_t* RESTRICT sin_cache,
-  const fp_t* RESTRICT cos_cache,
-  fp_t* RESTRICT gradient_x,
-  fp_t* RESTRICT gradient_y,
-  fp_t* RESTRICT gradient_z,
-  fp_t* RESTRICT laplacian
+  std::size_t particle,
+  std::size_t orbital,
+  SlaterPlaneWave::View slater,
+  Particles::View particles
 ) {
-  const auto k_idx{orbital_k_index[j]};
-  const auto k_x{k_vector[idx(Axis::X)][k_idx]};
-  const auto k_y{k_vector[idx(Axis::Y)][k_idx]};
-  const auto k_z{k_vector[idx(Axis::Z)][k_idx]};
+  const auto k_idx{slater.orbital_k_index[orbital]};
+  const auto k_x{slater.k_vector[idx(Axis::X)][k_idx]};
+  const auto k_y{slater.k_vector[idx(Axis::Y)][k_idx]};
+  const auto k_z{slater.k_vector[idx(Axis::Z)][k_idx]};
   const auto k_mag{
     k_x * k_x +
     k_y * k_y +
     k_z * k_z
   };
 
-  const auto type{static_cast<fp_t>(orbital_type[j])};
-  const auto trig_idx{i * trig_row_stride + k_idx};
-  const auto sin_term{sin_cache[trig_idx]};
-  const auto cos_term{cos_cache[trig_idx]};
-  const auto weight{inv_det[i * matrix_row_stride + j]};
+  const auto type{static_cast<fp_t>(slater.orbital_type[orbital])};
+  const auto trig_idx{particle * slater.trig_row_stride + k_idx};
+  const auto sin_term{slater.sin_cache[trig_idx]};
+  const auto cos_term{slater.cos_cache[trig_idx]};
+  const auto weight{
+    slater.inv_determinant[particle * slater.matrix_row_stride + orbital]
+  };
 
   const auto gradient_factor{
     weight * (
@@ -126,15 +119,15 @@ inline void add_derivatives(
   };
 
 #if defined(__CUDA_ARCH__)
-  atomicAdd(gradient_x, gradient_factor * k_x);
-  atomicAdd(gradient_y, gradient_factor * k_y);
-  atomicAdd(gradient_z, gradient_factor * k_z);
-  atomicAdd(laplacian, laplacian_factor * k_mag);
+  atomicAdd(&particles.derivatives[idx(Derivatives::GRAD_X)][particle], gradient_factor * k_x);
+  atomicAdd(&particles.derivatives[idx(Derivatives::GRAD_Y)][particle], gradient_factor * k_y);
+  atomicAdd(&particles.derivatives[idx(Derivatives::GRAD_Z)][particle], gradient_factor * k_z);
+  atomicAdd(&particles.derivatives[idx(Derivatives::LAP)][particle], laplacian_factor * k_mag);
 #else
-  *gradient_x += gradient_factor * k_x;
-  *gradient_y += gradient_factor * k_y;
-  *gradient_z += gradient_factor * k_z;
-  *laplacian += laplacian_factor * k_mag;
+  particles.derivatives[idx(Derivatives::GRAD_X)][particle] += gradient_factor * k_x;
+  particles.derivatives[idx(Derivatives::GRAD_Y)][particle] += gradient_factor * k_y;
+  particles.derivatives[idx(Derivatives::GRAD_Z)][particle] += gradient_factor * k_z;
+  particles.derivatives[idx(Derivatives::LAP)][particle] += laplacian_factor * k_mag;
 #endif
 }
 
@@ -189,6 +182,79 @@ inline void k_compute_sk(
 #else
   *solution += product;
 #endif
+}
+
+CUDA_CALLABLE
+inline void update_trig_cache(
+  std::size_t k_index,
+  std::size_t particle,
+  SlaterPlaneWave::View slater,
+  Particles::View particles
+) {
+  update_trig_cache(
+    k_index,
+    particle * slater.trig_row_stride,
+    particle,
+    particles.pos,
+    slater.k_vector,
+    slater.sin_cache,
+    slater.cos_cache
+  );
+}
+
+CUDA_CALLABLE
+inline void build_row(
+  std::size_t orbital,
+  std::size_t particle,
+  SlaterPlaneWave::View slater
+) {
+  build_row(
+    orbital,
+    particle,
+    slater.trig_row_stride,
+    slater.sin_cache,
+    slater.cos_cache,
+    slater.orbital_k_index,
+    slater.orbital_type,
+    slater.new_row
+  );
+}
+
+CUDA_CALLABLE
+inline void determinant_ratio(
+  std::size_t orbital,
+  std::size_t particle,
+  SlaterPlaneWave::View slater,
+  fp_t* ratio
+) {
+  determinant_ratio(
+    orbital,
+    particle,
+    slater.matrix_row_stride,
+    slater.new_row,
+    slater.inv_determinant,
+    ratio
+  );
+}
+
+CUDA_CALLABLE
+inline void k_update_inverse(
+  std::size_t column,
+  std::size_t row,
+  std::size_t particle,
+  fp_t inverse_ratio,
+  SlaterPlaneWave::View slater
+) {
+  k_update_inverse(
+    column,
+    row,
+    particle,
+    slater.matrix_row_stride,
+    inverse_ratio,
+    slater.inv_d_col,
+    slater.solution,
+    slater.inv_determinant
+  );
 }
 
 } // namespace stencil::slater
@@ -317,31 +383,13 @@ void cudaDeterminantRatio(
 
 __global__
 void cudaAddDerivatives(
-  std::size_t num_orbitals,
-  std::size_t matrix_row_stride,
-  std::size_t trig_row_stride,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> k_vector,
-  const std::size_t* RESTRICT orbital_k_index,
-  const std::uint8_t* RESTRICT orbital_type,
-  const fp_t* RESTRICT inv_det,
-  const fp_t* RESTRICT sin_cache,
-  const fp_t* RESTRICT cos_cache,
-  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
+  SlaterPlaneWave::View slater,
+  Particles::View particles
 ) {
   const auto [i, j]{xpu::global_index<2>()};
-  if (i >= num_orbitals || j >= num_orbitals) { return; }
+  if (i >= slater.num_orbitals || j >= slater.num_orbitals) { return; }
 
-  stencil::slater::add_derivatives(
-    i, j,
-    matrix_row_stride, trig_row_stride,
-    k_vector,
-    orbital_k_index, orbital_type,
-    inv_det, sin_cache, cos_cache,
-    &derivatives[idx(Derivatives::GRAD_X)][i],
-    &derivatives[idx(Derivatives::GRAD_Y)][i],
-    &derivatives[idx(Derivatives::GRAD_Z)][i],
-    &derivatives[idx(Derivatives::LAP)][i]
-  );
+  stencil::slater::add_derivatives(i, j, slater, particles);
 }
 
 __global__
@@ -628,65 +676,40 @@ inline fp_t determinant_ratio(
 }
 
 inline void add_derivatives(
-  std::size_t num_orbitals,
-  std::size_t matrix_row_stride,
-  std::size_t trig_row_stride,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> k_vector,
-  const std::size_t* RESTRICT orbital_k_index,
-  const std::uint8_t* RESTRICT orbital_type,
-  const fp_t* RESTRICT inv_det,
-  const fp_t* RESTRICT sin_cache,
-  const fp_t* RESTRICT cos_cache,
-  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
+  SlaterPlaneWave::View slater,
+  Particles::View particles
 ) {
 #if defined(XPU_CUDA)
   dim3 addDerivativesThreads{16u, 16u};
   dim3 addDerivativesBlocks(
-    xpu::block_per_dim(num_orbitals, addDerivativesThreads.x),
-    xpu::block_per_dim(num_orbitals, addDerivativesThreads.y)
+    xpu::block_per_dim(slater.num_orbitals, addDerivativesThreads.x),
+    xpu::block_per_dim(slater.num_orbitals, addDerivativesThreads.y)
   );
   cudaAddDerivatives<<<
     addDerivativesBlocks, addDerivativesThreads
   >>>(
-    num_orbitals,
-    matrix_row_stride, trig_row_stride,
-    k_vector,
-    orbital_k_index, orbital_type,
-    inv_det, sin_cache, cos_cache,
-    derivatives
+    slater,
+    particles
   );
   xpu::cu_check(cudaGetLastError());
 
   dim3 accumulateDerivativesThreads{256u};
   dim3 accumulateDerivativesBlocks{
-    xpu::block_per_dim(num_orbitals, accumulateDerivativesThreads.x)
+    xpu::block_per_dim(slater.num_orbitals, accumulateDerivativesThreads.x)
   };
   cudaAccumulateDerivatives<<<
     accumulateDerivativesBlocks, accumulateDerivativesThreads
   >>>(
-    derivatives
+    particles.derivatives
   );
   xpu::cu_check(cudaGetLastError());
 #else
-  for (auto i = 0uz; i < num_orbitals; ++i) {
-    auto& gradient_x{derivatives[idx(Derivatives::GRAD_X)][i]};
-    auto& gradient_y{derivatives[idx(Derivatives::GRAD_Y)][i]};
-    auto& gradient_z{derivatives[idx(Derivatives::GRAD_Z)][i]};
-    auto& laplacian{derivatives[idx(Derivatives::LAP)][i]};
-
-    #pragma omp simd reduction(+ : gradient_x, gradient_y, gradient_z, laplacian)
-    for (auto j = 0uz; j < num_orbitals; ++j) {
-      stencil::slater::add_derivatives(
-        i, j,
-        matrix_row_stride, trig_row_stride,
-        k_vector,
-        orbital_k_index, orbital_type,
-        inv_det, sin_cache, cos_cache,
-        &gradient_x, &gradient_y, &gradient_z, &laplacian
-      );
+  for (auto i = 0uz; i < slater.num_orbitals; ++i) {
+    for (auto j = 0uz; j < slater.num_orbitals; ++j) {
+      stencil::slater::add_derivatives(i, j, slater, particles);
     }
 
-    stencil::slater::accumulate_derivatives(i, derivatives);
+    stencil::slater::accumulate_derivatives(i, particles.derivatives);
   }
 #endif
 }
@@ -841,24 +864,6 @@ inline fp_t determinant_ratio(
     slater.matrix_row_stride,
     new_row,
     slater.inv_determinant
-  );
-}
-
-inline void add_derivatives(
-  SlaterPlaneWave::View slater,
-  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
-) {
-  add_derivatives(
-    slater.num_orbitals,
-    slater.matrix_row_stride,
-    slater.trig_row_stride,
-    slater.k_vector,
-    slater.orbital_k_index,
-    slater.orbital_type,
-    slater.inv_determinant,
-    slater.sin_cache,
-    slater.cos_cache,
-    derivatives
   );
 }
 

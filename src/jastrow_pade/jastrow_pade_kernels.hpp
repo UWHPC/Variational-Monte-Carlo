@@ -221,34 +221,67 @@ inline void compute_derivatives(
 
 CUDA_CALLABLE
 inline void add_derivatives(
+  std::size_t particle,
   std::size_t other,
-  fp_t L, fp_t half_L,
-  fp_t a, fp_t b, fp_t neg_two_ab,
-  const xpu::array<fp_t, idx(Axis::NUM)>& particle_pos,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
-  fp_t* gradient_x, fp_t* gradient_y, fp_t* gradient_z,
-  fp_t* laplacian
+  JastrowPade::View jastrow,
+  Particles::View particles,
+  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
 ) noexcept {
+  const xpu::array<fp_t, idx(Axis::NUM)> particle_pos{
+    particles.pos[idx(Axis::X)][particle],
+    particles.pos[idx(Axis::Y)][particle],
+    particles.pos[idx(Axis::Z)][particle]
+  };
   xpu::array<fp_t, idx(Axis::NUM)> pair_gradient{};
   auto pair_laplacian{0.0_fp};
 
   evaluate_pair_derivatives(
     particle_pos, other,
-    L, half_L, a, b, neg_two_ab,
-    pos, &pair_gradient, &pair_laplacian
+    jastrow.box_length,
+    0.5_fp * jastrow.box_length,
+    jastrow.a,
+    jastrow.b,
+    -2.0_fp * jastrow.a * jastrow.b,
+    particles.pos,
+    &pair_gradient,
+    &pair_laplacian
   );
 
 #if defined(__CUDA_ARCH__)
-  atomicAdd(gradient_x, pair_gradient[idx(Axis::X)]);
-  atomicAdd(gradient_y, pair_gradient[idx(Axis::Y)]);
-  atomicAdd(gradient_z, pair_gradient[idx(Axis::Z)]);
-  atomicAdd(laplacian, pair_laplacian);
+  atomicAdd(&derivatives[idx(Derivatives::GRAD_X)][particle], pair_gradient[idx(Axis::X)]);
+  atomicAdd(&derivatives[idx(Derivatives::GRAD_Y)][particle], pair_gradient[idx(Axis::Y)]);
+  atomicAdd(&derivatives[idx(Derivatives::GRAD_Z)][particle], pair_gradient[idx(Axis::Z)]);
+  atomicAdd(&derivatives[idx(Derivatives::LAP)][particle], pair_laplacian);
 #else
-  *gradient_x += pair_gradient[idx(Axis::X)];
-  *gradient_y += pair_gradient[idx(Axis::Y)];
-  *gradient_z += pair_gradient[idx(Axis::Z)];
-  *laplacian += pair_laplacian;
+  derivatives[idx(Derivatives::GRAD_X)][particle] += pair_gradient[idx(Axis::X)];
+  derivatives[idx(Derivatives::GRAD_Y)][particle] += pair_gradient[idx(Axis::Y)];
+  derivatives[idx(Derivatives::GRAD_Z)][particle] += pair_gradient[idx(Axis::Z)];
+  derivatives[idx(Derivatives::LAP)][particle] += pair_laplacian;
 #endif
+}
+
+CUDA_CALLABLE
+inline void delta_value(
+  std::size_t other,
+  std::size_t moved,
+  JastrowPade::View jastrow,
+  Particles::View particles,
+  const xpu::array<fp_t, idx(Axis::NUM)>& old_pos,
+  const xpu::array<fp_t, idx(Axis::NUM)>& new_pos,
+  fp_t* delta
+) noexcept {
+  delta_value(
+    other,
+    moved,
+    jastrow.box_length,
+    0.5_fp * jastrow.box_length,
+    jastrow.a,
+    jastrow.b,
+    old_pos,
+    new_pos,
+    particles.pos,
+    delta
+  );
 }
 
 } // namespace stencil::jpade
@@ -342,30 +375,15 @@ void cudaComputeDerivatives(
 
 __global__
 void cudaAddDerivatives(
-  fp_t L, fp_t half_L,
-  fp_t a, fp_t b, fp_t neg_two_ab,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
+  JastrowPade::View jastrow,
+  Particles::View particles,
   xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
 ) {
   const auto [i, j]{xpu::global_index<2>()};
-  if (i >= pos.count() || j >= pos.count()) { return; }
+  if (i >= particles.count || j >= particles.count) { return; }
   if (i == j) { return; }
 
-  xpu::array<fp_t, idx(Axis::NUM)> particle_pos{
-    pos[idx(Axis::X)][i],
-    pos[idx(Axis::Y)][i],
-    pos[idx(Axis::Z)][i]
-  };
-
-  stencil::jpade::add_derivatives(
-    j,
-    L, half_L, a, b, neg_two_ab,
-    particle_pos, pos,
-    &derivatives[idx(Derivatives::GRAD_X)][i],
-    &derivatives[idx(Derivatives::GRAD_Y)][i],
-    &derivatives[idx(Derivatives::GRAD_Z)][i],
-    &derivatives[idx(Derivatives::LAP)][i]
-  );
+  stencil::jpade::add_derivatives(i, j, jastrow, particles, derivatives);
 }
 #endif
 
@@ -528,45 +546,30 @@ inline void compute_derivatives(
 }
 
 inline void add_derivatives(
-  fp_t L, fp_t half_L,
-  fp_t a, fp_t b, fp_t neg_two_ab,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
+  JastrowPade::View jastrow,
+  Particles::View particles,
   xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
 ) {
 #if defined(XPU_CUDA)
   dim3 addDerivativesThreads{16, 16};
   dim3 addDerivativesBlocks{
-    xpu::block_per_dim(pos.count(), addDerivativesThreads.x),
-    xpu::block_per_dim(pos.count(), addDerivativesThreads.y)
+    xpu::block_per_dim(particles.count, addDerivativesThreads.x),
+    xpu::block_per_dim(particles.count, addDerivativesThreads.y)
   };
 
   cudaAddDerivatives<<<
     addDerivativesBlocks, addDerivativesThreads
   >>>(
-    L, half_L, a, b, neg_two_ab,
-    pos, derivatives
+    jastrow,
+    particles,
+    derivatives
   );
   xpu::cu_check(cudaGetLastError());
 #else
-  for (auto i = 0uz; i < pos.count(); ++i) {
-    xpu::array<fp_t, idx(Axis::NUM)> particle_pos{
-      pos[idx(Axis::X)][i],
-      pos[idx(Axis::Y)][i],
-      pos[idx(Axis::Z)][i]
-    };
-
-    auto& gradient_x{derivatives[idx(Derivatives::GRAD_X)][i]};
-    auto& gradient_y{derivatives[idx(Derivatives::GRAD_Y)][i]};
-    auto& gradient_z{derivatives[idx(Derivatives::GRAD_Z)][i]};
-    auto& laplacian{derivatives[idx(Derivatives::LAP)][i]};
-
-    #pragma omp simd reduction(+ : gradient_x, gradient_y, gradient_z, laplacian)
-    for (auto j = 0uz; j < pos.count(); ++j) {
+  for (auto i = 0uz; i < particles.count; ++i) {
+    for (auto j = 0uz; j < particles.count; ++j) {
       stencil::jpade::add_derivatives(
-        j,
-        L, half_L, a, b, neg_two_ab,
-        particle_pos, pos,
-        &gradient_x, &gradient_y, &gradient_z, &laplacian
+        i, j, jastrow, particles, derivatives
       );
     }
   }
@@ -618,22 +621,6 @@ inline void compute_derivatives(
     jastrow.b,
     -2.0_fp * jastrow.a * jastrow.b,
     old_pos,
-    particles.pos,
-    derivatives
-  );
-}
-
-inline void add_derivatives(
-  JastrowPade::View jastrow,
-  Particles::View particles,
-  xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives
-) noexcept {
-  add_derivatives(
-    jastrow.box_length,
-    0.5_fp * jastrow.box_length,
-    jastrow.a,
-    jastrow.b,
-    -2.0_fp * jastrow.a * jastrow.b,
     particles.pos,
     derivatives
   );

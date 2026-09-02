@@ -2,6 +2,7 @@
 
 #include <xpu/xpu.hpp>
 #include "energy_tracking.hpp"
+#include "../utilities/execution.hpp"
 #include "../utilities/components.hpp"
 #include "../utilities/macros.hpp"
 
@@ -147,6 +148,40 @@ inline void kinetic_energy(
 }
 
 CUDA_CALLABLE
+inline void kinetic_energy(
+  std::size_t particle,
+  EnergyTracker::View energy,
+  Particles::View particles
+) noexcept;
+
+CUDA_CALLABLE
+inline void evaluate_local_energy(
+  EnergyTracker::View energy,
+  Particles::View particles,
+  fp_t* local_energy
+) noexcept {
+  if (execution::thread() == 0uz) {
+    *energy.reduction_scratch = 0.0_fp;
+  }
+  execution::sync();
+
+  for (auto particle{execution::thread()}; particle < particles.count; particle += execution::stride()) {
+    kinetic_energy(particle, energy, particles);
+  }
+  execution::sync();
+
+  if (execution::thread() == 0uz) {
+    *local_energy =
+      -0.5_fp * *energy.reduction_scratch
+      + *energy.real_energy
+      + *energy.reciprocal_energy
+      + energy.ewald_correction
+      + energy.ewald_background;
+  }
+  execution::sync();
+}
+
+CUDA_CALLABLE
 inline void initialize_structure_factors(
   std::size_t g, std::size_t particle,
   xpu::soa_view<fp_t, idx(Axis::NUM)> g_vector,
@@ -203,6 +238,74 @@ inline void update_structure_factors(
 
   sum_real[i] += new_cos - old_cos;
   sum_imag[i] += new_sin - old_sin;
+}
+
+CUDA_CALLABLE
+inline void initialize_reciprocal_energy(
+  std::size_t g_index,
+  EnergyTracker::View energy,
+  fp_t* reciprocal_sum
+) noexcept {
+  initialize_reciprocal_energy(
+    g_index,
+    energy.g_weights,
+    energy.sum_real,
+    energy.sum_imag,
+    reciprocal_sum
+  );
+}
+
+CUDA_CALLABLE
+inline void update_structure_factors(
+  std::size_t g_index,
+  EnergyTracker::View energy,
+  const xpu::array<fp_t, idx(Axis::NUM)>& old_pos,
+  const xpu::array<fp_t, idx(Axis::NUM)>& new_pos
+) noexcept {
+  update_structure_factors(
+    g_index,
+    old_pos,
+    new_pos,
+    energy.g_vector,
+    energy.sum_real,
+    energy.sum_imag
+  );
+}
+
+CUDA_CALLABLE
+inline void update_real_energy(
+  std::size_t other,
+  std::size_t moved,
+  EnergyTracker::View energy,
+  Particles::View particles,
+  const xpu::array<fp_t, idx(Axis::NUM)>& old_pos,
+  const xpu::array<fp_t, idx(Axis::NUM)>& new_pos,
+  fp_t* delta
+) noexcept {
+  update_real_energy(
+    other,
+    moved,
+    energy.box_length,
+    0.5_fp * energy.box_length,
+    energy.ewald_alpha,
+    old_pos,
+    new_pos,
+    particles.pos,
+    delta
+  );
+}
+
+CUDA_CALLABLE
+inline void kinetic_energy(
+  std::size_t particle,
+  EnergyTracker::View energy,
+  Particles::View particles
+) noexcept {
+  kinetic_energy(
+    particle,
+    particles.derivatives,
+    energy.reduction_scratch
+  );
 }
 
 } // namespace stencil::energy

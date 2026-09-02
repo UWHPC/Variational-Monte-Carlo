@@ -7,6 +7,7 @@
 #include "../jastrow_pade/jastrow_pade_kernels.hpp"
 #include "../slater_plane_wave/slater_plane_wave.hpp"
 #include "../slater_plane_wave/slater_plane_wave_kernels.hpp"
+#include "../wavefunction/wavefunction_kernels.hpp"
 #include "../utilities/execution.hpp"
 #include "simulation.hpp"
 
@@ -48,14 +49,15 @@ inline Simulation::RandomProposal generate_random_proposal(
 
 CUDA_CALLABLE
 inline void propose_move(
-  xpu::random::generator& generator,
+  Simulation::View simulation,
   fp_t step_size,
-  fp_t L,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
   Simulation::MetropolisScratch& scratch
 ) noexcept {
   if (execution::thread() != 0uz) { return; }
 
+  auto& generator{*simulation.generator};
+  const auto L{simulation.wave_function.jastrow.box_length};
+  auto pos{simulation.particles.pos};
   auto local_generator{generator};
   scratch.proposal = generate_random_proposal(
     local_generator, pos.count(), step_size
@@ -95,10 +97,10 @@ inline void propose_move(
 
 CUDA_CALLABLE
 inline void update_trig_cache(
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
-  SlaterPlaneWave::View slater,
+  Simulation::View simulation,
   const Simulation::MetropolisScratch& scratch
 ) noexcept {
+  const auto slater{simulation.wave_function.slater};
   const auto particle{scratch.proposal.particle};
   const auto trig_row_offset{particle * slater.trig_row_stride};
 
@@ -108,53 +110,54 @@ inline void update_trig_cache(
     slater.cos_saved[i] = slater.cos_cache[trig_cache_index];
 
     stencil::slater::update_trig_cache(
-      i, trig_row_offset, particle,
-      pos, slater.k_vector,
-      slater.sin_cache, slater.cos_cache
+      i,
+      particle,
+      slater,
+      simulation.particles
     );
   }
 }
 
 CUDA_CALLABLE
 inline void build_slater_row(
-  SlaterPlaneWave::View slater,
+  Simulation::View simulation,
   const Simulation::MetropolisScratch& scratch
 ) noexcept {
+  const auto slater{simulation.wave_function.slater};
   const auto particle{scratch.proposal.particle};
 
   for (auto i{execution::thread()}; i < slater.num_orbitals; i += execution::stride()) {
     stencil::slater::build_row(
-      i, particle, slater.trig_row_stride,
-      slater.sin_cache, slater.cos_cache,
-      slater.orbital_k_index, slater.orbital_type,
-      slater.new_row
+      i,
+      particle,
+      slater
     );
   }
 }
 
 CUDA_CALLABLE
 inline void calculate_probability_ratio(
-  fp_t L,
-  fp_t jastrow_a,
-  fp_t jastrow_b,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
-  SlaterPlaneWave::View slater,
+  Simulation::View simulation,
   Simulation::MetropolisScratch& scratch
 ) noexcept {
+  const auto jastrow{simulation.wave_function.jastrow};
+  const auto slater{simulation.wave_function.slater};
   const auto particle{scratch.proposal.particle};
-  const auto half_L{0.5_fp * L};
 
   for (auto i{execution::thread()}; i < slater.num_orbitals; i += execution::stride()) {
     stencil::slater::determinant_ratio(
-      i, particle, slater.matrix_row_stride,
-      slater.new_row, slater.inv_determinant,
+      i,
+      particle,
+      slater,
       &scratch.slater_ratio
     );
     stencil::jpade::delta_value(
-      i, particle,
-      L, half_L,
-      jastrow_a, jastrow_b,
-      scratch.result.old_pos, scratch.result.new_pos, pos,
+      i,
+      particle,
+      jastrow,
+      simulation.particles,
+      scratch.result.old_pos,
+      scratch.result.new_pos,
       &scratch.jastrow_delta
     );
   }
@@ -183,10 +186,11 @@ inline void decide_move(
 
 CUDA_CALLABLE
 inline void reject_move(
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
-  SlaterPlaneWave::View slater,
+  Simulation::View simulation,
   const Simulation::MetropolisScratch& scratch
 ) noexcept {
+  auto pos{simulation.particles.pos};
+  const auto slater{simulation.wave_function.slater};
   const auto particle{scratch.proposal.particle};
   const auto trig_row_offset{particle * slater.trig_row_stride};
 
@@ -205,9 +209,10 @@ inline void reject_move(
 
 CUDA_CALLABLE
 inline void prepare_inverse_update(
-  SlaterPlaneWave::View slater,
+  Simulation::View simulation,
   const Simulation::MetropolisScratch& scratch
 ) noexcept {
+  const auto slater{simulation.wave_function.slater};
   const auto particle{scratch.proposal.particle};
   const auto determinant_row_offset{particle * slater.matrix_row_stride};
 
@@ -219,9 +224,10 @@ inline void prepare_inverse_update(
 
 CUDA_CALLABLE
 inline void calculate_inverse_solution(
-  SlaterPlaneWave::View slater,
+  Simulation::View simulation,
   const Simulation::MetropolisScratch& scratch
 ) noexcept {
+  const auto slater{simulation.wave_function.slater};
   const auto particle{scratch.proposal.particle};
 
   for (auto j{execution::thread()}; j < slater.num_orbitals; j += execution::stride()) {
@@ -238,9 +244,10 @@ inline void calculate_inverse_solution(
 
 CUDA_CALLABLE
 inline void commit_slater_move(
-  SlaterPlaneWave::View slater,
+  Simulation::View simulation,
   const Simulation::MetropolisScratch& scratch
 ) noexcept {
+  const auto slater{simulation.wave_function.slater};
   const auto particle{scratch.proposal.particle};
   const auto inv_ratio{1.0_fp / scratch.slater_ratio};
   const auto matrix_elements{slater.num_orbitals * slater.num_orbitals};
@@ -250,10 +257,11 @@ inline void commit_slater_move(
     const auto i{element - j * slater.num_orbitals};
 
     stencil::slater::k_update_inverse(
-      i, j,
-      particle, slater.matrix_row_stride, inv_ratio,
-      slater.inv_d_col, slater.solution,
-      slater.inv_determinant
+      i,
+      j,
+      particle,
+      inv_ratio,
+      slater
     );
   }
 
@@ -265,15 +273,16 @@ inline void commit_slater_move(
 
 CUDA_CALLABLE
 inline void update_structure_factors(
-  EnergyTracker::View energy,
+  Simulation::View simulation,
   const Simulation::MetropolisScratch& scratch
 ) noexcept {
+  const auto energy{simulation.energy_tracker};
   for (auto i{execution::thread()}; i < energy.num_g_vectors; i += execution::stride()) {
     stencil::energy::update_structure_factors(
       i,
-      scratch.result.old_pos, scratch.result.new_pos,
-      energy.g_vector,
-      energy.sum_real, energy.sum_imag
+      energy,
+      scratch.result.old_pos,
+      scratch.result.new_pos
     );
   }
 }
@@ -289,29 +298,29 @@ inline void reset_energy_reductions(
 
 CUDA_CALLABLE
 inline void calculate_energy_deltas(
-  fp_t L,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
-  SlaterPlaneWave::View slater,
-  EnergyTracker::View energy,
+  Simulation::View simulation,
   Simulation::MetropolisScratch& scratch
 ) noexcept {
+  const auto slater{simulation.wave_function.slater};
+  const auto energy{simulation.energy_tracker};
   const auto particle{scratch.proposal.particle};
-  const auto half_L{0.5_fp * L};
 
   for (auto i{execution::thread()}; i < energy.num_g_vectors; i += execution::stride()) {
     stencil::energy::initialize_reciprocal_energy(
       i,
-      energy.g_weights,
-      energy.sum_real, energy.sum_imag,
+      energy,
       &scratch.reciprocal_sum
     );
   }
 
   for (auto i{execution::thread()}; i < slater.num_orbitals; i += execution::stride()) {
     stencil::energy::update_real_energy(
-      i, particle,
-      L, half_L, energy.ewald_alpha,
-      scratch.result.old_pos, scratch.result.new_pos, pos,
+      i,
+      particle,
+      energy,
+      simulation.particles,
+      scratch.result.old_pos,
+      scratch.result.new_pos,
       &scratch.real_energy_delta
     );
   }
@@ -319,13 +328,18 @@ inline void calculate_energy_deltas(
 
 CUDA_CALLABLE
 inline void finalize_energy(
-  fp_t L,
+  Simulation::View simulation,
   Simulation::MetropolisScratch& scratch
 ) noexcept {
   if (execution::thread() != 0uz) { return; }
 
   const auto reciprocal_prefactor{
-    1.0_fp / (2.0_fp * xstd::numbers::pi_v<fp_t> * L * L * L)
+    1.0_fp / (
+      2.0_fp * xstd::numbers::pi_v<fp_t>
+      * simulation.energy_tracker.box_length
+      * simulation.energy_tracker.box_length
+      * simulation.energy_tracker.box_length
+    )
   };
   scratch.result.real_energy_delta = scratch.real_energy_delta;
   scratch.result.reciprocal_energy = reciprocal_prefactor * scratch.reciprocal_sum;
@@ -333,13 +347,13 @@ inline void finalize_energy(
 
 CUDA_CALLABLE
 inline void commit_energy(
-  EnergyTracker::View energy,
+  Simulation::View simulation,
   const Simulation::MetropolisScratch& scratch
 ) noexcept {
   if (execution::thread() != 0uz) { return; }
 
-  *energy.real_energy += scratch.result.real_energy_delta;
-  *energy.reciprocal_energy = scratch.result.reciprocal_energy;
+  *simulation.energy_tracker.real_energy += scratch.result.real_energy_delta;
+  *simulation.energy_tracker.reciprocal_energy = scratch.result.reciprocal_energy;
 }
 
 CUDA_CALLABLE
@@ -348,60 +362,65 @@ inline void metropolis_step(
   fp_t step_size,
   Simulation::MetropolisScratch& scratch
 ) noexcept {
-  auto& generator{*simulation.generator};
-  const auto L{simulation.wave_function.jastrow.box_length};
-  const auto jastrow_a{simulation.wave_function.jastrow.a};
-  const auto jastrow_b{simulation.wave_function.jastrow.b};
-  const auto pos{simulation.particles.pos};
-  const auto slater{simulation.wave_function.slater};
-  const auto energy{simulation.energy_tracker};
-
-  propose_move(generator, step_size, L, pos, scratch);
+  propose_move(simulation, step_size, scratch);
   execution::sync();
 
-  update_trig_cache(pos, slater, scratch);
+  update_trig_cache(simulation, scratch);
   execution::sync();
 
-  build_slater_row(slater, scratch);
+  build_slater_row(simulation, scratch);
   execution::sync();
 
-  calculate_probability_ratio(
-    L, jastrow_a, jastrow_b,
-    pos, slater, scratch
-  );
+  calculate_probability_ratio(simulation, scratch);
   execution::sync();
 
   decide_move(scratch);
   execution::sync();
 
   if (!scratch.result.accepted) {
-    reject_move(pos, slater, scratch);
+    reject_move(simulation, scratch);
     execution::sync();
     return;
   }
 
-  prepare_inverse_update(slater, scratch);
+  prepare_inverse_update(simulation, scratch);
   execution::sync();
 
-  calculate_inverse_solution(slater, scratch);
+  calculate_inverse_solution(simulation, scratch);
   execution::sync();
 
-  commit_slater_move(slater, scratch);
+  commit_slater_move(simulation, scratch);
   execution::sync();
 
-  update_structure_factors(energy, scratch);
+  update_structure_factors(simulation, scratch);
   execution::sync();
 
   reset_energy_reductions(scratch);
   execution::sync();
 
-  calculate_energy_deltas(L, pos, slater, energy, scratch);
+  calculate_energy_deltas(simulation, scratch);
   execution::sync();
 
-  finalize_energy(L, scratch);
+  finalize_energy(simulation, scratch);
   execution::sync();
 
-  commit_energy(energy, scratch);
+  commit_energy(simulation, scratch);
+  execution::sync();
+}
+
+CUDA_CALLABLE
+inline void measure_walker(Simulation::View simulation) noexcept {
+  stencil::wavefunction::evaluate_derivatives(
+    simulation.wave_function,
+    simulation.particles
+  );
+  execution::sync();
+
+  stencil::energy::evaluate_local_energy(
+    simulation.energy_tracker,
+    simulation.particles,
+    simulation.local_energy
+  );
   execution::sync();
 }
 
@@ -505,6 +524,17 @@ void cudaMetropolisSweep(
       static_cast<unsigned long long>(local_result.accepted)
     );
   }
+}
+
+__global__
+void cudaMeasureWalkers(
+  Simulation::View* simulations,
+  std::size_t walker_count
+) {
+  const auto walker{static_cast<std::size_t>(blockIdx.x)};
+  if (walker >= walker_count) { return; }
+
+  stencil::simulation::measure_walker(simulations[walker]);
 }
 
 } // namespace
@@ -641,6 +671,27 @@ inline void metropolis_sweep(
 
     result->proposed += local_result.proposed;
     result->accepted += local_result.accepted;
+  }
+#endif
+}
+
+inline void measure_walkers(
+  Simulation::View* simulations,
+  std::size_t walker_count
+) {
+#if defined(XPU_CUDA)
+  dim3 measureWalkersThreads{256u};
+  dim3 measureWalkersBlocks{static_cast<unsigned int>(walker_count)};
+  cudaMeasureWalkers<<<
+    measureWalkersBlocks, measureWalkersThreads
+  >>>(
+    simulations,
+    walker_count
+  );
+  xpu::cu_check(cudaGetLastError());
+#else
+  for (auto walker{0uz}; walker < walker_count; ++walker) {
+    stencil::simulation::measure_walker(simulations[walker]);
   }
 #endif
 }
