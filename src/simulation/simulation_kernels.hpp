@@ -439,6 +439,278 @@ inline void measure_walker(Simulation::View simulation) noexcept {
   execution::sync();
 }
 
+CUDA_CALLABLE
+inline void initialize_walker_state(
+  Simulation::WalkerState& state,
+  fp_t step_size,
+  fp_t box_length
+) noexcept {
+  constexpr auto maximum_step_fraction{0.5_fp};
+
+  state = {};
+  state.step_size = xpu::min(step_size, maximum_step_fraction * box_length);
+}
+
+CUDA_CALLABLE
+inline void reset_walker_measurements(
+  Simulation::WalkerState& state
+) noexcept {
+  const auto step_size{state.step_size};
+
+  state = {};
+  state.step_size = step_size;
+}
+
+CUDA_CALLABLE
+inline void reset_sweep_result(
+  Simulation::MetropolisScratch& scratch
+) noexcept {
+  if (execution::thread() != 0uz) {
+    return;
+  }
+
+  scratch.sweep_result = {};
+}
+
+CUDA_CALLABLE
+inline void record_proposal(
+  Simulation::MetropolisScratch& scratch
+) noexcept {
+  if (execution::thread() != 0uz) {
+    return;
+  }
+
+  ++scratch.sweep_result.proposed;
+  scratch.sweep_result.accepted += scast<std::size_t>(scratch.result.accepted);
+}
+
+CUDA_CALLABLE
+inline void update_walker_step_size(
+  Simulation::WalkerState& state,
+  const Simulation::SweepResult& result,
+  std::size_t sweep,
+  fp_t box_length
+) noexcept {
+  constexpr auto target_rate{0.5_fp};
+  constexpr auto initial_gain{0.25_fp};
+  constexpr auto maximum_step_fraction{0.5_fp};
+  constexpr auto first_sweep{1uz};
+
+  const auto acceptance_rate{result.acceptance_rate()};
+  const auto gain{initial_gain * xpu::rsqrt(scast<fp_t>(sweep + first_sweep))};
+  const auto maximum_step_size{maximum_step_fraction * box_length};
+
+  state.step_size *= xpu::exp(gain * (acceptance_rate - target_rate));
+  state.step_size = xpu::min(state.step_size, maximum_step_size);
+}
+
+CUDA_CALLABLE
+inline void record_walker_sweep(
+  Simulation::WalkerState& state,
+  const Simulation::SweepResult& result
+) noexcept {
+  state.proposed += result.proposed;
+  state.accepted += result.accepted;
+}
+
+CUDA_CALLABLE
+inline void record_walker_energy(
+  Simulation::WalkerState& state,
+  fp_t local_energy,
+  std::size_t block_size
+) noexcept {
+  state.energy_sum += local_energy;
+  ++state.sample_count;
+
+  state.block_sum += local_energy;
+  ++state.samples_in_block;
+
+  if (state.samples_in_block != block_size) {
+    return;
+  }
+
+  const auto block_mean{state.block_sum / scast<fp_t>(block_size)};
+
+  ++state.block_count;
+
+  const auto delta{block_mean - state.blocked_mean};
+  state.blocked_mean += delta / scast<fp_t>(state.block_count);
+  state.blocked_m2 += delta * (block_mean - state.blocked_mean);
+
+  state.block_sum = {};
+  state.samples_in_block = {};
+}
+
+DEVICE_ONLY
+inline void run_sweep(
+  Simulation::View simulation,
+  Simulation::WalkerState& state,
+  const Simulation::RunConfig& config,
+  Simulation::MetropolisScratch& scratch
+) noexcept {
+  reset_sweep_result(scratch);
+  execution::sync();
+
+  for (
+    auto proposal{0uz};
+    proposal < config.proposals_per_sweep;
+    ++proposal
+  ) {
+    metropolis_step(
+      simulation,
+      state.step_size,
+      scratch
+    );
+
+    record_proposal(scratch);
+    execution::sync();
+  }
+}
+
+DEVICE_ONLY
+inline void run_walker(
+  Simulation::View simulation,
+  Simulation::WalkerState& state,
+  const Simulation::RunConfig& config,
+  Simulation::MetropolisScratch& scratch
+) noexcept {
+  if (execution::thread() == 0uz) {
+    initialize_walker_state(
+      state,
+      config.initial_step_size,
+      config.box_length
+    );
+  }
+  execution::sync();
+
+  for (auto sweep{0uz}; sweep < config.warmup_sweeps; ++sweep) {
+    run_sweep(
+      simulation,
+      state,
+      config,
+      scratch
+    );
+
+    if (execution::thread() == 0uz) {
+      update_walker_step_size(
+        state,
+        scratch.sweep_result,
+        sweep,
+        config.box_length
+      );
+    }
+    execution::sync();
+  }
+
+  if (execution::thread() == 0uz) {
+    reset_walker_measurements(state);
+  }
+  execution::sync();
+
+  for (auto sweep{0uz}; sweep < config.measure_sweeps; ++sweep) {
+    run_sweep(
+      simulation,
+      state,
+      config,
+      scratch
+    );
+
+    measure_walker(simulation);
+    execution::sync();
+
+    if (execution::thread() == 0uz) {
+      record_walker_sweep(
+        state,
+        scratch.sweep_result
+      );
+      record_walker_energy(
+        state,
+        *simulation.local_energy,
+        config.block_size
+      );
+    }
+    execution::sync();
+  }
+}
+
+CUDA_CALLABLE
+inline void finalize_run(
+  const Simulation::WalkerState* states,
+  std::size_t walker_count,
+  Simulation::RunResult* result
+) noexcept {
+  constexpr auto minimum_blocks{2uz};
+  constexpr auto variance_correction{1uz};
+
+  auto energy_sum{0.0_fp};
+  auto blocked_mean{0.0_fp};
+  auto blocked_m2{0.0_fp};
+
+  auto proposed{0uz};
+  auto accepted{0uz};
+  auto sample_count{0uz};
+  auto block_count{0uz};
+  auto has_standard_error{true};
+
+  for (auto walker{0uz}; walker < walker_count; ++walker) {
+    const auto& state{states[walker]};
+
+    proposed += state.proposed;
+    accepted += state.accepted;
+    energy_sum += state.energy_sum;
+    sample_count += state.sample_count;
+
+    if (state.block_count < minimum_blocks) {
+      has_standard_error = false;
+    }
+
+    if (state.block_count == 0uz) {
+      continue;
+    }
+
+    if (block_count == 0uz) {
+      blocked_mean = state.blocked_mean;
+      blocked_m2 = state.blocked_m2;
+      block_count = state.block_count;
+      continue;
+    }
+
+    const auto combined_block_count{block_count + state.block_count};
+    const auto delta{state.blocked_mean - blocked_mean};
+    const auto left_weight{scast<fp_t>(block_count)};
+    const auto right_weight{scast<fp_t>(state.block_count)};
+    const auto combined_weight{scast<fp_t>(combined_block_count)};
+
+    blocked_mean += delta * right_weight / combined_weight;
+    blocked_m2 += state.blocked_m2
+      + delta * delta * left_weight * right_weight / combined_weight;
+    block_count = combined_block_count;
+  }
+
+  *result = {
+    .proposed = proposed,
+    .accepted = accepted
+  };
+
+  if (sample_count != 0uz) {
+    result->mean_energy = energy_sum / scast<fp_t>(sample_count);
+  }
+
+  if (proposed != 0uz) {
+    result->acceptance_rate = scast<fp_t>(accepted) / scast<fp_t>(proposed);
+  }
+
+  if (!has_standard_error) {
+    return;
+  }
+
+  const auto variance{blocked_m2 / scast<fp_t>(block_count - variance_correction)};
+
+  result->mean_energy = blocked_mean;
+  result->standard_error = xpu::sqrt(variance / scast<fp_t>(block_count));
+  result->has_standard_error = true;
+}
+
 } // namespace stencil::simulation
 } // namespace stencil
 
@@ -557,6 +829,45 @@ void cudaMeasureWalkers(
   if (walker >= walker_count) { return; }
 
   stencil::simulation::measure_walker(simulations[walker]);
+}
+
+__global__
+void cudaRunWalkers(
+  const Simulation::View* simulations,
+  Simulation::WalkerState* states,
+  std::size_t walker_count,
+  Simulation::RunConfig config
+) {
+  const auto walker{scast<std::size_t>(blockIdx.x)};
+  if (walker >= walker_count) {
+    return;
+  }
+
+  __shared__ Simulation::MetropolisScratch scratch;
+
+  stencil::simulation::run_walker(
+    simulations[walker],
+    states[walker],
+    config,
+    scratch
+  );
+}
+
+__global__
+void cudaFinalizeRun(
+  const Simulation::WalkerState* states,
+  std::size_t walker_count,
+  Simulation::RunResult* result
+) {
+  if (execution::thread() != 0uz || blockIdx.x != 0u) {
+    return;
+  }
+
+  stencil::simulation::finalize_run(
+    states,
+    walker_count,
+    result
+  );
 }
 
 } // namespace
@@ -730,6 +1041,65 @@ inline void measure_walkers(
     stencil::simulation::measure_walker(simulations[walker]);
   }
 #endif
+}
+
+inline Simulation::RunResult run_walkers(
+  const Simulation::View* simulations,
+  Simulation::WalkerState* states,
+  std::size_t walker_count,
+  const Simulation::RunConfig& config,
+  Simulation::RunResult* result_storage
+) {
+#if defined(XPU_CUDA)
+  constexpr dim3 runWalkersThreads{256u};
+  const dim3 runWalkersBlocks{scast<unsigned int>(walker_count)};
+
+  cudaRunWalkers<<<
+    runWalkersBlocks, runWalkersThreads
+  >>>(
+    simulations,
+    states,
+    walker_count,
+    config
+  );
+  xpu::cu_check(cudaGetLastError());
+
+  constexpr dim3 finalizeRunThreads{1u};
+  constexpr dim3 finalizeRunBlocks{1u};
+
+  cudaFinalizeRun<<<
+    finalizeRunBlocks, finalizeRunThreads
+  >>>(
+    states,
+    walker_count,
+    result_storage
+  );
+  xpu::cu_check(cudaGetLastError());
+#else
+  #if defined(_OPENMP)
+    #pragma omp parallel for num_threads(config.num_threads)
+  #endif
+  for (auto walker = 0uz; walker < walker_count; ++walker) {
+    Simulation::MetropolisScratch scratch{};
+
+    stencil::simulation::run_walker(
+      simulations[walker],
+      states[walker],
+      config,
+      scratch
+    );
+  }
+
+  stencil::simulation::finalize_run(
+    states,
+    walker_count,
+    result_storage
+  );
+#endif
+
+  Simulation::RunResult result{};
+  xpu::copy_n(&result, result_storage, 1uz);
+  return result;
 }
 
 } // namespace kernel::simulation

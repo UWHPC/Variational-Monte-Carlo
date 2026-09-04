@@ -1,110 +1,100 @@
 #include "config/config.hpp"
 #include "optimizer/jastrow_optimizer.hpp"
-#include "output_writer/output_writer.hpp"
 #include "simulation/simulation.hpp"
 
 #include <chrono>
-#include <fstream>
-#include <future>
-#include <iomanip>
-#include <iostream>
-#include <memory>
-#include <thread>
+#include <cstdio>
+#include <cstdlib>
+#include <exception>
+#include <print>
+#include <string_view>
 
-int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
-  Config master_config{Config::from_file("config.cfg")};
+namespace {
 
-  try {
-    std::size_t num_threads{master_config.num_threads};
+void print_startup() {
+  std::print(
+    "\n<--- Variational Monte Carlo Simulation --->\n\n"
+    "<--- Optimizing Jastrow b parameter --->\n"
+  );
+}
 
-    std::cout << "\n<--- Variational Monte Carlo Simulation --->\n\n"
-              << "<--- Optimizing Jastrow b parameter --->\n";
+void print_config(const Config& config) {
+  std::print(
+    "\n<--- Config Settings --->\n"
+    "Number of CPU threads: {}\n"
+    "Number of walkers: {}\n"
+    "Number of particles: {}\n"
+    "Number of warmup sweeps: {}\n"
+    "Number of measure sweeps: {}\n"
+    "Length of box: {}\n"
+    "Samples per block: {}\n"
+    "Master seed: {}\n"
+    "Jastrow a: {}\n"
+    "Jastrow b: {} (optimized)\n\n",
+    config.num_threads,
+    config.num_walkers,
+    config.num_particles,
+    config.warmup_sweeps,
+    config.measure_sweeps,
+    config.box_length,
+    config.block_size,
+    config.master_seed,
+    config.jastrow_a,
+    config.jastrow_b
+  );
+}
 
-    const auto opt_result{JastrowOptimizer::optimize(master_config, true)};
-    master_config.jastrow_b = opt_result.optimal_b;
+void print_summary(
+  const Simulation::MeasurementSummary& summary,
+  const std::chrono::duration<double>& elapsed
+) {
+  std::print("<--- Final Measurements --->\nFinal Energy: {:.6}", summary.mean_energy);
 
-    std::cout << "\n<--- Config Settings --->\n"
-              << "Number of threads: " << num_threads << "\n"
-              << "Number of particles: " << master_config.num_particles << "\n"
-              << "Number of walkers: " << master_config.num_walkers << "\n"
-              << "Number of warmup sweeps: " << master_config.warmup_sweeps << "\n"
-              << "Number of measure sweeps: " << master_config.measure_sweeps << "\n"
-              << "Length of box: " << master_config.box_length << "\n"
-              << "Samples per block: " << master_config.block_size << "\n"
-              << "Master seed: " << master_config.master_seed << "\n"
-              << "Jastrow a: " << master_config.jastrow_a << "\n"
-              << "Jastrow b: " << master_config.jastrow_b << " (optimized)\n"
-              << std::endl;
-
-    std::vector<std::future<Simulation::MeasurementSummary>> futures;
-
-    std::ofstream bin_out{"output/vmc.bin", std::ios::binary | std::ios::trunc};
-    if (!bin_out) {
-      std::cerr << "Warning: could not open output/vmc.bin for writing\n";
-    }
-
-    auto start{std::chrono::steady_clock::now()};
-
-    for (std::size_t thread{}; thread < num_threads; ++thread) {
-      Config thread_config{master_config};
-      thread_config.is_master_thread = (thread == 0);
-
-      if (thread == 0 && bin_out) {
-        futures.push_back(std::async(std::launch::async, [thread_config, thread, &bin_out]() {
-          auto writer{std::make_unique<BinOutputWriter>(bin_out)};
-          Simulation sim{thread_config, std::move(writer), thread};
-          return sim.run();
-        }));
-      } else {
-        futures.push_back(std::async(std::launch::async, [thread_config, thread]() {
-          Simulation sim{thread_config, nullptr, thread};
-          return sim.run();
-        }));
-      }
-    }
-
-    fp_t global_energy_sum{};
-    fp_t global_variance_sum{};
-    fp_t global_acceptance_sum{};
-    std::size_t threads_with_se{};
-
-    for (auto& f : futures) {
-      Simulation::MeasurementSummary summary{f.get()};
-      global_energy_sum += summary.mean_energy;
-      if (summary.standard_error.has_value()) {
-        global_variance_sum += (*summary.standard_error) * (*summary.standard_error);
-        ++threads_with_se;
-      }
-      global_acceptance_sum += summary.acceptance_rate;
-    }
-
-    auto end{std::chrono::steady_clock::now()};
-    std::chrono::duration<double> elapsed{end - start};
-
-    const fp_t inv_num_threads{1.0_fp / scast<fp_t>(num_threads)};
-    const fp_t final_mean{global_energy_sum * inv_num_threads};
-    const fp_t final_acceptance_rate{global_acceptance_sum * inv_num_threads * 100.0_fp};
-
-    std::cout << "<--- Final Measurements --->" << std::endl
-              << "Final Aggregated Energy: " << std::setprecision(6) << final_mean;
-
-    if (threads_with_se > 0U) {
-      const fp_t final_se{xpu::sqrt(global_variance_sum) * inv_num_threads};
-      std::cout << " +/- " << final_se;
-    } else {
-      std::cout << " +/- N/A (insufficient blocks)";
-    }
-
-    std::cout << std::endl
-              << "Elapsed: " << elapsed.count() << " s" << std::endl
-              << "Acceptance Rate: " << final_acceptance_rate << "%\n"
-              << std::endl;
-
-    return 0;
-  } catch (const std::exception& e) {
-    std::cout << "Exception: " << e.what() << std::endl;
-    std::exit(-1);
+  if (summary.standard_error.has_value()) {
+    std::print(" +/- {:.6}", *summary.standard_error);
+  } else {
+    std::print(" +/- N/A (insufficient blocks)");
   }
 
-  return 0;
+  constexpr auto percent_scale{100.0_fp};
+  std::print(
+    "\nElapsed: {} s\nAcceptance Rate: {}%\n\n",
+    elapsed.count(),
+    summary.acceptance_rate * percent_scale
+  );
+}
+
+void print_error(const std::string_view message) {
+  std::print(stderr, "Exception: {}\n", message);
+}
+
+}
+
+int main() {
+  try {
+    auto config{Config::from_file("config.cfg")};
+
+    print_startup();
+
+    constexpr auto verbose{true};
+    const auto optimization{JastrowOptimizer::optimize(config, verbose)};
+    config.jastrow_b = optimization.optimal_b;
+
+    print_config(config);
+
+    const auto start{std::chrono::steady_clock::now()};
+
+    Simulation simulation{config};
+    const auto summary{simulation.run()};
+
+    const auto end{std::chrono::steady_clock::now()};
+    const auto elapsed{std::chrono::duration<double>{end - start}};
+
+    print_summary(summary, elapsed);
+
+    return EXIT_SUCCESS;
+  } catch (const std::exception& exception) {
+    print_error(exception.what());
+    return EXIT_FAILURE;
+  }
 }

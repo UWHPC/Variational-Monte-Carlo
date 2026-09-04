@@ -33,23 +33,63 @@ public:
     fp_t reciprocal_energy;
   };
 
-  struct MetropolisScratch {
-    RandomProposal proposal;
-    StepResult result;
-    fp_t slater_ratio;
-    fp_t jastrow_delta;
-    fp_t real_energy_delta;
-    fp_t reciprocal_sum;
-  };
-
   struct SweepResult {
-    std::size_t proposed;
-    std::size_t accepted;
+    std::size_t proposed{};
+    std::size_t accepted{};
 
-    [[nodiscard]] fp_t acceptance_rate() const noexcept {
-      if (proposed == 0uz) { return 0.0_fp; }
+    [[nodiscard]] CUDA_CALLABLE
+    fp_t acceptance_rate() const noexcept {
+      if (proposed == 0uz) {
+        return 0.0_fp;
+      }
+
       return scast<fp_t>(accepted) / scast<fp_t>(proposed);
     }
+  };
+
+  struct MetropolisScratch {
+    RandomProposal proposal{};
+    StepResult result{};
+    SweepResult sweep_result{};
+    fp_t slater_ratio{};
+    fp_t jastrow_delta{};
+    fp_t real_energy_delta{};
+    fp_t reciprocal_sum{};
+  };
+
+  struct RunConfig {
+    fp_t box_length{};
+    fp_t initial_step_size{};
+    std::size_t warmup_sweeps{};
+    std::size_t measure_sweeps{};
+    std::size_t proposals_per_sweep{};
+    std::size_t block_size{};
+    std::size_t num_threads{};
+  };
+
+  struct WalkerState {
+    fp_t step_size{};
+    fp_t energy_sum{};
+    fp_t block_sum{};
+    fp_t blocked_mean{};
+    fp_t blocked_m2{};
+
+    std::size_t proposed{};
+    std::size_t accepted{};
+    std::size_t sample_count{};
+    std::size_t samples_in_block{};
+    std::size_t block_count{};
+  };
+
+  struct RunResult {
+    fp_t mean_energy{};
+    fp_t standard_error{};
+    fp_t acceptance_rate{};
+
+    std::size_t proposed{};
+    std::size_t accepted{};
+
+    bool has_standard_error{};
   };
 
   struct View {
@@ -94,6 +134,8 @@ private:
   xpu::buffer<fp_t> local_energies_;
   xpu::buffer<View> walker_views_;
   xpu::buffer<SweepResult> sweep_result_;
+  xpu::buffer<WalkerState> walker_states_;
+  xpu::buffer<RunResult> run_result_;
 
   [[nodiscard]] const std::array<std::vector<fp_t>, idx(Axis::NUM)>& positions_snapshot();
 

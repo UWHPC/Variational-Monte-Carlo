@@ -32,6 +32,8 @@ Simulation::Simulation(
 , local_energies_{config_.num_walkers}
 , walker_views_{config_.num_walkers}
 , sweep_result_{1uz}
+, walker_states_{config_.num_walkers}
+, run_result_{1uz}
 {
   std::vector<View> views{};
   views.reserve(config_.num_walkers);
@@ -268,6 +270,39 @@ Simulation::MeasurementSummary Simulation::run() {
       .seed = config_.master_seed,
       .block_size = config_.block_size
     });
+  }
+
+  if (!output_writer_) {
+    const RunConfig run_config{
+      .box_length = config_.box_length,
+      .initial_step_size = config_.step_size,
+      .warmup_sweeps = config_.warmup_sweeps,
+      .measure_sweeps = config_.measure_sweeps,
+      .proposals_per_sweep = particles_.count(),
+      .block_size = config_.block_size,
+      .num_threads = config_.num_threads
+    };
+
+    const auto result{
+      kernel::simulation::run_walkers(
+        walker_views_.data(),
+        walker_states_.data(),
+        particles_.walker_count(),
+        run_config,
+        run_result_.data()
+      )
+    };
+
+    std::optional<fp_t> standard_error{};
+    if (result.has_standard_error) {
+      standard_error = result.standard_error;
+    }
+
+    return {
+      .mean_energy = result.mean_energy,
+      .standard_error = standard_error,
+      .acceptance_rate = result.acceptance_rate
+    };
   }
 
   warmup();
