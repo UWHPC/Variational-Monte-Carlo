@@ -24,9 +24,9 @@ struct nVectorCandidate {
 void SlaterPlaneWave::initialize() {
   const auto num_orbitals{this->num_orbitals()};
   const auto n_max{
-    static_cast<int>(xpu::ceil(xpu::cbrt(static_cast<fp_t>(num_orbitals)))) + 2
+    scast<int>(xpu::ceil(xpu::cbrt(scast<fp_t>(num_orbitals)))) + 2
   };
-  const auto side{static_cast<std::size_t>(2 * n_max + 1)};
+  const auto side{scast<std::size_t>(2 * n_max + 1)};
 
   std::vector<nVectorCandidate> candidates{};
   candidates.reserve(side * side * side);
@@ -82,9 +82,9 @@ void SlaterPlaneWave::initialize() {
     n_y[k_idx] = candidate.n_y;
     n_z[k_idx] = candidate.n_z;
 
-    k_x[k_idx] = two_pi_inv_L * static_cast<fp_t>(candidate.n_x);
-    k_y[k_idx] = two_pi_inv_L * static_cast<fp_t>(candidate.n_y);
-    k_z[k_idx] = two_pi_inv_L * static_cast<fp_t>(candidate.n_z);
+    k_x[k_idx] = two_pi_inv_L * scast<fp_t>(candidate.n_x);
+    k_y[k_idx] = two_pi_inv_L * scast<fp_t>(candidate.n_y);
+    k_z[k_idx] = two_pi_inv_L * scast<fp_t>(candidate.n_z);
 
     orbital_k_index[orbital] = k_idx;
     orbital_type[orbital] = 0u;
@@ -151,7 +151,7 @@ void SlaterPlaneWave::restore_trig_row(
   std::size_t walker
 ) {
   const auto row_offset{
-    static_cast<std::ptrdiff_t>(particle * this->trig_row_stride())
+    scast<std::ptrdiff_t>(particle * this->trig_row_stride())
   };
 
   const auto sin_start{this->sin_cache(walker) + row_offset};
@@ -174,7 +174,7 @@ void SlaterPlaneWave::save_trig_row(
   std::size_t walker
 ) {
   const auto row_offset{
-    static_cast<std::ptrdiff_t>(particle * this->trig_row_stride())
+    scast<std::ptrdiff_t>(particle * this->trig_row_stride())
   };
   const auto sin_start{this->sin_cache(walker) + row_offset};
   const auto cos_start{this->cos_cache(walker) + row_offset};

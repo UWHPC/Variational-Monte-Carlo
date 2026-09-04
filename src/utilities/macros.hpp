@@ -3,24 +3,38 @@
 #include <xpu/config.hpp>
 #include <concepts>
 
-#ifdef FP_64
-  using fp_t = double;
-  inline constexpr fp_t EPSILON{1e-12};
+#if defined(FP_64)
+
+using fp_t = double;
+
 #else
-  using fp_t = float;
-  inline constexpr fp_t EPSILON{1e-5};
+
+using fp_t = float;
+
+#endif
+
+template <typename C, typename T>
+[[nodiscard]] CUDA_CALLABLE
+constexpr auto scast(const T& arg) noexcept -> C {
+  return static_cast<C>(arg);
+}
+
+#if defined(FP_64)
+
+inline constexpr auto epsilon{scast<fp_t>(1e-12)};
+
+#else
+
+inline constexpr auto epsilon{scast<fp_t>(1e-6)};
+
 #endif
 
 [[nodiscard]] CUDA_CALLABLE
-constexpr fp_t operator""_fp(long double value) {
-  return static_cast<fp_t>(value);
-}
-[[nodiscard]] CUDA_CALLABLE 
-constexpr fp_t operator""_fp(unsigned long long value) {
-  return static_cast<fp_t>(value);
+constexpr auto operator""_fp(long double value) noexcept -> fp_t {
+  return scast<fp_t>(value);
 }
 
-template <typename C, typename T> [[nodiscard]] CUDA_CALLABLE
-inline constexpr C scast(T arg) {
-  return static_cast<C>(arg);
+[[nodiscard]] CUDA_CALLABLE
+constexpr auto operator""_fp(unsigned long long value) noexcept -> fp_t {
+  return scast<fp_t>(value);
 }

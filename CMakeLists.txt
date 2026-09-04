@@ -47,10 +47,10 @@ if(VMC_ENABLE_CUDA)
       set(CMAKE_CUDA_HOST_COMPILER "${CMAKE_CXX_COMPILER}")
     endif()
 
+    set(CMAKE_CUDA23_STANDARD_COMPILE_OPTION "-std=c++23")
+    set(CMAKE_CUDA23_EXTENSION_COMPILE_OPTION "-std=c++23")
     enable_language(CUDA)
-    set(CMAKE_CUDA_STANDARD 23)
-    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-    set(CMAKE_CUDA_EXTENSIONS OFF)
+    find_package(CUDAToolkit REQUIRED)
     if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
       set(CMAKE_CUDA_ARCHITECTURES native)
     endif()
@@ -64,6 +64,7 @@ endif()
 # --- Floating point precision ---
 option(FP_64 "Use double precision (double) instead of single precision (float)" ON)
 option(VMC_FAST_MATH "Enable unsafe floating-point optimizations (-ffast-math/--use_fast_math)" OFF)
+option(VMC_BUILD_VALIDATION "Build scientific validation benchmarks" OFF)
 
 # --- Dependencies ---
 include(FetchContent)
@@ -114,6 +115,7 @@ set(VMC_RELWITHDEBINFO_OPT_2 -march=native)
 set(VMC_RELWITHDEBINFO_OPT_3 -fno-omit-frame-pointer)
 
 if(VMC_CUDA)
+  set(VMC_CUDA_STANDARD_OPTION -std=c++23)
   set(VMC_CUDA_XCOMPILE "-Xcompiler=-Wall,-Wextra,-march=native")
   set(VMC_CUDA_RELEASE_OPTIONS -O3 -Xcompiler=-O3)
   set(VMC_CUDA_DEBUG_OPTIONS   -g -G -O0 -Xcompiler=-O0)
@@ -132,12 +134,10 @@ set(VMC_CUDA_SOURCES
 )
 
 set(VMC_MAIN_SOURCE src/main.cu)
-set(VMC_TEST_SOURCE tests/test_tests.cu)
 
 set(VMC_CUDA_EXTENSION_SOURCES
   ${VMC_CUDA_SOURCES}
   ${VMC_MAIN_SOURCE}
-  ${VMC_TEST_SOURCE}
 )
 
 # --- Library target for all source files ---
@@ -180,6 +180,7 @@ set(VMC_COMPILE_OPTIONS
   $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:RelWithDebInfo>>:${VMC_RELWITHDEBINFO_OPT_1}>
   $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:RelWithDebInfo>>:${VMC_RELWITHDEBINFO_OPT_2}>
   $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:RelWithDebInfo>>:${VMC_RELWITHDEBINFO_OPT_3}>
+  $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<BOOL:${VMC_CUDA}>>:${VMC_CUDA_STANDARD_OPTION}>
   $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<BOOL:${VMC_CUDA}>>:${VMC_CUDA_XCOMPILE}>
   $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<BOOL:${VMC_CUDA}>,$<CONFIG:Release>>:${VMC_CUDA_RELEASE_OPTIONS}>
   $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<BOOL:${VMC_CUDA}>,$<CONFIG:Debug>>:${VMC_CUDA_DEBUG_OPTIONS}>
@@ -212,7 +213,11 @@ target_compile_options(vmc PRIVATE ${VMC_COMPILE_OPTIONS})
 # --- Testing (opt-in via BUILD_TESTING argument) ---
 include(CTest)
 
-if(BUILD_TESTING)
+if(VMC_BUILD_VALIDATION AND NOT BUILD_TESTING)
+  enable_testing()
+endif()
+
+if(BUILD_TESTING OR VMC_BUILD_VALIDATION)
 
   include(FetchContent)
 
@@ -223,18 +228,66 @@ if(BUILD_TESTING)
   )
   fetchcontent_makeavailable(Catch2)
 
-  add_executable(vmc_tests
-    ${VMC_TEST_SOURCE}
-  )
-
-  target_link_libraries(vmc_tests PRIVATE
-    Catch2::Catch2WithMain
-    vmc_lib
-  )
-  target_compile_options(vmc_tests PRIVATE ${VMC_COMPILE_OPTIONS})
-
   list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
   include(Catch)
-  catch_discover_tests(vmc_tests)
+
+  function(vmc_add_backend_suite suite module)
+    if(VMC_CUDA)
+      set(source ${suite}/${module}/cuda.cu)
+    else()
+      set(source ${suite}/${module}/cpu.cpp)
+    endif()
+
+    set(target vmc_${suite}_${module})
+    add_executable(${target} ${source})
+    target_link_libraries(${target} PRIVATE
+      Catch2::Catch2WithMain
+      vmc_lib
+    )
+    target_compile_options(${target} PRIVATE ${VMC_COMPILE_OPTIONS})
+
+    if(VMC_CUDA)
+      set_target_properties(${target} PROPERTIES
+        CUDA_SEPARABLE_COMPILATION ON
+      )
+    endif()
+
+    catch_discover_tests(${target})
+  endfunction()
+
+endif()
+
+if(BUILD_TESTING)
+
+  add_custom_target(vmc_tests)
+
+  foreach(module IN ITEMS
+    blocking_analysis
+    config
+    particles
+    jastrow
+    energy
+    slater
+    wavefunction
+    simulation
+  )
+    vmc_add_backend_suite(tests ${module})
+    add_dependencies(vmc_tests vmc_tests_${module})
+  endforeach()
+
+endif()
+
+if(VMC_BUILD_VALIDATION)
+
+  add_custom_target(vmc_validations)
+
+  foreach(module IN ITEMS
+    analytical
+    numerical_reference
+    literature
+  )
+    vmc_add_backend_suite(validation ${module})
+    add_dependencies(vmc_validations vmc_validation_${module})
+  endforeach()
 
 endif()

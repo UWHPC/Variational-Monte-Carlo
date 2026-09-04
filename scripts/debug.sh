@@ -17,7 +17,7 @@ for arg in "$@"; do
     --fp32)
       FP64_FLAG="OFF"
       ;;
-    -ffast-math)
+    --ffast-math)
       FAST_MATH_FLAG="ON"
       ;;
     *)

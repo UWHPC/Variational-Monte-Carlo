@@ -9,7 +9,7 @@ namespace execution {
 [[nodiscard]] CUDA_CALLABLE
 inline std::size_t thread() noexcept {
 #if defined(__CUDA_ARCH__)
-  return static_cast<std::size_t>(threadIdx.x);
+  return scast<std::size_t>(threadIdx.x);
 #else
   return 0uz;
 #endif
@@ -18,7 +18,7 @@ inline std::size_t thread() noexcept {
 [[nodiscard]] CUDA_CALLABLE
 inline std::size_t stride() noexcept {
 #if defined(__CUDA_ARCH__)
-  return static_cast<std::size_t>(blockDim.x);
+  return scast<std::size_t>(blockDim.x);
 #else
   return 1uz;
 #endif

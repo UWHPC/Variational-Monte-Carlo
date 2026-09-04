@@ -1,5 +1,7 @@
 #pragma once
 
+#include "macros.hpp"
+
 #include <xpu/xpu.hpp>
 #include <cstddef>
 
@@ -8,7 +10,7 @@ enum class Derivatives { GRAD_X, GRAD_Y, GRAD_Z, LAP, NUM };
 
 template <typename T> [[nodiscard]] CUDA_CALLABLE
 inline constexpr std::size_t idx(T idx) {
-  return static_cast<std::size_t>(idx);
+  return scast<std::size_t>(idx);
 }
 
 template <typename A, typename B> [[nodiscard]] CUDA_CALLABLE

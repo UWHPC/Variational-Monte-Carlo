@@ -20,11 +20,11 @@ Available options:
 
 - `--cuda` enables CUDA.
 - `--fp32` uses single precision.
-- `-ffast-math` enables unsafe floating-point optimizations.
+- `--ffast-math` enables unsafe floating-point optimizations.
 
 Options can be combined, for example:
 
-`./scripts/run.sh --cuda --fp32 -ffast-math`
+`./scripts/run.sh --cuda --fp32 --ffast-math`
 
 ## Debug
 
@@ -38,9 +38,28 @@ Build and run with debug instrumentation:
 
 Build and run the test suite:
 
-`./scripts/test.sh`
+`./scripts/test.sh` configures, compiles, and runs the CPU and CUDA test pipelines.
+If CUDA can be compiled but no NVIDIA GPU is available, the CUDA tests are compiled
+but not run. If no CUDA compiler is available, the default invocation skips CUDA.
 
-`test.sh` accepts the same options as `run.sh`.
+Use `./scripts/test.sh --cpu` or `./scripts/test.sh --cuda` to select one backend.
+The script also accepts `--fp32` and `--ffast-math`.
+
+## Run Scientific Validation
+
+Run analytical, independent numerical-reference, and literature validations:
+
+`./scripts/validate.sh`
+
+The validation script accepts `--cpu`, `--cuda`, `--fp32`, and `--ffast-math`.
+It checks free-gas kinetic energy and zero variance, the same-spin cusp,
+periodicity, Ewald energy, incremental Slater updates, and the fully polarized
+electron-gas energy against the Perdew-Zunger parametrization of Ceperley-Alder
+data ([PZ81](https://doi.org/10.1103/PhysRevB.23.5048),
+[CA80](https://doi.org/10.1103/PhysRevLett.45.566)). The literature comparison
+uses thermodynamic-limit reference values; this simulation uses a finite cubic
+cell at the Gamma point, so its comparison tolerance also includes finite-size
+and trial-wavefunction bias.
 
 ## LSP / clangd
 

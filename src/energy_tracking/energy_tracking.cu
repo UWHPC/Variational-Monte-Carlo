@@ -12,8 +12,8 @@ EnergyTracker::EnergyTracker(
 )
 : box_length_{box_length}
 , ewald_alpha_{6.0_fp / box_length}
-, ewald_correction_{-6.0_fp * static_cast<fp_t>(num_particles)/(xpu::sqrt(std::numbers::pi_v<fp_t>) * box_length)}
-, ewald_background_{-std::numbers::pi_v<fp_t>*static_cast<fp_t>(num_particles)*static_cast<fp_t>(num_particles)/(72.0_fp * box_length)}
+, ewald_correction_{-6.0_fp * scast<fp_t>(num_particles)/(xpu::sqrt(std::numbers::pi_v<fp_t>) * box_length)}
+, ewald_background_{-std::numbers::pi_v<fp_t>*scast<fp_t>(num_particles)*scast<fp_t>(num_particles)/(72.0_fp * box_length)}
 , num_g_vectors_{}
 , num_walkers_{num_walkers}
 , shared_data_{0uz}
@@ -26,7 +26,7 @@ EnergyTracker::EnergyTracker(
   const fp_t cutoff_factor{-xpu::log(EWALD_RECIPROCAL_TOLERANCE)};
 
   const fp_t g_max_mag_sq{four_alpha_sq * cutoff_factor};
-  const int m_max{static_cast<int>(xpu::ceil(xpu::sqrt(g_max_mag_sq) / two_pi_over_L)) + 1};
+  const int m_max{scast<int>(xpu::ceil(xpu::sqrt(g_max_mag_sq) / two_pi_over_L)) + 1};
 
   std::vector<fp_t> g_x{};
   std::vector<fp_t> g_y{};
@@ -40,9 +40,9 @@ EnergyTracker::EnergyTracker(
         if (m_x == 0 && m_y < 0) { continue; }
         if (m_x == 0 && m_y == 0 && m_z <= 0) { continue; }
 
-        const fp_t g_cand_x{two_pi_over_L * static_cast<fp_t>(m_x)};
-        const fp_t g_cand_y{two_pi_over_L * static_cast<fp_t>(m_y)};
-        const fp_t g_cand_z{two_pi_over_L * static_cast<fp_t>(m_z)};
+        const fp_t g_cand_x{two_pi_over_L * scast<fp_t>(m_x)};
+        const fp_t g_cand_y{two_pi_over_L * scast<fp_t>(m_y)};
+        const fp_t g_cand_z{two_pi_over_L * scast<fp_t>(m_z)};
         const fp_t g_cand_mag_sq{
           g_cand_x * g_cand_x +
           g_cand_y * g_cand_y +

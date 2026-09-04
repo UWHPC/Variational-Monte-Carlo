@@ -12,7 +12,7 @@
 #include <vector>
 
 fp_t JastrowOptimizer::compute_rs(const Config& cfg) {
-  const fp_t N{static_cast<fp_t>(cfg.num_particles)};
+  const fp_t N{scast<fp_t>(cfg.num_particles)};
   const fp_t volume{cfg.box_length * cfg.box_length * cfg.box_length};
   const fp_t density{N / volume};
   return xpu::cbrt(3.0_fp / (4.0_fp * std::numbers::pi_v<fp_t> * density));
@@ -52,7 +52,7 @@ JastrowOptimizer::Result JastrowOptimizer::optimize(const Config& base_config, b
   std::vector<fp_t> b_values(grid_points);
   for (std::size_t i = 0; i < grid_points; ++i) {
     b_values[i] =
-        b_min + (b_max - b_min) * static_cast<fp_t>(i) / static_cast<fp_t>(grid_points - 1);
+        b_min + (b_max - b_min) * scast<fp_t>(i) / scast<fp_t>(grid_points - 1);
   }
 
   // Phase 1: parallel grid scan

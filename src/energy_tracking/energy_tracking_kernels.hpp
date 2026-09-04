@@ -468,7 +468,7 @@ inline fp_t initialize_reciprocal_energy(
   xpu::copy_n(&reciprocal_sum, reciprocal_sum_scratch, 1uz);
   return reciprocal_sum;
 #else
-  static_cast<void>(reciprocal_sum_scratch);
+  scast<void>(reciprocal_sum_scratch);
 
   auto reciprocal_sum{0.0_fp};
 
@@ -512,7 +512,7 @@ inline fp_t initialize_real_energy(
   xpu::copy_n(&real_sum, real_sum_scratch, 1uz);
   return real_sum;
 #else
-  static_cast<void>(real_sum_scratch);
+  scast<void>(real_sum_scratch);
 
   auto real_sum{0.0_fp};
 
@@ -571,7 +571,7 @@ inline fp_t update_real_energy(
   xpu::copy_n(&delta, delta_scratch, 1uz);
   return delta;
 #else
-  static_cast<void>(delta_scratch);
+  scast<void>(delta_scratch);
 
   xpu::array<fp_t, idx(Axis::NUM)> new_pos{
     pos[idx(Axis::X)][moved],
@@ -619,7 +619,7 @@ inline fp_t kinetic_energy(
   xpu::copy_n(&kinetic_sum, kinetic_sum_scratch, 1uz);
   return -0.5_fp * kinetic_sum;
 #else
-  static_cast<void>(kinetic_sum_scratch);
+  scast<void>(kinetic_sum_scratch);
 
   auto kinetic_sum{0.0_fp};
 

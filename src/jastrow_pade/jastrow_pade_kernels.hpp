@@ -48,7 +48,7 @@ inline void evaluate_derivative_factors(
   fp_t* gradient_factor,
   fp_t* laplacian_factor
 ) noexcept {
-  if (distance < EPSILON) {
+  if (distance < epsilon) {
     *gradient_factor = 0.0_fp;
     *laplacian_factor = 0.0_fp;
     return;

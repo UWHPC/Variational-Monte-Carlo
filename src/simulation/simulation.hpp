@@ -48,7 +48,7 @@ public:
 
     [[nodiscard]] fp_t acceptance_rate() const noexcept {
       if (proposed == 0uz) { return 0.0_fp; }
-      return static_cast<fp_t>(accepted) / static_cast<fp_t>(proposed);
+      return scast<fp_t>(accepted) / scast<fp_t>(proposed);
     }
   };
 
@@ -85,7 +85,7 @@ private:
     if (proposed_ == 0uz) {
       return 0.0_fp;
     } else {
-      return static_cast<fp_t>(accepted_) / static_cast<fp_t>(proposed_);
+      return scast<fp_t>(accepted_) / scast<fp_t>(proposed_);
     }
   }
 

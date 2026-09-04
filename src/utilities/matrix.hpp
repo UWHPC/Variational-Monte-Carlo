@@ -17,7 +17,7 @@ inline int lower_upper_decomp(
   int swap_count{};
 
   for (std::size_t row = 0; row < N; ++row) {
-    pivot[row] = static_cast<int>(row);
+    pivot[row] = scast<int>(row);
   }
 
   for (std::size_t col = 0; col < N; ++col) {
@@ -68,7 +68,7 @@ inline void solve_lower_upper(
   std::size_t stride
 ) {
   for (std::size_t row = 0; row < N; ++row) {
-    const std::size_t permuted_row{static_cast<std::size_t>(pivot[row])};
+    const std::size_t permuted_row{scast<std::size_t>(pivot[row])};
     x[row] = b[permuted_row];
   }
 

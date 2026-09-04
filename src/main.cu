@@ -81,7 +81,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     auto end{std::chrono::steady_clock::now()};
     std::chrono::duration<double> elapsed{end - start};
 
-    const fp_t inv_num_threads{1.0_fp / static_cast<fp_t>(num_threads)};
+    const fp_t inv_num_threads{1.0_fp / scast<fp_t>(num_threads)};
     const fp_t final_mean{global_energy_sum * inv_num_threads};
     const fp_t final_acceptance_rate{global_acceptance_sum * inv_num_threads * 100.0_fp};
 

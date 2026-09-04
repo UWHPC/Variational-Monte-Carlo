@@ -510,7 +510,7 @@ void cudaMetropolisSweep(
   fp_t step_size,
   Simulation::SweepResult* result
 ) {
-  const auto walker{static_cast<std::size_t>(blockIdx.x)};
+  const auto walker{scast<std::size_t>(blockIdx.x)};
   if (walker >= walker_count) { return; }
 
   __shared__ Simulation::MetropolisScratch scratch;
@@ -530,7 +530,7 @@ void cudaMetropolisSweep(
 
     if (execution::thread() == 0uz) {
       ++local_result.proposed;
-      local_result.accepted += static_cast<std::size_t>(scratch.result.accepted);
+      local_result.accepted += scast<std::size_t>(scratch.result.accepted);
     }
     execution::sync();
   }
@@ -539,11 +539,11 @@ void cudaMetropolisSweep(
     static_assert(sizeof(std::size_t) == sizeof(unsigned long long));
     atomicAdd(
       reinterpret_cast<unsigned long long*>(&result->proposed),
-      static_cast<unsigned long long>(local_result.proposed)
+      scast<unsigned long long>(local_result.proposed)
     );
     atomicAdd(
       reinterpret_cast<unsigned long long*>(&result->accepted),
-      static_cast<unsigned long long>(local_result.accepted)
+      scast<unsigned long long>(local_result.accepted)
     );
   }
 }
@@ -553,7 +553,7 @@ void cudaMeasureWalkers(
   Simulation::View* simulations,
   std::size_t walker_count
 ) {
-  const auto walker{static_cast<std::size_t>(blockIdx.x)};
+  const auto walker{scast<std::size_t>(blockIdx.x)};
   if (walker >= walker_count) { return; }
 
   stencil::simulation::measure_walker(simulations[walker]);
@@ -678,7 +678,7 @@ inline void metropolis_sweep(
 
 #if defined(XPU_CUDA)
   dim3 metropolisSweepThreads{256u};
-  dim3 metropolisSweepBlocks{static_cast<unsigned int>(walker_count)};
+  dim3 metropolisSweepBlocks{scast<unsigned int>(walker_count)};
   cudaMetropolisSweep<<<
     metropolisSweepBlocks, metropolisSweepThreads
   >>>(
@@ -702,7 +702,7 @@ inline void metropolis_sweep(
       );
 
       ++local_result.proposed;
-      local_result.accepted += static_cast<std::size_t>(scratch.result.accepted);
+      local_result.accepted += scast<std::size_t>(scratch.result.accepted);
     }
 
     result->proposed += local_result.proposed;
@@ -717,7 +717,7 @@ inline void measure_walkers(
 ) {
 #if defined(XPU_CUDA)
   dim3 measureWalkersThreads{256u};
-  dim3 measureWalkersBlocks{static_cast<unsigned int>(walker_count)};
+  dim3 measureWalkersBlocks{scast<unsigned int>(walker_count)};
   cudaMeasureWalkers<<<
     measureWalkersBlocks, measureWalkersThreads
   >>>(

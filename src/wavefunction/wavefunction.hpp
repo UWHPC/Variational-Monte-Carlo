@@ -83,7 +83,7 @@ public:
   }
   void set_jastrow_cache_valid(bool value, std::size_t walker = 0uz) noexcept {
     assert(walker < deriv_.batch_count());
-    jastrow_cache_valid_.data()[walker] = static_cast<std::uint8_t>(value);
+    jastrow_cache_valid_.data()[walker] = scast<std::uint8_t>(value);
   }
 
   [[nodiscard]] std::size_t steps_since_refresh(std::size_t walker = 0uz) const noexcept {

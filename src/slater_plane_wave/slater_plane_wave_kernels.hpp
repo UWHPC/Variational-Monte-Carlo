@@ -40,7 +40,7 @@ inline void build_row(
   const auto trig_idx{
     particle * trig_row_stride + orbital_k_index[i]
   };
-  const auto type{static_cast<fp_t>(orbital_type[i])};
+  const auto type{scast<fp_t>(orbital_type[i])};
   const auto sin_term{sin_cache[trig_idx]};
   const auto cos_term{cos_cache[trig_idx]};
 
@@ -99,7 +99,7 @@ inline void add_derivatives(
     k_z * k_z
   };
 
-  const auto type{static_cast<fp_t>(slater.orbital_type[orbital])};
+  const auto type{scast<fp_t>(slater.orbital_type[orbital])};
   const auto trig_idx{particle * slater.trig_row_stride + k_idx};
   const auto sin_term{slater.sin_cache[trig_idx]};
   const auto cos_term{slater.cos_cache[trig_idx]};
@@ -617,7 +617,7 @@ inline fp_t compute_log_abs_det(
   xpu::copy_n(&log_abs_det, log_abs_det_scratch, 1uz);
   return log_abs_det;
 #else
-  static_cast<void>(log_abs_det_scratch);
+  scast<void>(log_abs_det_scratch);
 
   auto log_abs_det{0.0_fp};
 

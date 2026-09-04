@@ -53,7 +53,7 @@ public:
     if (!map.empty()) {
       std::cout << "[Config] Warning! unknown keys ignored:";
       for (auto const& [key, value] : map) {
-        static_cast<void>(value);
+        scast<void>(value);
         std::cout << " " << key;
       }
       std::cout << '\n';
@@ -120,7 +120,7 @@ private:
 
   static void read(Map& map, std::string const& key, fp_t& out) {
     if (auto it{map.find(key)}; it != map.end()) {
-      out = static_cast<fp_t>(std::stod(it->second));
+      out = scast<fp_t>(std::stod(it->second));
       map.erase(it);
     }
   }
@@ -130,9 +130,9 @@ private:
   static void read(Map& map, std::string const& key, T& out) {
     if (auto it{map.find(key)}; it != map.end()) {
       if constexpr (std::is_signed_v<T>) {
-        out = static_cast<T>(std::stoll(it->second));
+        out = scast<T>(std::stoll(it->second));
       } else {
-        out = static_cast<T>(std::stoull(it->second));
+        out = scast<T>(std::stoull(it->second));
       }
       map.erase(it);
     }
@@ -142,7 +142,7 @@ private:
     if (auto it{map.find(key)}; it != map.end()) {
       std::string val{it->second};
       for (auto& ch : val) {
-        ch = static_cast<char>(std::tolower(ch));
+        ch = scast<char>(std::tolower(ch));
       }
       out = (val == "true" || val == "1");
       map.erase(it);

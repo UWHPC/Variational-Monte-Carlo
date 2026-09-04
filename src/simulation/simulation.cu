@@ -155,7 +155,7 @@ void Simulation::warmup() {
   for (auto sweep{0uz}; sweep < config_.warmup_sweeps; ++sweep) {
     const auto result{metropolis_sweep()};
     const auto acceptance_rate{result.acceptance_rate()};
-    const auto gain{initial_gain * xpu::rsqrt(static_cast<fp_t>(sweep + 1uz))};
+    const auto gain{initial_gain * xpu::rsqrt(scast<fp_t>(sweep + 1uz))};
 
     step_size *= xpu::exp(gain * (acceptance_rate - target_rate));
     step_size = xpu::min(step_size, max_step_size);
@@ -192,7 +192,7 @@ Simulation::MeasurementSummary Simulation::measure() {
     }
 
     const auto sweep_energy{
-      sweep_energy_sum / static_cast<fp_t>(particles.walker_count())
+      sweep_energy_sum / scast<fp_t>(particles.walker_count())
     };
 
     running_energy_sum += sweep_energy;
@@ -200,7 +200,7 @@ Simulation::MeasurementSummary Simulation::measure() {
     blocking_analysis.add(sweep_energy);
 
     const fp_t running_mean{
-      running_energy_sum / static_cast<fp_t>(sample_count)
+      running_energy_sum / scast<fp_t>(sample_count)
     };
     final_mean_energy = running_mean;
 

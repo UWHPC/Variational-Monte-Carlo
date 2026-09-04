@@ -8,17 +8,17 @@ CsvOutputWriter::CsvOutputWriter(std::ostream& out)
 { }
 
 void CsvOutputWriter::write_init(const InitData&) {
-  static_cast<void>(out_);
+  scast<void>(out_);
   throw std::logic_error{"CsvOutputWriter is not implemented yet"};
 }
 
 void CsvOutputWriter::write_frame(const FrameData&) {
-  static_cast<void>(out_);
+  scast<void>(out_);
   throw std::logic_error{"CsvOutputWriter is not implemented yet"};
 }
 
 void CsvOutputWriter::write_done(const DoneData&) {
-  static_cast<void>(out_);
+  scast<void>(out_);
   throw std::logic_error{"CsvOutputWriter is not implemented yet"};
 }
 
@@ -27,9 +27,9 @@ BinOutputWriter::BinOutputWriter(std::ostream& out)
 { }
 
 void BinOutputWriter::write_init(const InitData& data) {
-  const uint64_t np{static_cast<uint64_t>(data.num_particles)};
+  const uint64_t np{scast<uint64_t>(data.num_particles)};
   const fp_t bl{data.box_length};
-  const uint64_t ms{static_cast<uint64_t>(data.measure_steps)};
+  const uint64_t ms{scast<uint64_t>(data.measure_steps)};
   out_.write(reinterpret_cast<const char*>(&np), sizeof(np));
   out_.write(reinterpret_cast<const char*>(&bl), sizeof(bl));
   out_.write(reinterpret_cast<const char*>(&ms), sizeof(ms));
@@ -44,7 +44,7 @@ void BinOutputWriter::write_frame(const FrameData& data) {
   out_.write(reinterpret_cast<const char*>(&data.acceptance_rate), sizeof(fp_t));
   out_.write(
     reinterpret_cast<const char*>(data.positions.data()),
-    static_cast<std::streamsize>(data.positions.size() * sizeof(fp_t))
+    scast<std::streamsize>(data.positions.size() * sizeof(fp_t))
   );
 }
 

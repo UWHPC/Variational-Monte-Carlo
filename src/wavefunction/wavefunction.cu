@@ -8,7 +8,7 @@ void reset_derivatives(
   xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivative
 ) {
   const auto total_bytes{
-    static_cast<std::size_t>(derivative.stride() * idx(Derivatives::NUM) * sizeof(fp_t))
+    scast<std::size_t>(derivative.stride() * idx(Derivatives::NUM) * sizeof(fp_t))
   };
   xpu::memset(derivative[0], 0, total_bytes);
 }
