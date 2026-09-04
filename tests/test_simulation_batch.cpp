@@ -13,7 +13,7 @@ TEST_CASE("Batched simulation matches independent walkers", "[simulation][walker
   config.warmup_sweeps = 0uz;
   config.measure_sweeps = 4uz;
   config.box_length = 6.0_fp;
-  config.block_size = 100uz;
+  config.block_size = 3uz;
   config.master_seed = 20260901uz;
 
   Simulation batched{config};
@@ -34,6 +34,7 @@ TEST_CASE("Batched simulation matches independent walkers", "[simulation][walker
   };
 
   REQUIRE(std::isfinite(batched_summary.mean_energy));
+  REQUIRE_FALSE(batched_summary.standard_error.has_value());
   REQUIRE(std::abs(batched_summary.mean_energy - expected_energy) <= 1e-12_fp);
   REQUIRE(std::abs(batched_summary.acceptance_rate - expected_acceptance) <= 1e-12_fp);
 }

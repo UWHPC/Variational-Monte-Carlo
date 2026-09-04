@@ -60,31 +60,54 @@ const std::array<std::vector<fp_t>, idx(Axis::NUM)>& Simulation::positions_snaps
 }
 
 void Simulation::initialize_positions() {
-  const fp_t length{config_.box_length};
+  constexpr auto max_attempts{100uz};
 
-  constexpr std::size_t MAX_INIT_ATTEMPTS{100};
+  kernel::simulation::initialize_positions(
+    walker_views_.data(),
+    particles_.walker_count(),
+    config_.box_length
+  );
 
   for (auto walker{0uz}; walker < particles_.walker_count(); ++walker) {
-    for (std::size_t attempt = 0; attempt < MAX_INIT_ATTEMPTS; ++attempt) {
+    const auto walker_particles{particles_.view(walker)};
+    auto log_psi{
+      wave_function_.evaluate_log_psi(
+        walker_particles,
+        walker
+      )
+    };
+
+    for (
+      auto attempt{1uz};
+      !std::isfinite(log_psi) && attempt < max_attempts;
+      ++attempt
+    ) {
       kernel::simulation::initialize_positions(
-        walker_rng_.data() + walker,
-        length,
-        particles_.pos(walker)
+        this->view(walker),
+        config_.box_length
       );
 
-      const auto log_psi{wave_function_.evaluate_log_psi(
-        particles_.view(walker), walker
-      )};
-      if (std::isfinite(log_psi)) { break; }
-
-      if (attempt == MAX_INIT_ATTEMPTS - 1) {
-        throw std::runtime_error("Failed to find non-singular initial configuration");
-      }
+      log_psi = wave_function_.evaluate_log_psi(
+        walker_particles,
+        walker
+      );
     }
 
-    energy_tracker_.initialize_structure_factors(particles_.view(walker), walker);
+    if (!std::isfinite(log_psi)) {
+      throw std::runtime_error(
+        "Failed to find non-singular initial configuration"
+      );
+    }
+
+    energy_tracker_.initialize_structure_factors(
+      walker_particles,
+      walker
+    );
     energy_tracker_.initialize_reciprocal_energy(walker);
-    energy_tracker_.initialize_real_energy(particles_.view(walker), walker);
+    energy_tracker_.initialize_real_energy(
+      walker_particles,
+      walker
+    );
   }
 }
 
@@ -165,16 +188,17 @@ Simulation::MeasurementSummary Simulation::measure() {
 
     auto sweep_energy_sum{0.0_fp};
     for (auto walker{0uz}; walker < particles.walker_count(); ++walker) {
-      const auto local_energy{local_energies[walker]};
-      running_energy_sum += local_energy;
-      sweep_energy_sum += local_energy;
-      ++sample_count;
-      blocking_analysis.add(local_energy);
+      sweep_energy_sum += local_energies[walker];
     }
 
-    const auto local_energy{
+    const auto sweep_energy{
       sweep_energy_sum / static_cast<fp_t>(particles.walker_count())
     };
+
+    running_energy_sum += sweep_energy;
+    ++sample_count;
+    blocking_analysis.add(sweep_energy);
+
     const fp_t running_mean{
       running_energy_sum / static_cast<fp_t>(sample_count)
     };
@@ -190,13 +214,13 @@ Simulation::MeasurementSummary Simulation::measure() {
 
     if (output_writer_) {
       const auto& snapshot{positions_snapshot()};
-      const std::size_t N{particles_.count()};
+      const std::size_t particle_count{particles_.count()};
 
-      std::vector<fp_t> flat_positions(N * 3U);
-      for (std::size_t p{}; p < N; ++p) {
-        flat_positions[p * 3U] = snapshot[0][p];
-        flat_positions[p * 3U + 1U] = snapshot[1][p];
-        flat_positions[p * 3U + 2U] = snapshot[2][p];
+      std::vector<fp_t> flat_positions(particle_count * 3U);
+      for (std::size_t particle{}; particle < particle_count; ++particle) {
+        flat_positions[particle * 3U] = snapshot[0][particle];
+        flat_positions[particle * 3U + 1U] = snapshot[1][particle];
+        flat_positions[particle * 3U + 2U] = snapshot[2][particle];
       }
 
       output_writer_->write_frame(FrameData{
@@ -204,7 +228,7 @@ Simulation::MeasurementSummary Simulation::measure() {
         .accepted = accepted_,
         .proposed = proposed_,
         .acceptance_rate = acceptance_rate(),
-        .local_energy = local_energy,
+        .local_energy = sweep_energy,
         .mean_energy = running_mean,
         .standard_error = frame_standard_error,
         .positions = std::move(flat_positions)

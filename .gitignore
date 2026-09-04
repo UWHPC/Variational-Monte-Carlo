@@ -80,5 +80,6 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+.handoff
 .claude
 .backboard

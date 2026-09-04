@@ -25,6 +25,21 @@
 namespace stencil {
 namespace simulation {
 
+CUDA_CALLABLE
+inline void initialize_walker_positions(
+  const Simulation::View simulation,
+  fp_t box_length
+) noexcept {
+  auto& generator{*simulation.generator};
+  auto positions{simulation.particles.pos};
+
+  for (auto axis{idx(Axis::X)}; axis < idx(Axis::NUM); ++axis) {
+    for (auto particle{0uz}; particle < positions.count(); ++particle) {
+      positions[axis][particle] = generator.uniform<fp_t>() * box_length;
+    }
+  }
+}
+
 [[nodiscard]] CUDA_CALLABLE
 inline Simulation::RandomProposal generate_random_proposal(
   xpu::random::generator& generator,
@@ -444,22 +459,29 @@ void cudaSeedGenerator(
 }
 
 __global__
-void cudaInitializePositions(
-  xpu::random::generator* generator,
-  fp_t box_length,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos
+void cudaInitializeWalkerPositions(
+  const Simulation::View simulation,
+  fp_t box_length
 ) {
-  if (threadIdx.x != 0u) { return; }
+  stencil::simulation::initialize_walker_positions(
+    simulation,
+    box_length
+  );
+}
 
-  auto local_generator{*generator};
+__global__
+void cudaInitializePositions(
+  const Simulation::View* simulations,
+  std::size_t walker_count,
+  fp_t box_length
+) {
+  const auto [walker]{xpu::global_index<1>()};
+  if (walker >= walker_count) { return; }
 
-  for (auto particle{0uz}; particle < pos.count(); ++particle) {
-    pos[idx(Axis::X)][particle] = local_generator.uniform<fp_t>() * box_length;
-    pos[idx(Axis::Y)][particle] = local_generator.uniform<fp_t>() * box_length;
-    pos[idx(Axis::Z)][particle] = local_generator.uniform<fp_t>() * box_length;
-  }
-
-  *generator = local_generator;
+  stencil::simulation::initialize_walker_positions(
+    simulations[walker],
+    box_length
+  );
 }
 
 __global__
@@ -539,13 +561,16 @@ void cudaMeasureWalkers(
 
 } // namespace
 
+#endif
+
 inline void seed_generator(
   xpu::random::generator* generator,
   std::uint64_t master_seed,
   std::uint64_t walker_id
 ) {
-  dim3 seedGeneratorThreads{1u};
-  dim3 seedGeneratorBlocks{1u};
+#if defined(XPU_CUDA)
+  constexpr dim3 seedGeneratorThreads{1u};
+  constexpr dim3 seedGeneratorBlocks{1u};
 
   cudaSeedGenerator<<<
     seedGeneratorBlocks, seedGeneratorThreads
@@ -555,51 +580,62 @@ inline void seed_generator(
     walker_id
   );
   xpu::cu_check(cudaGetLastError());
+#else
+  generator->seed(master_seed, walker_id);
+#endif
 }
 
 inline void initialize_positions(
-  xpu::random::generator* generator,
-  fp_t box_length,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos
+  const Simulation::View simulation,
+  fp_t box_length
 ) {
-  dim3 initializePositionsThreads{1u};
-  dim3 initializePositionsBlocks{1u};
+#if defined(XPU_CUDA)
+  constexpr dim3 initializePositionsThreads{1u};
+  constexpr dim3 initializePositionsBlocks{1u};
+
+  cudaInitializeWalkerPositions<<<
+    initializePositionsBlocks, initializePositionsThreads
+  >>>(
+    simulation,
+    box_length
+  );
+  xpu::cu_check(cudaGetLastError());
+#else
+  stencil::simulation::initialize_walker_positions(
+    simulation,
+    box_length
+  );
+#endif
+}
+
+inline void initialize_positions(
+  const Simulation::View* simulations,
+  std::size_t walker_count,
+  fp_t box_length
+) {
+#if defined(XPU_CUDA)
+  constexpr dim3 initializePositionsThreads{256u};
+  const dim3 initializePositionsBlocks{
+    xpu::block_per_dim(walker_count, initializePositionsThreads.x)
+  };
 
   cudaInitializePositions<<<
     initializePositionsBlocks, initializePositionsThreads
   >>>(
-    generator,
-    box_length,
-    pos
+    simulations,
+    walker_count,
+    box_length
   );
   xpu::cu_check(cudaGetLastError());
-}
-
-#endif
-
-#if !defined(XPU_CUDA)
-
-inline void seed_generator(
-  xpu::random::generator* generator,
-  std::uint64_t master_seed,
-  std::uint64_t walker_id
-) {
-  generator->seed(master_seed, walker_id);
-}
-
-inline void initialize_positions(
-  xpu::random::generator* generator,
-  fp_t box_length,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos
-) {
-  for (auto particle{0uz}; particle < pos.count(); ++particle) {
-    pos[idx(Axis::X)][particle] = generator->uniform<fp_t>() * box_length;
-    pos[idx(Axis::Y)][particle] = generator->uniform<fp_t>() * box_length;
-    pos[idx(Axis::Z)][particle] = generator->uniform<fp_t>() * box_length;
+#else
+  for (auto walker{0uz}; walker < walker_count; ++walker) {
+    stencil::simulation::initialize_walker_positions(
+      simulations[walker],
+      box_length
+    );
   }
-}
-
 #endif
+}
 
 inline Simulation::StepResult metropolis_step(
   Simulation::View simulation,
