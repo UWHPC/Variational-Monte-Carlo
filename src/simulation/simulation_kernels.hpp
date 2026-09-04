@@ -25,7 +25,7 @@
 namespace stencil {
 namespace simulation {
 
-CUDA_CALLABLE
+DEVICE_ONLY
 inline void initialize_walker_positions(
   const Simulation::View simulation,
   fp_t box_length
@@ -40,7 +40,7 @@ inline void initialize_walker_positions(
   }
 }
 
-[[nodiscard]] CUDA_CALLABLE
+[[nodiscard]] DEVICE_ONLY
 inline Simulation::RandomProposal generate_random_proposal(
   xpu::random::generator& generator,
   std::size_t num_particles,
@@ -62,7 +62,7 @@ inline Simulation::RandomProposal generate_random_proposal(
   };
 }
 
-CUDA_CALLABLE
+DEVICE_ONLY
 inline void propose_move(
   Simulation::View simulation,
   fp_t step_size,
@@ -371,7 +371,7 @@ inline void commit_energy(
   *simulation.energy_tracker.reciprocal_energy = scratch.result.reciprocal_energy;
 }
 
-CUDA_CALLABLE
+DEVICE_ONLY
 inline void metropolis_step(
   Simulation::View simulation,
   fp_t step_size,

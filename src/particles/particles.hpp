@@ -45,27 +45,27 @@ public:
     return data_.array_stride();
   }
 
-  [[nodiscard]] CUDA_CALLABLE
+  [[nodiscard]]
   xpu::soa_view<fp_t, idx(Axis::NUM)> pos(std::size_t walker = 0uz) {
     return data_.view<idx(Axis::NUM), idx(ArrayIndex::POS)>(walker);
   }
   
-  [[nodiscard]] CUDA_CALLABLE
+  [[nodiscard]]
   xpu::soa_view<const fp_t, idx(Axis::NUM)> pos(std::size_t walker = 0uz) const {
     return data_.view<idx(Axis::NUM), idx(ArrayIndex::POS)>(walker);
   }
 
-  [[nodiscard]] CUDA_CALLABLE
+  [[nodiscard]]
   xpu::soa_view<fp_t, idx(Derivatives::NUM)> derivatives(std::size_t walker = 0uz) {
     return data_.view<idx(Derivatives::NUM), idx(ArrayIndex::DERIVATIVES)>(walker);
   }
   
-  [[nodiscard]] CUDA_CALLABLE
+  [[nodiscard]]
   xpu::soa_view<const fp_t, idx(Derivatives::NUM)> derivatives(std::size_t walker = 0uz) const {
     return data_.view<idx(Derivatives::NUM), idx(ArrayIndex::DERIVATIVES)>(walker);
   }
 
-  [[nodiscard]] CUDA_CALLABLE
+  [[nodiscard]]
   View view(std::size_t walker = 0uz) noexcept {
     return {
       this->count(),

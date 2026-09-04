@@ -109,7 +109,7 @@ public:
     return kinetic_energy(particles, walker) + potential_energy(walker);
   }
 
-  [[nodiscard]] CUDA_CALLABLE
+  [[nodiscard]]
   View view(std::size_t walker = 0uz) noexcept {
     return {
       box_length_,
@@ -137,12 +137,12 @@ public:
   }
 
 private:
-  [[nodiscard]] CUDA_CALLABLE
+  [[nodiscard]]
   xpu::soa_view<fp_t, idx(Axis::NUM)> g_vector() {
     return shared_data_.view<idx(Axis::NUM), idx(SharedArray::G_X)>();
   }
 
-  [[nodiscard]] CUDA_CALLABLE
+  [[nodiscard]]
   xpu::soa_view<const fp_t, idx(Axis::NUM)> g_vector() const {
     return shared_data_.view<idx(Axis::NUM), idx(SharedArray::G_X)>();
   }

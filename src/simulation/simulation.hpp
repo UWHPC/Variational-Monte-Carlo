@@ -104,7 +104,7 @@ public:
     std::uint64_t walker_id = 0
   );
 
-  [[nodiscard]] CUDA_CALLABLE
+  [[nodiscard]]
   View view(std::size_t walker = 0uz) noexcept {
     return {
       particles_.view(walker),

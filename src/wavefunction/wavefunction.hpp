@@ -55,17 +55,17 @@ public:
   [[nodiscard]]       SlaterPlaneWave& slater_plane_wave()       noexcept { return slater_plane_wave_; }
   [[nodiscard]] const SlaterPlaneWave& slater_plane_wave() const noexcept { return slater_plane_wave_; }
 
-  [[nodiscard]] CUDA_CALLABLE
+  [[nodiscard]]
   xpu::soa_view<fp_t, idx(Derivatives::NUM)> j_derivatives(std::size_t walker = 0uz) {
     return deriv_.view<idx(Derivatives::NUM), idx(ArrayIndex::DERIVATIVES)>(walker);
   }
 
-  [[nodiscard]] CUDA_CALLABLE
+  [[nodiscard]]
   xpu::soa_view<const fp_t, idx(Derivatives::NUM)> j_derivatives(std::size_t walker = 0uz) const {
     return deriv_.view<idx(Derivatives::NUM), idx(ArrayIndex::DERIVATIVES)>(walker);
   }
 
-  [[nodiscard]] CUDA_CALLABLE
+  [[nodiscard]]
   View view(std::size_t walker = 0uz) noexcept {
     assert(walker < deriv_.batch_count());
     return {

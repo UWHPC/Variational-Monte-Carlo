@@ -126,22 +126,22 @@ public:
     return matrices_.view<1uz, LU>(walker)[0uz];
   }
 
-  [[nodiscard]] CUDA_CALLABLE
+  [[nodiscard]]
   xpu::soa_view<int, idx(Axis::NUM)> n_vector() {
     return int_vec_.view<idx(Axis::NUM), N_X>();
   }
 
-  [[nodiscard]] CUDA_CALLABLE
+  [[nodiscard]]
   xpu::soa_view<const int, idx(Axis::NUM)> n_vector() const {
     return int_vec_.view<idx(Axis::NUM), N_X>();
   }
 
-  [[nodiscard]] CUDA_CALLABLE
+  [[nodiscard]]
   xpu::soa_view<fp_t, idx(Axis::NUM)> k_vector() {
     return k_vectors_.view<idx(Axis::NUM), K_X>();
   }
 
-  [[nodiscard]] CUDA_CALLABLE
+  [[nodiscard]]
   xpu::soa_view<const fp_t, idx(Axis::NUM)> k_vector() const {
     return k_vectors_.view<idx(Axis::NUM), K_X>();
   }
@@ -196,7 +196,7 @@ public:
     std::size_t walker = 0uz
   ) noexcept;
 
-  [[nodiscard]] CUDA_CALLABLE
+  [[nodiscard]]
   View view(std::size_t walker = 0uz) noexcept {
     return {
       this->num_orbitals(),
