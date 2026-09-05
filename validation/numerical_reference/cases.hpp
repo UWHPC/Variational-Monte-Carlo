@@ -140,8 +140,43 @@ TEST_CASE(
 
   const auto actual{tracker.eval_total_energy(particles.view())};
   const auto expected{validation::direct_ewald_energy(positions, box_length)};
+
+  tracker.initialize(particles);
+  const auto initialized{tracker.eval_total_energy(particles.view())};
+  REQUIRE(std::abs(initialized - expected) <= ewald_tolerance);
   CAPTURE(actual, expected);
   REQUIRE(std::abs(actual - expected) <= ewald_tolerance);
+
+  constexpr auto larger_count{37uz};
+  constexpr auto walker_count{2uz};
+  Particles ensemble{larger_count, walker_count};
+  EnergyTracker batched{box_length, ensemble};
+  std::array<std::array<std::array<fp_t, idx(Axis::NUM)>, larger_count>, walker_count> configurations{};
+  std::array<fp_t, larger_count> axis_values{};
+
+  for (auto walker{0uz}; walker < walker_count; ++walker) {
+    for (auto axis{0uz}; axis < idx(Axis::NUM); ++axis) {
+      for (auto particle{0uz}; particle < larger_count; ++particle) {
+        axis_values[particle] = std::fmod(
+          0.23_fp + scast<fp_t>(particle + 1uz) *
+          (0.83_fp + 0.17_fp * scast<fp_t>(axis) + 0.031_fp * scast<fp_t>(walker)),
+          box_length
+        );
+        configurations[walker][particle][axis] = axis_values[particle];
+      }
+      xpu::copy_n(ensemble.pos(walker)[axis], axis_values.data(), larger_count);
+    }
+    for (auto derivative{0uz}; derivative < idx(Derivatives::NUM); ++derivative) {
+      xpu::zero_n(ensemble.derivatives(walker)[derivative], larger_count);
+    }
+  }
+  batched.initialize(ensemble, 2uz);
+  for (auto walker{0uz}; walker < walker_count; ++walker) {
+    const auto reference{validation::direct_ewald_energy(configurations[walker], box_length)};
+    const auto energy{batched.eval_total_energy(ensemble.view(walker), walker)};
+    CAPTURE(walker, reference, energy);
+    REQUIRE(std::abs(energy - reference) <= ewald_tolerance);
+  }
 }
 
 TEST_CASE(

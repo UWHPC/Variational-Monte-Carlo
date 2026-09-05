@@ -2,7 +2,9 @@
 #include "energy_tracking.hpp"
 #include "energy_tracking_kernels.hpp"
 
+#include <limits>
 #include <numbers>
+#include <stdexcept>
 #include <vector>
 
 EnergyTracker::EnergyTracker(
@@ -16,10 +18,16 @@ EnergyTracker::EnergyTracker(
 , ewald_background_{-std::numbers::pi_v<fp_t>*scast<fp_t>(num_particles)*scast<fp_t>(num_particles)/(72.0_fp * box_length)}
 , num_g_vectors_{}
 , num_walkers_{num_walkers}
+, num_particles_{num_particles}
 , shared_data_{0uz}
 , walker_data_{num_walkers, 0uz}
 , walker_scalars_{num_walkers}
 , reduction_scratch_{num_walkers}
+, initialization_views_{num_walkers}
+, reciprocal_partials_{0uz}
+, real_partials_{0uz}
+, reciprocal_partial_count_{}
+, real_partial_count_{}
 {
   const fp_t two_pi_over_L{2.0_fp * std::numbers::pi_v<fp_t> / box_length};
   const fp_t four_alpha_sq{4.0_fp * ewald_alpha_ * ewald_alpha_};
@@ -74,6 +82,8 @@ EnergyTracker::EnergyTracker(
     this->num_g_vectors()
   };
 
+  initialize_reduction_storage();
+
   auto g_vector{this->g_vector()};
 
   xpu::copy_n(
@@ -98,32 +108,75 @@ EnergyTracker::EnergyTracker(
   );
 }
 
-void EnergyTracker::initialize_reciprocal_energy(std::size_t walker) noexcept {
-  auto energy{this->view(walker)};
-  const fp_t prefactor{
-    1.0_fp / (2.0_fp * std::numbers::pi_v<fp_t>
-      * energy.box_length * energy.box_length * energy.box_length)
-  };
-  const auto reciprocal_sum{
-    kernel::energy::initialize_reciprocal_energy(energy)
-  };
+void EnergyTracker::initialize_reduction_storage() {
+  if (num_particles_ != 0uz && num_particles_ > std::numeric_limits<std::size_t>::max() / num_particles_) {
+    throw std::length_error("Energy initialization pair count is too large");
+  }
+  reciprocal_partial_count_ = kernel::energy::initialization_partial_count(num_g_vectors_);
+  real_partial_count_ = kernel::energy::initialization_partial_count(num_particles_ * num_particles_);
+  const auto maximum_partials{std::numeric_limits<std::size_t>::max() / sizeof(fp_t)};
+  if (num_walkers_ != 0uz && xpu::max(reciprocal_partial_count_, real_partial_count_) > maximum_partials / num_walkers_) {
+    throw std::length_error("Energy initialization storage is too large");
+  }
+  kernel::energy::validate_initialization_size(
+    num_walkers_, xpu::max(reciprocal_partial_count_, real_partial_count_)
+  );
+  reciprocal_partials_ = xpu::buffer<fp_t>{num_walkers_ * reciprocal_partial_count_};
+  real_partials_ = xpu::buffer<fp_t>{num_walkers_ * real_partial_count_};
+}
 
-  *energy.reciprocal_energy = prefactor * reciprocal_sum;
+EnergyTracker::InitializationView EnergyTracker::initialization_view(
+  Particles::View particles,
+  std::size_t walker
+) noexcept {
+  return {
+    this->view(walker),
+    particles,
+    reciprocal_partials_.data() + walker * reciprocal_partial_count_,
+    real_partials_.data() + walker * real_partial_count_
+  };
+}
+
+void EnergyTracker::validate_initialization(const Particles& particles, std::size_t num_threads) const {
+  if (particles.count() != num_particles_ || particles.walker_count() != num_walkers_) {
+    throw std::invalid_argument("Energy initialization requires matching particle and walker counts");
+  }
+  if (num_threads == 0uz || num_threads > scast<std::size_t>(std::numeric_limits<int>::max())) {
+    throw std::invalid_argument("Energy initialization requires a valid CPU thread count");
+  }
+}
+
+void EnergyTracker::initialize(Particles& particles, std::size_t num_threads) {
+  validate_initialization(particles, num_threads);
+
+  std::vector<InitializationView> views{};
+  views.reserve(num_walkers_);
+  for (auto walker{0uz}; walker < num_walkers_; ++walker) {
+    views.emplace_back(initialization_view(particles.view(walker), walker));
+  }
+  if (views.empty()) { return; }
+  xpu::copy_n(initialization_views_.data(), views.data(), views.size());
+  kernel::energy::initialize(
+    initialization_views_.data(), num_walkers_, num_particles_, num_g_vectors_, num_threads
+  );
+}
+
+void EnergyTracker::initialize_reciprocal_energy(std::size_t walker) noexcept {
+  kernel::energy::initialize_reciprocal_energy(initialization_view({}, walker));
 }
 
 void EnergyTracker::initialize_real_energy(
   Particles::View particles,
   std::size_t walker
 ) noexcept {
-  auto energy{this->view(walker)};
-  *energy.real_energy = kernel::energy::initialize_real_energy(energy, particles);
+  kernel::energy::initialize_real_energy(initialization_view(particles, walker));
 }
 
 void EnergyTracker::initialize_structure_factors(
   Particles::View particles,
   std::size_t walker
 ) noexcept {
-  kernel::energy::initialize_structure_factors(this->view(walker), particles);
+  kernel::energy::initialize_structure_factors(initialization_view(particles, walker));
 }
 
 void EnergyTracker::update_structure_factors(
@@ -151,8 +204,23 @@ void EnergyTracker::update_real_energy(
   Particles::View particles,
   std::size_t walker
 ) noexcept {
-  auto energy{this->view(walker)};
-  *energy.real_energy += kernel::energy::update_real_energy(
-    energy, moved, old_pos, particles
-  );
+  const auto energy{this->view(walker)};
+  const auto delta{kernel::energy::update_real_energy(energy, moved, old_pos, particles)};
+  kernel::energy::accept_move(energy, delta, 0.0_fp, false);
+}
+
+void EnergyTracker::accept_move(
+  fp_t real_energy_delta,
+  fp_t reciprocal_energy,
+  std::size_t walker
+) noexcept {
+  kernel::energy::accept_move(this->view(walker), real_energy_delta, reciprocal_energy, true);
+}
+
+fp_t EnergyTracker::potential_energy(std::size_t walker) const noexcept {
+  auto real{0.0_fp};
+  auto reciprocal{0.0_fp};
+  xpu::copy_n(&real, walker_scalars_[idx(WalkerScalar::V_REAL)] + walker, 1uz);
+  xpu::copy_n(&reciprocal, walker_scalars_[idx(WalkerScalar::V_RECIP)] + walker, 1uz);
+  return real + reciprocal + ewald_correction_ + ewald_background_;
 }

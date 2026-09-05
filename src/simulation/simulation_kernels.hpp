@@ -26,6 +26,15 @@ namespace stencil {
 namespace simulation {
 
 DEVICE_ONLY
+inline void seed_generator(
+  xpu::random::generator* generator,
+  std::uint64_t master_seed,
+  std::uint64_t walker_id
+) {
+  generator->seed(master_seed, walker_id);
+}
+
+DEVICE_ONLY
 inline void initialize_walker_positions(
   const Simulation::View simulation,
   fp_t box_length
@@ -727,7 +736,24 @@ void cudaSeedGenerator(
   std::uint64_t master_seed,
   std::uint64_t walker_id
 ) {
-  generator->seed(master_seed, walker_id);
+  stencil::simulation::seed_generator(generator, master_seed, walker_id);
+}
+
+__global__
+void cudaSeedGenerators(
+  xpu::random::generator* generators,
+  std::size_t walker_count,
+  std::uint64_t master_seed,
+  std::uint64_t first_walker_id
+) {
+  const auto [walker]{xpu::global_index<1>()};
+  if (walker >= walker_count) { return; }
+
+  stencil::simulation::seed_generator(
+    generators + walker,
+    master_seed,
+    first_walker_id + walker
+  );
 }
 
 __global__
@@ -892,7 +918,41 @@ inline void seed_generator(
   );
   xpu::cu_check(cudaGetLastError());
 #else
-  generator->seed(master_seed, walker_id);
+  stencil::simulation::seed_generator(generator, master_seed, walker_id);
+#endif
+}
+
+inline void seed_generators(
+  xpu::random::generator* generators,
+  std::size_t walker_count,
+  std::uint64_t master_seed,
+  std::uint64_t first_walker_id
+) {
+  if (walker_count == 0uz) { return; }
+
+#if defined(XPU_CUDA)
+  constexpr dim3 seedGeneratorsThreads{256u};
+  const dim3 seedGeneratorsBlocks{
+    xpu::block_per_dim(walker_count, seedGeneratorsThreads.x)
+  };
+
+  cudaSeedGenerators<<<
+    seedGeneratorsBlocks, seedGeneratorsThreads
+  >>>(
+    generators,
+    walker_count,
+    master_seed,
+    first_walker_id
+  );
+  xpu::cu_check(cudaGetLastError());
+#else
+  for (auto walker{0uz}; walker < walker_count; ++walker) {
+    stencil::simulation::seed_generator(
+      generators + walker,
+      master_seed,
+      first_walker_id + walker
+    );
+  }
 #endif
 }
 

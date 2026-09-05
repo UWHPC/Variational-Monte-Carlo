@@ -76,3 +76,20 @@ TEST_CASE("Zero-size proposals preserve energy and are always accepted", "[simul
     require_near(frame.local_energy, first_energy);
   }
 }
+
+TEST_CASE("Seeded simulation results are reproducible across CPU thread counts", "[simulation][walkers]") {
+  auto config{make_config(3uz, 6.0_fp, 2uz, 6uz, 0.4_fp, 98765uz, 3uz, 3uz)};
+  config.num_threads = 1uz;
+  Simulation first{config};
+  const auto expected{first.run()};
+
+  config.num_threads = 2uz;
+  Simulation repeated{config};
+  const auto actual{repeated.run()};
+  require_near(actual.mean_energy, expected.mean_energy);
+  require_near(actual.acceptance_rate, expected.acceptance_rate);
+  REQUIRE(actual.standard_error.has_value() == expected.standard_error.has_value());
+  if (expected.standard_error.has_value()) {
+    require_near(*actual.standard_error, *expected.standard_error);
+  }
+}

@@ -35,15 +35,17 @@ Simulation::Simulation(
 , walker_states_{config_.num_walkers}
 , run_result_{1uz}
 {
+  kernel::simulation::seed_generators(
+    walker_rng_.data(),
+    config_.num_walkers,
+    config_.master_seed,
+    walker_id * config_.num_walkers
+  );
+
   std::vector<View> views{};
   views.reserve(config_.num_walkers);
 
   for (auto walker{0uz}; walker < config_.num_walkers; ++walker) {
-    kernel::simulation::seed_generator(
-      walker_rng_.data() + walker,
-      config_.master_seed,
-      walker_id * config_.num_walkers + walker
-    );
     views.emplace_back(this->view(walker));
   }
 
@@ -100,17 +102,9 @@ void Simulation::initialize_positions() {
         "Failed to find non-singular initial configuration"
       );
     }
-
-    energy_tracker_.initialize_structure_factors(
-      walker_particles,
-      walker
-    );
-    energy_tracker_.initialize_reciprocal_energy(walker);
-    energy_tracker_.initialize_real_energy(
-      walker_particles,
-      walker
-    );
   }
+
+  energy_tracker_.initialize(particles_, config_.num_threads);
 }
 
 Simulation::StepResult Simulation::metropolis_step() {

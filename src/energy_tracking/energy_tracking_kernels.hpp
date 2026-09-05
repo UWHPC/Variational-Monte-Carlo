@@ -6,6 +6,12 @@
 #include "../utilities/components.hpp"
 #include "../utilities/macros.hpp"
 
+#if defined(XPU_CUDA)
+  #include <cuda/std/numbers>
+#else
+  #include <numbers>
+#endif
+
 namespace stencil {
 namespace energy {
 
@@ -63,29 +69,6 @@ inline void initialize_reciprocal_energy(
   atomicAdd(reciprocal_sum, contribution);
 #else
   *reciprocal_sum += contribution;
-#endif
-}
-
-CUDA_CALLABLE
-inline void initialize_real_energy(
-  std::size_t other,
-  fp_t L, fp_t half_L, fp_t alpha,
-  const xpu::array<fp_t, idx(Axis::NUM)>& particle_pos,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
-  fp_t* RESTRICT real_sum
-) noexcept {
-  const auto pair_energy{
-    evaluate_pair_energy(
-      other,
-      L, half_L, alpha,
-      particle_pos, pos
-    )
-  };
-
-#if defined(__CUDA_ARCH__)
-  atomicAdd(real_sum, pair_energy);
-#else
-  *real_sum += pair_energy;
 #endif
 }
 
@@ -179,33 +162,6 @@ inline void evaluate_local_energy(
       + energy.ewald_background;
   }
   execution::sync();
-}
-
-CUDA_CALLABLE
-inline void initialize_structure_factors(
-  std::size_t g, std::size_t particle,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> g_vector,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
-  fp_t* RESTRICT sum_real,
-  fp_t* RESTRICT sum_imag
-) noexcept {
-  const auto g_dot_r{
-    g_vector[idx(Axis::X)][g] * pos[idx(Axis::X)][particle] +
-    g_vector[idx(Axis::Y)][g] * pos[idx(Axis::Y)][particle] +
-    g_vector[idx(Axis::Z)][g] * pos[idx(Axis::Z)][particle]
-  };
-
-  auto sin_term{0.0_fp};
-  auto cos_term{0.0_fp};
-  xpu::sincos(g_dot_r, &sin_term, &cos_term);
-
-#if defined(__CUDA_ARCH__)
-  atomicAdd(sum_real, cos_term);
-  atomicAdd(sum_imag, sin_term);
-#else
-  *sum_real += cos_term;
-  *sum_imag += sin_term;
-#endif
 }
 
 CUDA_CALLABLE
@@ -308,6 +264,150 @@ inline void kinetic_energy(
   );
 }
 
+CUDA_CALLABLE
+inline fp_t reciprocal_contribution(std::size_t g, EnergyTracker::View energy) noexcept {
+  return energy.g_weights[g] * (
+    energy.sum_real[g] * energy.sum_real[g] +
+    energy.sum_imag[g] * energy.sum_imag[g]
+  );
+}
+
+CUDA_CALLABLE
+inline void initialize_structure_factor(
+  std::size_t g,
+  EnergyTracker::View energy,
+  Particles::View particles
+) noexcept {
+  const auto g_x{energy.g_vector[idx(Axis::X)][g]};
+  const auto g_y{energy.g_vector[idx(Axis::Y)][g]};
+  const auto g_z{energy.g_vector[idx(Axis::Z)][g]};
+  auto real_sum{0.0_fp};
+  auto imag_sum{0.0_fp};
+
+  for (auto particle{0uz}; particle < particles.count; ++particle) {
+    const auto phase{
+      g_x * particles.pos[idx(Axis::X)][particle] +
+      g_y * particles.pos[idx(Axis::Y)][particle] +
+      g_z * particles.pos[idx(Axis::Z)][particle]
+    };
+    auto sine{0.0_fp};
+    auto cosine{0.0_fp};
+    xpu::sincos(phase, &sine, &cosine);
+    real_sum += cosine;
+    imag_sum += sine;
+  }
+
+  energy.sum_real[g] = real_sum;
+  energy.sum_imag[g] = imag_sum;
+}
+
+CUDA_CALLABLE
+inline void store_partial_sum(fp_t contribution, fp_t* scratch, fp_t* result) noexcept {
+  const auto thread{execution::thread()};
+  scratch[thread] = contribution;
+  execution::sync();
+
+  for (auto offset{execution::stride() / 2uz}; offset > 0uz; offset /= 2uz) {
+    if (thread < offset) {
+      scratch[thread] += scratch[thread + offset];
+    }
+    execution::sync();
+  }
+
+  if (thread == 0uz) {
+    *result = scratch[0uz];
+  }
+  execution::sync();
+}
+
+CUDA_CALLABLE
+inline void initialize_reciprocal_partial(
+  EnergyTracker::InitializationView state,
+  std::size_t begin,
+  std::size_t end,
+  bool build_structure,
+  fp_t* scratch,
+  fp_t* partial_sum
+) noexcept {
+  auto contribution{0.0_fp};
+  for (auto g{begin + execution::thread()}; g < end; g += execution::stride()) {
+    if (build_structure) {
+      initialize_structure_factor(g, state.energy, state.particles);
+    }
+    contribution += reciprocal_contribution(g, state.energy);
+  }
+  store_partial_sum(contribution, scratch, partial_sum);
+}
+
+CUDA_CALLABLE
+inline void initialize_real_partial(
+  EnergyTracker::InitializationView state,
+  std::size_t begin,
+  std::size_t end,
+  fp_t* scratch,
+  fp_t* partial_sum
+) noexcept {
+  const auto energy{state.energy};
+  const auto particles{state.particles};
+  auto contribution{0.0_fp};
+
+  for (auto element{begin + execution::thread()}; element < end; element += execution::stride()) {
+    const auto first{element / particles.count};
+    const auto second{element - first * particles.count};
+    if (first >= second) { continue; }
+
+    const xpu::array<fp_t, idx(Axis::NUM)> particle_pos{
+      particles.pos[idx(Axis::X)][first],
+      particles.pos[idx(Axis::Y)][first],
+      particles.pos[idx(Axis::Z)][first]
+    };
+    contribution += evaluate_pair_energy(
+      second,
+      energy.box_length, 0.5_fp * energy.box_length, energy.ewald_alpha,
+      particle_pos, particles.pos
+    );
+  }
+  store_partial_sum(contribution, scratch, partial_sum);
+}
+
+CUDA_CALLABLE
+inline void finalize_initial_energy(
+  EnergyTracker::InitializationView state,
+  std::size_t reciprocal_partial_count,
+  std::size_t real_partial_count,
+  fp_t* scratch
+) noexcept {
+  if (reciprocal_partial_count > 0uz) {
+    auto sum{0.0_fp};
+    for (auto partial{execution::thread()}; partial < reciprocal_partial_count; partial += execution::stride()) {
+      sum += state.reciprocal_partials[partial];
+    }
+    const auto length{state.energy.box_length};
+    const auto prefactor{1.0_fp / (2.0_fp * xstd::numbers::pi_v<fp_t> * length * length * length)};
+    store_partial_sum(prefactor * sum, scratch, state.energy.reciprocal_energy);
+  }
+  if (real_partial_count > 0uz) {
+    auto sum{0.0_fp};
+    for (auto partial{execution::thread()}; partial < real_partial_count; partial += execution::stride()) {
+      sum += state.real_partials[partial];
+    }
+    store_partial_sum(sum, scratch, state.energy.real_energy);
+  }
+}
+
+CUDA_CALLABLE
+inline void accept_move(
+  EnergyTracker::View energy,
+  fp_t real_delta,
+  fp_t reciprocal,
+  bool update_reciprocal
+) noexcept {
+  *energy.real_energy += real_delta;
+  if (update_reciprocal) {
+    *energy.reciprocal_energy = reciprocal;
+  }
+}
+
 } // namespace stencil::energy
 } // namespace stencil
 
@@ -317,48 +417,6 @@ namespace energy {
 namespace {
 
 #if defined(XPU_CUDA)
-__global__
-void cudaInitializeReciprocalEnergy(
-  std::size_t num_g_vectors,
-  const fp_t* RESTRICT g_weights,
-  const fp_t* RESTRICT sum_real,
-  const fp_t* RESTRICT sum_imag,
-  fp_t* RESTRICT reciprocal_sum
-) {
-  const auto [i]{xpu::global_index<1>()};
-  if (i >= num_g_vectors) { return; }
-
-  stencil::energy::initialize_reciprocal_energy(
-    i,
-    g_weights, sum_real, sum_imag,
-    reciprocal_sum
-  );
-}
-
-__global__
-void cudaInitializeRealEnergy(
-  fp_t L, fp_t half_L, fp_t alpha,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
-  fp_t* RESTRICT real_sum
-) {
-  const auto [i, j]{xpu::global_index<2>()};
-  if (i >= pos.count() || j >= pos.count()) { return; }
-  if (i >= j) { return; }
-
-  xpu::array<fp_t, idx(Axis::NUM)> particle_pos{
-    pos[idx(Axis::X)][i],
-    pos[idx(Axis::Y)][i],
-    pos[idx(Axis::Z)][i]
-  };
-
-  stencil::energy::initialize_real_energy(
-    j,
-    L, half_L, alpha,
-    particle_pos, pos,
-    real_sum
-  );
-}
-
 __global__
 void cudaUpdateRealEnergy(
   std::size_t moved,
@@ -400,23 +458,6 @@ void cudaKineticEnergy(
 }
 
 __global__
-void cudaInitializeStructureFactors(
-  xpu::soa_view<fp_t, idx(Axis::NUM)> g_vector,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
-  fp_t* RESTRICT sum_real,
-  fp_t* RESTRICT sum_imag
-) {
-  const auto [i, j]{xpu::global_index<2>()};
-  if (i >= g_vector.count() || j >= pos.count()) { return; }
-
-  stencil::energy::initialize_structure_factors(
-    i, j,
-    g_vector, pos,
-    &sum_real[i], &sum_imag[i]
-  );
-}
-
-__global__
 void cudaUpdateStructureFactors(
   xpu::array<fp_t, idx(Axis::NUM)> old_pos,
   xpu::array<fp_t, idx(Axis::NUM)> new_pos,
@@ -437,110 +478,6 @@ void cudaUpdateStructureFactors(
 #endif
 
 } // namespace
-
-inline fp_t initialize_reciprocal_energy(
-  std::size_t num_g_vectors,
-  const fp_t* RESTRICT g_weights,
-  const fp_t* RESTRICT sum_real,
-  const fp_t* RESTRICT sum_imag,
-  fp_t* RESTRICT reciprocal_sum_scratch
-) noexcept {
-#if defined(XPU_CUDA)
-  xpu::zero_n(reciprocal_sum_scratch, 1uz);
-
-  dim3 initializeReciprocalEnergyThreads{256u};
-  dim3 initializeReciprocalEnergyBlocks{
-    xpu::block_per_dim(
-      num_g_vectors, initializeReciprocalEnergyThreads.x
-    )
-  };
-
-  cudaInitializeReciprocalEnergy<<<
-    initializeReciprocalEnergyBlocks, initializeReciprocalEnergyThreads
-  >>>(
-    num_g_vectors,
-    g_weights, sum_real, sum_imag,
-    reciprocal_sum_scratch
-  );
-  xpu::cu_check(cudaGetLastError());
-
-  auto reciprocal_sum{0.0_fp};
-  xpu::copy_n(&reciprocal_sum, reciprocal_sum_scratch, 1uz);
-  return reciprocal_sum;
-#else
-  scast<void>(reciprocal_sum_scratch);
-
-  auto reciprocal_sum{0.0_fp};
-
-  #pragma omp simd reduction(+ : reciprocal_sum)
-  for (auto i = 0uz; i < num_g_vectors; ++i) {
-    stencil::energy::initialize_reciprocal_energy(
-      i,
-      g_weights, sum_real, sum_imag,
-      &reciprocal_sum
-    );
-  }
-
-  return reciprocal_sum;
-#endif
-}
-
-inline fp_t initialize_real_energy(
-  fp_t L, fp_t half_L, fp_t alpha,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
-  fp_t* RESTRICT real_sum_scratch
-) noexcept {
-#if defined(XPU_CUDA)
-  xpu::zero_n(real_sum_scratch, 1uz);
-
-  dim3 initializeRealEnergyThreads{16u, 16u};
-  dim3 initializeRealEnergyBlocks{
-    xpu::block_per_dim(pos.count(), initializeRealEnergyThreads.x),
-    xpu::block_per_dim(pos.count(), initializeRealEnergyThreads.y)
-  };
-
-  cudaInitializeRealEnergy<<<
-    initializeRealEnergyBlocks, initializeRealEnergyThreads
-  >>>(
-    L, half_L, alpha,
-    pos,
-    real_sum_scratch
-  );
-  xpu::cu_check(cudaGetLastError());
-
-  auto real_sum{0.0_fp};
-  xpu::copy_n(&real_sum, real_sum_scratch, 1uz);
-  return real_sum;
-#else
-  scast<void>(real_sum_scratch);
-
-  auto real_sum{0.0_fp};
-
-  for (auto i = 0uz; i < pos.count(); ++i) {
-    xpu::array<fp_t, idx(Axis::NUM)> particle_pos{
-      pos[idx(Axis::X)][i],
-      pos[idx(Axis::Y)][i],
-      pos[idx(Axis::Z)][i]
-    };
-
-    auto local_sum{0.0_fp};
-
-    #pragma omp simd reduction(+ : local_sum)
-    for (auto j = i + 1uz; j < pos.count(); ++j) {
-      stencil::energy::initialize_real_energy(
-        j,
-        L, half_L, alpha,
-        particle_pos, pos,
-        &local_sum
-      );
-    }
-
-    real_sum += local_sum;
-  }
-
-  return real_sum;
-#endif
-}
 
 inline fp_t update_real_energy(
   std::size_t moved,
@@ -636,50 +573,6 @@ inline fp_t kinetic_energy(
 #endif
 }
 
-inline void initialize_structure_factors(
-  xpu::soa_view<fp_t, idx(Axis::NUM)> g_vector,
-  xpu::soa_view<fp_t, idx(Axis::NUM)> pos,
-  fp_t* RESTRICT sum_real,
-  fp_t* RESTRICT sum_imag
-) noexcept {
-  xpu::zero_n(sum_real, g_vector.count());
-  xpu::zero_n(sum_imag, g_vector.count());
-
-#if defined(XPU_CUDA)
-  dim3 initializeStructureFactorsThreads{16u, 16u};
-  dim3 initializeStructureFactorsBlocks{
-    xpu::block_per_dim(
-      g_vector.count(), initializeStructureFactorsThreads.x
-    ),
-    xpu::block_per_dim(
-      pos.count(), initializeStructureFactorsThreads.y
-    )
-  };
-
-  cudaInitializeStructureFactors<<<
-    initializeStructureFactorsBlocks, initializeStructureFactorsThreads
-  >>>(
-    g_vector, pos,
-    sum_real, sum_imag
-  );
-  xpu::cu_check(cudaGetLastError());
-#else
-  for (auto i = 0uz; i < g_vector.count(); ++i) {
-    auto& real_sum{sum_real[i]};
-    auto& imag_sum{sum_imag[i]};
-
-    #pragma omp simd reduction(+ : real_sum, imag_sum)
-    for (auto j = 0uz; j < pos.count(); ++j) {
-      stencil::energy::initialize_structure_factors(
-        i, j,
-        g_vector, pos,
-        &real_sum, &imag_sum
-      );
-    }
-  }
-#endif
-}
-
 inline void update_structure_factors(
   xpu::array<fp_t, idx(Axis::NUM)> old_pos,
   xpu::array<fp_t, idx(Axis::NUM)> new_pos,
@@ -716,31 +609,6 @@ inline void update_structure_factors(
 #endif
 }
 
-inline fp_t initialize_reciprocal_energy(
-  EnergyTracker::View energy
-) noexcept {
-  return initialize_reciprocal_energy(
-    energy.num_g_vectors,
-    energy.g_weights,
-    energy.sum_real,
-    energy.sum_imag,
-    energy.reduction_scratch
-  );
-}
-
-inline fp_t initialize_real_energy(
-  EnergyTracker::View energy,
-  Particles::View particles
-) noexcept {
-  return initialize_real_energy(
-    energy.box_length,
-    0.5_fp * energy.box_length,
-    energy.ewald_alpha,
-    particles.pos,
-    energy.reduction_scratch
-  );
-}
-
 inline fp_t update_real_energy(
   EnergyTracker::View energy,
   std::size_t moved,
@@ -768,18 +636,6 @@ inline fp_t kinetic_energy(
   );
 }
 
-inline void initialize_structure_factors(
-  EnergyTracker::View energy,
-  Particles::View particles
-) noexcept {
-  initialize_structure_factors(
-    energy.g_vector,
-    particles.pos,
-    energy.sum_real,
-    energy.sum_imag
-  );
-}
-
 inline void update_structure_factors(
   EnergyTracker::View energy,
   xpu::array<fp_t, idx(Axis::NUM)> old_pos,
@@ -792,6 +648,194 @@ inline void update_structure_factors(
     energy.sum_real,
     energy.sum_imag
   );
+}
+
+namespace {
+
+constexpr auto initialization_threads{128uz};
+constexpr auto initialization_elements{512uz};
+
+enum class InitializationMode { ALL, STRUCTURE, RECIPROCAL, REAL };
+
+#if defined(XPU_CUDA)
+template <typename States>
+__global__
+void cudaInitializeReciprocalPartials(States states, bool build_structure) {
+  const auto partial{scast<std::size_t>(blockIdx.x)};
+  const auto walker{scast<std::size_t>(blockIdx.y)};
+  const auto state{states[walker]};
+  const auto begin{partial * initialization_elements};
+  const auto end{xpu::min(begin + initialization_elements, state.energy.num_g_vectors)};
+  __shared__ fp_t scratch[initialization_threads];
+
+  stencil::energy::initialize_reciprocal_partial(
+    state, begin, end, build_structure, scratch, state.reciprocal_partials + partial
+  );
+}
+
+template <typename States>
+__global__
+void cudaInitializeRealPartials(States states) {
+  const auto partial{scast<std::size_t>(blockIdx.x)};
+  const auto walker{scast<std::size_t>(blockIdx.y)};
+  const auto state{states[walker]};
+  const auto begin{partial * initialization_elements};
+  const auto end{xpu::min(begin + initialization_elements, state.particles.count * state.particles.count)};
+  __shared__ fp_t scratch[initialization_threads];
+
+  stencil::energy::initialize_real_partial(state, begin, end, scratch, state.real_partials + partial);
+}
+
+template <typename States>
+__global__
+void cudaFinalizeInitialEnergy(States states, std::size_t reciprocal_count, std::size_t real_count) {
+  const auto walker{scast<std::size_t>(blockIdx.x)};
+  __shared__ fp_t scratch[initialization_threads];
+  stencil::energy::finalize_initial_energy(states[walker], reciprocal_count, real_count, scratch);
+}
+#endif
+
+} // namespace
+
+inline void validate_initialization_size(std::size_t walker_count, std::size_t partial_count) {
+#if defined(XPU_CUDA)
+  constexpr auto maximum_walker_blocks{65535uz};
+  constexpr auto maximum_partial_blocks{2147483647uz};
+  if (walker_count > maximum_walker_blocks || partial_count > maximum_partial_blocks) {
+    throw std::length_error("Energy initialization exceeds CUDA grid limits");
+  }
+#else
+  scast<void>(walker_count);
+  scast<void>(partial_count);
+#endif
+}
+
+inline std::size_t initialization_partial_count(std::size_t elements) noexcept {
+  return xpu::max(1uz, elements / initialization_elements + scast<std::size_t>(elements % initialization_elements != 0uz));
+}
+
+namespace {
+
+template <InitializationMode mode, typename States>
+inline void initialize(
+  States states,
+  std::size_t walker_count,
+  std::size_t particle_count,
+  std::size_t g_count,
+  std::size_t num_threads
+) noexcept {
+  if (walker_count == 0uz) { return; }
+  constexpr auto build_structure{mode == InitializationMode::ALL || mode == InitializationMode::STRUCTURE};
+  constexpr auto build_reciprocal{mode != InitializationMode::REAL};
+  constexpr auto build_real{mode == InitializationMode::ALL || mode == InitializationMode::REAL};
+  const auto reciprocal_count{build_reciprocal ? initialization_partial_count(g_count) : 0uz};
+  const auto real_count{build_real ? initialization_partial_count(particle_count * particle_count) : 0uz};
+  const auto finalize_reciprocal_count{mode == InitializationMode::STRUCTURE ? 0uz : reciprocal_count};
+
+#if defined(XPU_CUDA)
+  scast<void>(num_threads);
+  if constexpr (build_reciprocal) {
+    constexpr dim3 initializeReciprocalPartialsThreads{scast<unsigned int>(initialization_threads)};
+    const dim3 initializeReciprocalPartialsBlocks{
+      scast<unsigned int>(reciprocal_count), scast<unsigned int>(walker_count)
+    };
+    cudaInitializeReciprocalPartials<<<
+      initializeReciprocalPartialsBlocks, initializeReciprocalPartialsThreads
+    >>>(states, build_structure);
+    xpu::cu_check(cudaGetLastError());
+  }
+  if constexpr (build_real) {
+    constexpr dim3 initializeRealPartialsThreads{scast<unsigned int>(initialization_threads)};
+    const dim3 initializeRealPartialsBlocks{
+      scast<unsigned int>(real_count), scast<unsigned int>(walker_count)
+    };
+    cudaInitializeRealPartials<<<
+      initializeRealPartialsBlocks, initializeRealPartialsThreads
+    >>>(states);
+    xpu::cu_check(cudaGetLastError());
+  }
+  if constexpr (mode != InitializationMode::STRUCTURE) {
+    constexpr dim3 finalizeInitialEnergyThreads{scast<unsigned int>(initialization_threads)};
+    const dim3 finalizeInitialEnergyBlocks{scast<unsigned int>(walker_count)};
+    cudaFinalizeInitialEnergy<<<
+      finalizeInitialEnergyBlocks, finalizeInitialEnergyThreads
+    >>>(states, finalize_reciprocal_count, real_count);
+    xpu::cu_check(cudaGetLastError());
+  }
+#else
+  scast<void>(num_threads);
+  #if defined(_OPENMP)
+    #pragma omp parallel for num_threads(num_threads)
+  #endif
+  for (auto walker = 0uz; walker < walker_count; ++walker) {
+    const auto state{states[walker]};
+    auto scratch{0.0_fp};
+    for (auto partial{0uz}; partial < reciprocal_count; ++partial) {
+      const auto begin{partial * initialization_elements};
+      const auto end{xpu::min(begin + initialization_elements, g_count)};
+      stencil::energy::initialize_reciprocal_partial(
+        state, begin, end, build_structure, &scratch, state.reciprocal_partials + partial
+      );
+    }
+    for (auto partial{0uz}; partial < real_count; ++partial) {
+      const auto begin{partial * initialization_elements};
+      const auto end{xpu::min(begin + initialization_elements, particle_count * particle_count)};
+      stencil::energy::initialize_real_partial(state, begin, end, &scratch, state.real_partials + partial);
+    }
+    stencil::energy::finalize_initial_energy(state, finalize_reciprocal_count, real_count, &scratch);
+  }
+#endif
+}
+
+} // namespace
+
+inline void initialize(
+  const EnergyTracker::InitializationView* states,
+  std::size_t walker_count,
+  std::size_t particle_count,
+  std::size_t g_count,
+  std::size_t num_threads
+) noexcept {
+  initialize<InitializationMode::ALL>(states, walker_count, particle_count, g_count, num_threads);
+}
+
+inline void initialize_reciprocal_energy(EnergyTracker::InitializationView state) noexcept {
+  const xpu::array<EnergyTracker::InitializationView, 1uz> states{state};
+  initialize<InitializationMode::RECIPROCAL>(states, 1uz, state.particles.count, state.energy.num_g_vectors, 1uz);
+}
+
+inline void initialize_real_energy(EnergyTracker::InitializationView state) noexcept {
+  const xpu::array<EnergyTracker::InitializationView, 1uz> states{state};
+  initialize<InitializationMode::REAL>(states, 1uz, state.particles.count, state.energy.num_g_vectors, 1uz);
+}
+
+inline void initialize_structure_factors(EnergyTracker::InitializationView state) noexcept {
+  const xpu::array<EnergyTracker::InitializationView, 1uz> states{state};
+  initialize<InitializationMode::STRUCTURE>(states, 1uz, state.particles.count, state.energy.num_g_vectors, 1uz);
+}
+
+namespace {
+
+#if defined(XPU_CUDA)
+__global__
+void cudaAcceptEnergyMove(EnergyTracker::View energy, fp_t real_delta, fp_t reciprocal, bool update_reciprocal) {
+  stencil::energy::accept_move(energy, real_delta, reciprocal, update_reciprocal);
+}
+#endif
+
+} // namespace
+
+inline void accept_move(EnergyTracker::View energy, fp_t real_delta, fp_t reciprocal, bool update_reciprocal) noexcept {
+#if defined(XPU_CUDA)
+  constexpr dim3 acceptEnergyMoveThreads{1u};
+  constexpr dim3 acceptEnergyMoveBlocks{1u};
+  cudaAcceptEnergyMove<<<
+    acceptEnergyMoveBlocks, acceptEnergyMoveThreads
+  >>>(energy, real_delta, reciprocal, update_reciprocal);
+  xpu::cu_check(cudaGetLastError());
+#else
+  stencil::energy::accept_move(energy, real_delta, reciprocal, update_reciprocal);
+#endif
 }
 
 } // namespace kernel::energy

@@ -18,6 +18,7 @@ private:
 
   std::size_t num_g_vectors_;
   std::size_t num_walkers_;
+  std::size_t num_particles_;
 
   enum class SharedArray : std::size_t {
     G_X,
@@ -58,6 +59,25 @@ public:
     fp_t* reduction_scratch{};
   };
 
+  struct InitializationView {
+    View energy{};
+    Particles::View particles{};
+    fp_t* reciprocal_partials{};
+    fp_t* real_partials{};
+  };
+
+private:
+  xpu::buffer<InitializationView> initialization_views_;
+  xpu::buffer<fp_t> reciprocal_partials_;
+  xpu::buffer<fp_t> real_partials_;
+  std::size_t reciprocal_partial_count_;
+  std::size_t real_partial_count_;
+
+  InitializationView initialization_view(Particles::View particles, std::size_t walker) noexcept;
+  void initialize_reduction_storage();
+  void validate_initialization(const Particles& particles, std::size_t num_threads) const;
+
+public:
   explicit EnergyTracker(
     fp_t box_length,
     std::size_t num_particles,
@@ -77,6 +97,8 @@ public:
   [[nodiscard]] std::size_t walker_count() const noexcept {
     return num_walkers_;
   }
+
+  void initialize(Particles& particles, std::size_t num_threads = 1uz);
 
   void initialize_reciprocal_energy(std::size_t walker = 0uz) noexcept;
   void initialize_real_energy(
@@ -121,8 +143,8 @@ public:
       this->g_weights(),
       this->sum_real(walker),
       this->sum_imag(walker),
-      &this->real_energy(walker),
-      &this->reciprocal_energy_value(walker),
+      walker_scalars_[idx(WalkerScalar::V_REAL)] + walker,
+      walker_scalars_[idx(WalkerScalar::V_RECIP)] + walker,
       this->reduction_scratch(walker)
     };
   }
@@ -131,10 +153,7 @@ public:
     fp_t real_energy_delta,
     fp_t reciprocal_energy,
     std::size_t walker = 0uz
-  ) noexcept {
-    real_energy(walker) += real_energy_delta;
-    reciprocal_energy_value(walker) = reciprocal_energy;
-  }
+  ) noexcept;
 
 private:
   [[nodiscard]]
@@ -168,19 +187,6 @@ private:
     return walker_data_.view<1uz, idx(WalkerArray::S_IMAG)>(walker)[0uz];
   }
 
-  [[nodiscard]] fp_t& real_energy(std::size_t walker) noexcept {
-    return walker_scalars_[idx(WalkerScalar::V_REAL)][walker];
-  }
-  [[nodiscard]] fp_t real_energy(std::size_t walker) const noexcept {
-    return walker_scalars_[idx(WalkerScalar::V_REAL)][walker];
-  }
-  [[nodiscard]] fp_t& reciprocal_energy_value(std::size_t walker) noexcept {
-    return walker_scalars_[idx(WalkerScalar::V_RECIP)][walker];
-  }
-  [[nodiscard]] fp_t reciprocal_energy_value(std::size_t walker) const noexcept {
-    return walker_scalars_[idx(WalkerScalar::V_RECIP)][walker];
-  }
-
   [[nodiscard]] fp_t* reduction_scratch(std::size_t walker) const noexcept {
     return reduction_scratch_.data() + walker;
   }
@@ -189,11 +195,5 @@ private:
     Particles::View particles,
     std::size_t walker
   ) noexcept;
-  inline fp_t potential_energy(std::size_t walker) const noexcept {
-    return
-      real_energy(walker) +
-      reciprocal_energy_value(walker) +
-      ewald_correction_ +
-      ewald_background_;
-  }
+  fp_t potential_energy(std::size_t walker) const noexcept;
 };
